@@ -1,4 +1,4 @@
-package anton.davila.selfpotify.entity;
+package anton.davila.selfpotify.entity.music;
 
 import jakarta.persistence.*;
 import lombok.Data;
