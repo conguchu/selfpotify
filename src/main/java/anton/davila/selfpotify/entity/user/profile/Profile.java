@@ -1,9 +1,7 @@
 package anton.davila.selfpotify.entity.user.profile;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import anton.davila.selfpotify.entity.music.Song;
+import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
@@ -15,5 +13,9 @@ public class Profile {
 
     private String name;
     private String avatarURL;
+
+    @ManyToOne
+    @JoinColumn(name = "favourite_song_id")
+    private Song favouriteSong;
 
 }
