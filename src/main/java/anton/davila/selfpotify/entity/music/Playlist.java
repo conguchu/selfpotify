@@ -13,6 +13,7 @@ import java.util.List;
 public class Playlist {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToMany

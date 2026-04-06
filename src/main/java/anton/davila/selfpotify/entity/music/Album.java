@@ -9,6 +9,7 @@ import java.util.List;
 @Data
 public class Album {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
     // autocalcular
