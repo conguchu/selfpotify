@@ -1,4 +1,4 @@
-package anton.davila.selfpotify.entity.user;
+package anton.davila.selfpotify.entity.user.profile;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

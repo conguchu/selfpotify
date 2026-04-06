@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.entity.user;
 
+import anton.davila.selfpotify.entity.user.profile.Profile;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
