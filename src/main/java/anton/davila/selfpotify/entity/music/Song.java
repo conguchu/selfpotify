@@ -17,6 +17,12 @@ public class Song {
     private int listeners;
 
     // una cancion puede tener varios artistas
+    @ManyToMany
+    @JoinTable(
+        name = "song_artist",
+        joinColumns = @JoinColumn(name = "song_id"),
+        inverseJoinColumns = @JoinColumn(name = "artist_id")
+    )
     private List<Artist> artists;
     // una cancion está en un album. un album tiene varias canciones
     @ManyToOne

@@ -18,6 +18,12 @@ public class Playlist {
     @Id
     private Long id;
 
+    @ManyToMany
+    @JoinTable(
+        name = "playlist_song",
+        joinColumns = @JoinColumn(name = "playlist_id"),
+        inverseJoinColumns = @JoinColumn(name = "song_id")
+    )
     private List<Song> songs;
     private int duration_ms = 0;
     private boolean isPublic = false;

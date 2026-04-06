@@ -1,7 +1,6 @@
 package anton.davila.selfpotify.entity.music;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Data;
 
 import java.util.List;
@@ -17,7 +16,9 @@ public class Artist {
     private String picture_path;
 
     // un artista puede tener varios albumes. un album puede estar hecho por varios artistas
+    @ManyToMany(mappedBy = "artists")
     private List<Album> albums;
-    // un album tiene varias canciones.
+    // un artista puede tener varias canciones. una cancion puede tener varios artistas
+    @ManyToMany(mappedBy = "artists")
     private List<Song> songs;
 }
