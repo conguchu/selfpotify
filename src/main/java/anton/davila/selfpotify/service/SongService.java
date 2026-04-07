@@ -31,14 +31,15 @@ public class SongService {
         return songRepository.findById(id);
     }
     @Transactional
-    public Song update(long id, Song song) {
-        Optional<Song> old = getById(id);
-        if (old.isEmpty()) {
+    public Song update(long id, Song songData) {
+        Optional<Song> s = getById(id);
+        if (s.isEmpty()) {
             throw new RuntimeException("No se ha encontrado la cancion con ID " + id);
         }
-        Song s_old = old.get();
-        return null;
-        // todo: song.copy(old)
+        Song song = s.get();
+        song.copy(songData);
+        return song;
+
         // (metodo para copiar los atributos del objeto sin tener que hacerlo a mano siempre)
     }
     public Song delete(long id) {
