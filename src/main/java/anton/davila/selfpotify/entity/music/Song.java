@@ -38,5 +38,14 @@ public class Song {
     private Album album;
     private String picture_url;
 
+    public void copy(Song s) {
+        this.setTitle(s.getTitle());
+        this.setDuration_ms(s.getDuration_ms());
+        this.setGenre(s.getGenre());
+        this.setListeners(s.getListeners());
+        this.setBpm(s.getBpm());
+        this.setSongPath(s.getSongPath());
+    }
+
     // todo: calcular duration en mm:ss
 }
