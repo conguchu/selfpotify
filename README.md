@@ -203,6 +203,23 @@ graph LR
     UC3 -.->|include| UC3b
 ```
 
+### UC5 — Escuchar una canción
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC5("Escuchar canción")
+        UC5a("Hacer streaming de audio")
+        UC5b("Incrementar contador de reproducciones")
+    end
+
+    User --> UC5
+    UC5 -.->|include| UC5a
+    UC5 -.->|include| UC5b
+```
+
 ### UC4 — Login
 
 ```mermaid
