@@ -67,4 +67,12 @@ public class SongService {
         return song;
     }
 
+
+    public List<Song> saveMany(List<Song> songs) {
+        log.warn("Guardando una lista de " + songs.size() + " canciones...");
+        songRepository.saveAll(songs);
+        log.info("Guardadas " + songs.size() + " canciones correctamente.");
+        return songs;
+    }
+
 }
