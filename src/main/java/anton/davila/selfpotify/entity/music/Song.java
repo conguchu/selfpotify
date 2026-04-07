@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.nio.file.Path;
 import java.util.List;
 
 @Entity
@@ -21,7 +22,7 @@ public class Song {
     private String genre;
     private int listeners;
     private int bpm;
-
+    private String songPath;
 
     // una cancion puede tener varios artistas
     @ManyToMany
