@@ -8,10 +8,13 @@ import anton.davila.selfpotify.repository.SongRepository;
 import anton.davila.selfpotify.service.SongService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -125,4 +128,51 @@ public class SongServiceTest {
         assertEquals("No se ha encontrado la cancion con ID 1", exception.getMessage());
         verify(songRepository, never()).delete(any(Song.class)); // Verificamos que NUNCA se llama al delete
     }
+
+
+    @Test
+    void testLoadFolderWithRealFiles() {
+        // 1. CONFIGURACIÓN DE RUTA: Escribe aquí la ruta real de tu sistema
+        // IMPORTANTE: Recuerda usar barras dobles (\\) en Windows o barra simple (/)
+        String miRutaReal = "/Volumes/CONGUCHU/agosto 25";
+
+        // Simulamos el repositorio para que devuelva lo mismo que se intenta guardar
+        when(songRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // 2. EJECUCIÓN
+        List<Song> result = songService.loadFolder(miRutaReal);
+
+        // 3. VERIFICACIÓN
+        assertNotNull(result, "La lista resultante no debería ser nula");
+        // No comprobamos un tamaño exacto porque dependerá de cuántos archivos tengas en la carpeta real
+
+        // 4. LISTADO BONITO EN CONSOLA
+        System.out.println("\n=========================================================================================");
+        System.out.println("💿 RESULTADO DEL ESCANEO: Se encontraron " + result.size() + " canciones");
+        System.out.println("=========================================================================================");
+
+        for (int i = 0; i < result.size(); i++) {
+            Song s = result.get(i);
+
+            // Manejo de nulos por si alguna canción no tiene ese metadato
+            String titulo = (s.getTitle() != null) ? s.getTitle() : "Desconocido";
+            String genero = (s.getGenre() != null && !s.getGenre().isBlank()) ? s.getGenre() : "N/A";
+
+            // Formateo en columnas
+            System.out.printf("%03d. 🎵 %-35s | ⏱️ %-8s ms | 🎸 %-15s | 🥁 %-4s BPM%n",
+                    (i + 1),
+                    titulo,
+                    s.getDuration_ms(),
+                    genero,
+                    s.getBpm());
+
+            System.out.printf("     📁 %s%n", s.getSongPath());
+            System.out.println("-----------------------------------------------------------------------------------------");
+        }
+        System.out.println("\n");
+
+        // Verificamos que se llamó al guardado en base de datos al menos una vez con la lista entera
+        verify(songRepository, times(1)).saveAll(anyList());
+    }
+
 }
