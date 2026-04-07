@@ -20,16 +20,15 @@ import java.util.Optional;
 public class SongServiceTest {
 
     @Autowired
-    private SongService songService; // El servicio que estamos probando
+    private SongService songService;
 
     @MockitoBean
-    private SongRepository songRepository; // Simulamos el repositorio
+    private SongRepository songRepository;
 
     private Song songOriginal;
 
     @BeforeEach
     void setUp() {
-        // Inicializamos un objeto de prueba antes de cada test
         songOriginal = new Song();
         songOriginal.setId(1L);
         songOriginal.setTitle("Bohemian Rhapsody");
@@ -55,6 +54,7 @@ public class SongServiceTest {
 
         assertFalse(songs.isEmpty());
         assertEquals(1, songs.size());
+        verify(songRepository, times(1)).findAll();
     }
 
     @Test
@@ -65,33 +65,39 @@ public class SongServiceTest {
 
         assertTrue(result.isPresent());
         assertEquals(1L, result.get().getId());
+        verify(songRepository, times(1)).findById(1L);
     }
 
     @Test
     void testUpdate_Success() {
-        // Datos nuevos para actualizar
         Song newData = new Song();
         newData.setTitle("Updated Title");
         newData.setGenre("Pop");
 
         when(songRepository.findById(1L)).thenReturn(Optional.of(songOriginal));
 
-        // Ejecutamos el update
         Song updatedSong = songService.update(1L, newData);
 
-        // Verificamos que el objeto original cambió sus valores
         assertEquals("Updated Title", updatedSong.getTitle());
         assertEquals("Pop", updatedSong.getGenre());
-        // Como usas @Transactional y Dirty Checking, no hace falta verificar songRepository.save()
+        verify(songRepository, times(1)).findById(1L);
     }
 
     @Test
     void testUpdate_NotFound() {
+        // Simulamos que NO encuentra la canción
         when(songRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> {
+        // Verificamos que se lanza la excepción y guardamos la referencia
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             songService.update(1L, new Song());
         });
+
+        // Verificamos que el mensaje de la excepción es exactamente el que esperamos
+        assertEquals("No se ha encontrado la cancion con ID 1", exception.getMessage());
+        verify(songRepository, times(1)).findById(1L);
+
+        // NOTA: Aquí es donde verás el ERROR en consola. Es el comportamiento correcto.
     }
 
     @Test
@@ -101,15 +107,22 @@ public class SongServiceTest {
         Song deleted = songService.delete(1L);
 
         assertNotNull(deleted);
+        assertEquals(1L, deleted.getId());
         verify(songRepository, times(1)).delete(songOriginal);
     }
 
     @Test
     void testDelete_NotFound() {
+        // Simulamos que NO encuentra la canción
         when(songRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> {
+        // Verificamos que se lanza la excepción
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             songService.delete(1L);
         });
+
+        // Verificamos el mensaje
+        assertEquals("No se ha encontrado la cancion con ID 1", exception.getMessage());
+        verify(songRepository, never()).delete(any(Song.class)); // Verificamos que NUNCA se llama al delete
     }
 }
