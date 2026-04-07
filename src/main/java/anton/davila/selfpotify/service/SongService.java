@@ -3,6 +3,7 @@ package anton.davila.selfpotify.service;
 import anton.davila.selfpotify.entity.music.Album;
 import anton.davila.selfpotify.entity.music.Song;
 import anton.davila.selfpotify.repository.SongRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.stereotype.Service;
@@ -29,17 +30,26 @@ public class SongService {
     public Optional<Song> getById(long id) {
         return songRepository.findById(id);
     }
+    @Transactional
     public Song update(long id, Song song) {
         Optional<Song> old = getById(id);
         if (old.isEmpty()) {
             throw new RuntimeException("No se ha encontrado la cancion con ID " + id);
         }
+        Song s_old = old.get();
         return null;
         // todo: song.copy(old)
         // (metodo para copiar los atributos del objeto sin tener que hacerlo a mano siempre)
     }
+    public Song delete(long id) {
+        Optional<Song> s = getById(id);
+        if (s.isEmpty()) {
+            throw new RuntimeException("No se ha encontrado la cancion con ID " + id);
+        }
+        Song song = s.get();
+        songRepository.delete(song);
 
-
-
+        return song;
+    }
 
 }
