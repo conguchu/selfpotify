@@ -20,6 +20,8 @@ public class Song {
     private int duration_ms;
     private String genre;
     private int listeners;
+    private int bpm;
+
 
     // una cancion puede tener varios artistas
     @ManyToMany
