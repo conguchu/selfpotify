@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -79,7 +80,7 @@ public class SongService {
         return song;
     }
 
-
+    @Transactional
     public List<Song> saveMany(List<Song> songs) {
         log.warn("Guardando una lista de " + songs.size() + " canciones...");
         songRepository.saveAll(songs);
@@ -87,41 +88,43 @@ public class SongService {
         return songs;
     }
 
-    @Transactional
     public List<Song> loadFolder(String folderPath) {
         log.info("Iniciando escaneo de carpeta: {}", folderPath);
-        List<Song> songsToSave = new ArrayList<>();
 
-        // recorre la carpeta filtrando archivos mp3 y wav
-        try
-                (Stream<Path> paths = Files.walk(Paths.get(folderPath)))
-        {
-            List<Path> audioFiles = paths
+        List<Song> songsToSave;
+
+        try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
+            songsToSave = paths
                     .filter(Files::isRegularFile)
-                    .filter(path -> {
-                        String fileName = path.toString().toLowerCase();
-                        return fileName.endsWith(".mp3") || fileName.endsWith(".wav");
-                    })
+                    .filter(this::isAudioFile)
+                    .map(this::safeExtractMetadata)
+                    .filter(Objects::nonNull)
                     .toList();
-
-            log.info("Se encontraron {} archivos de audio", audioFiles.size());
-
-            // crea la lista de canciones extrayendo los metadatos
-            for (Path filePath : audioFiles) {
-                Song song = extractMetadata(filePath.toFile());
-                songsToSave.add(song);
-            }
 
         } catch (IOException e) {
             log.error("Error al leer el directorio: {}", folderPath, e);
-            throw new RuntimeException("No se pudo acceder a la ruta especificada", e);
+            throw new RuntimeException("No se pudo acceder a la ruta", e);
         }
 
-        // persiste la lista de canciones y la devuelve
-        log.info("Persistiendo {} canciones en la base de datos...", songsToSave.size());
+        log.info("Escaneo finalizado. Se prepararon {} canciones.", songsToSave.size());
+
+        // Llamamos al métºdo transaccional para la persistencia final
         return saveMany(songsToSave);
     }
 
+    private boolean isAudioFile(Path path) {
+        String fileName = path.toString().toLowerCase();
+        return fileName.endsWith(".mp3") || fileName.endsWith(".wav");
+    }
+
+    private Song safeExtractMetadata(Path path) {
+        try {
+            return extractMetadata(path.toFile());
+        } catch (Exception e) {
+            log.warn("No se pudieron extraer metadatos de {}: {}", path, e.getMessage());
+            return null;
+        }
+    }
     /**
      * Métºdo auxiliar para extraer los metadatos de un archivo físico y mapearlo a la entidad Song.
      */
