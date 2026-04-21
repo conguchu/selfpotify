@@ -20,9 +20,11 @@ public class User {
     private Profile profile;
 
     private String username;
+    private String password;
 
     public void copy(User u) {
         this.setUsername(u.getUsername());
+        this.setPassword(u.getPassword());
         this.setProfile(u.getProfile());
     }
 }
