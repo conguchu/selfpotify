@@ -236,3 +236,7 @@ graph LR
     UC4 -.->|include| UC4a
     UC4a -.->|include| UC4b
 ```
+
+## Diagrama de arquitectura
+
+![Diagrama sin título.drawio.png](img/Diagrama%20sin%20t%C3%ADtulo.drawio.png)
