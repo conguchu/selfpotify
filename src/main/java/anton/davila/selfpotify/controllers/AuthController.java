@@ -1,7 +1,7 @@
 package anton.davila.selfpotify.controllers;
 
-import anton.davila.selfpotify.controllers.payload.JwtResponse;
-import anton.davila.selfpotify.controllers.payload.LoginRequest;
+import anton.davila.selfpotify.controllers.dto.JwtResponse;
+import anton.davila.selfpotify.controllers.dto.LoginRequest;
 import anton.davila.selfpotify.security.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;

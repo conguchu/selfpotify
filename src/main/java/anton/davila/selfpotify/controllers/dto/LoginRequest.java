@@ -1,4 +1,4 @@
-package anton.davila.selfpotify.controllers.payload;
+package anton.davila.selfpotify.controllers.dto;
 
 import lombok.Data;
 
