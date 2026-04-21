@@ -39,20 +39,12 @@ classDiagram
         - int duration_ms
         - String genre
         - int listeners
+        - int bpm
+        - String songPath
+        - List~Artist~ artists
+        - Album album
         - String picture_url
-        + getId() Long
-        + getTitle() String
-        + getDuration_ms() int
-        + getGenre() String
-        + getListeners() int
-        + getPicture_url() String
-        + setTitle(String)
-        + setDuration_ms(int)
-        + setGenre(String)
-        + setListeners(int)
-        + setPicture_url(String)
-        + setAlbum(Album)
-        + setArtists(List~Artist~)
+        + copy(Song)
     }
 
     class Album {
@@ -60,15 +52,9 @@ classDiagram
         - String name
         - int duration_ms
         - String picture_url
-        + getId() Long
-        + getName() String
-        + getDuration_ms() int
-        + getPicture_url() String
-        + setName(String)
-        + setDuration_ms(int)
-        + setPicture_url(String)
-        + setArtists(List~Artist~)
-        + setSongs(List~Song~)
+        - List~Artist~ artists
+        - List~Song~ songs
+        + copy(Album)
     }
 
     class Artist {
@@ -76,39 +62,26 @@ classDiagram
         - String name
         - int listeners
         - String picture_path
-        + getId() Long
-        + getName() String
-        + getListeners() int
-        + getPicture_path() String
-        + setName(String)
-        + setListeners(int)
-        + setPicture_path(String)
-        + setAlbums(List~Album~)
-        + setSongs(List~Song~)
+        - List~Album~ albums
+        - List~Song~ songs
+        + copy(Artist)
     }
 
     class Playlist {
         - Long id
+        - List~Song~ songs
         - int duration_ms
         - boolean isPublic
-        + Playlist()
-        + Playlist(List~Song~)
-        + getId() Long
-        + getDuration_ms() int
-        + isPublic() boolean
-        + setSongs(List~Song~)
-        + setCreator(User)
-        + setPublic(boolean)
+        - User creator
+        + copy(Playlist)
     }
 
     class User {
         - Long id
+        - Profile profile
         - String username
-        + getId() Long
-        + getUsername() String
-        + getProfile() Profile
-        + setUsername(String)
-        + setProfile(Profile)
+        - String password
+        + copy(User)
     }
 
     class Admin {
@@ -118,13 +91,8 @@ classDiagram
         - Long id
         - String name
         - String avatarURL
-        + getId() Long
-        + getName() String
-        + getAvatarURL() String
-        + getFavouriteSong() Song
-        + setName(String)
-        + setAvatarURL(String)
-        + setFavouriteSong(Song)
+        - Song favouriteSong
+        + copy(Profile)
     }
 
     %% Herencia
@@ -203,23 +171,6 @@ graph LR
     UC3 -.->|include| UC3b
 ```
 
-### UC5 — Escuchar una canción
-
-```mermaid
-graph LR
-    User["👤 Usuario"]
-
-    subgraph Sistema Self-Potify
-        UC5("Escuchar canción")
-        UC5a("Hacer streaming de audio")
-        UC5b("Incrementar contador de reproducciones")
-    end
-
-    User --> UC5
-    UC5 -.->|include| UC5a
-    UC5 -.->|include| UC5b
-```
-
 ### UC4 — Login
 
 ```mermaid
@@ -235,6 +186,23 @@ graph LR
     User --> UC4
     UC4 -.->|include| UC4a
     UC4a -.->|include| UC4b
+```
+
+### UC5 — Escuchar una canción
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC5("Escuchar canción")
+        UC5a("Hacer streaming de audio")
+        UC5b("Incrementar contador de reproducciones")
+    end
+
+    User --> UC5
+    UC5 -.->|include| UC5a
+    UC5 -.->|include| UC5b
 ```
 
 ## Diagrama de arquitectura
