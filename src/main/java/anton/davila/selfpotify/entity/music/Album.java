@@ -28,4 +28,12 @@ public class Album {
     @OneToMany(mappedBy = "album")
     private List<Song> songs;
 
+    public void copy(Album a) {
+        this.setName(a.getName());
+        this.setDuration_ms(a.getDuration_ms());
+        this.setPicture_url(a.getPicture_url());
+        this.setArtists(a.getArtists());
+        this.setSongs(a.getSongs());
+    }
+
 }

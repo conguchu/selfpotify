@@ -18,4 +18,10 @@ public class Profile {
     @JoinColumn(name = "favourite_song_id")
     private Song favouriteSong;
 
+    public void copy(Profile p) {
+        this.setName(p.getName());
+        this.setAvatarURL(p.getAvatarURL());
+        this.setFavouriteSong(p.getFavouriteSong());
+    }
+
 }

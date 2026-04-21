@@ -38,4 +38,11 @@ public class Playlist {
         this.songs = songs;
     }
 
+    public void copy(Playlist p) {
+        this.setSongs(p.getSongs());
+        this.setDuration_ms(p.getDuration_ms());
+        this.setPublic(p.isPublic());
+        this.setCreator(p.getCreator());
+    }
+
 }
