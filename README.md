@@ -16,16 +16,27 @@ Este software permitiría a los usuarios poder disfrutar de escuchar música lib
 
 ## Tecnologías a emplear
 
-| Tecnología | Uso |
-|---|---|
+| Tecnología             | Uso |
+|------------------------|---|
 | **Spring Boot (REST)** | API, lógica back-end y servidor web |
-| **FFMPEG** | Procesado de audio en fragmentos para streaming |
-| **Thymeleaf + Tailwind + hls.js** | Front-end del cliente web y recepción de streaming |
-| **MongoDB** | Base de datos principal por su flexibilidad con datos dinámicos (playlists, likes…) |
-| **Jetpack Compose** | Aplicación móvil y televisión (Android) |
-| **Media3** | Recepción de streaming en la app móvil |
+| **FFMPEG**             | Procesado de audio en fragmentos para streaming |
+| **React + Next JS**    | Front-end del cliente web y recepción de streaming |
+| **MongoDB**            | Base de datos principal por su flexibilidad con datos dinámicos (playlists, likes…) |
+| **Jetpack Compose**    | Aplicación móvil y televisión (Android) |
+| **Media3**             | Recepción de streaming en la app móvil |
 
 ---
+
+## Decisiones de diseño
+
+He decidido crear esta aplicación basada en **microservicios** en vez de usar una arquitectura monolítica. Esto porque pienso que 
+así puedo desarrollar una aplicación más escalable, cuyo core sea el servidor API de springboot, del que consumen diferentes clientes
+como el web o mobile, dándome la posibilidad a futuro de crear más para otras plataformas.
+
+**Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre,
+por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la 
+estructura de red para permitir el acceso desde internet. Por esto, al arrancar el servidor por primera vez, tendrá un pequeño wizard web que permite cambiar estos parámetros (IP de acceso, directorios de música...).
+
 
 ## Diagrama de clases
 
