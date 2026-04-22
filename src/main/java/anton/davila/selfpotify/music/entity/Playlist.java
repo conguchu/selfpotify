@@ -16,6 +16,8 @@ public class Playlist {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String name;
+
     @ManyToMany
     @JoinTable(
         name = "playlist_song",
