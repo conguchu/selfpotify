@@ -38,6 +38,14 @@ por lo que será su responsabilidad montar y mantener el servidor, así como la 
 estructura de red para permitir el acceso desde internet. Por esto, al arrancar el servidor por primera vez, tendrá un pequeño wizard web que permite cambiar estos parámetros (IP de acceso, directorios de música...).
 
 
+## Gestión de recursos
+
+Al ser un aplicativo pensado para un uso personal, normalmente con pocos usuarios, el servidor no requiere de grandes prestaciones hardware. 
+Sí serán necesarios unos mínimos para poder emitir correctamente el streaming, como una buena conexión de red (CAT5 mínimo) y 2 GB de RAM. 
+
+La única limitación de recursos en el uso de la aplicación, al estar tratando con archivos multimedia, es el espacio en disco del server para almacenar la música. No hay un mínimo, pero se recomienda tener abundante (200 GB) para poder llegar a disponer 
+de un catálogo considerable de música, sobre todo si el usuario se preocupa por la calidad de la misma. 
+
 ## Diagrama de clases
 
 ```mermaid
