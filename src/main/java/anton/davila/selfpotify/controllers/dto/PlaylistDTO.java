@@ -13,6 +13,7 @@ public class PlaylistDTO {
     private Long id;
     private String name;
     private String description;
-    private Long userId;
+    private boolean isPublic;
+    private Long creatorId;
     private List<Long> songIds;
 }
