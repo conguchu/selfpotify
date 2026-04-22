@@ -7,117 +7,91 @@ Esta API utiliza autenticación basada en JWT. El token debe enviarse en el enca
 ### Login
 *   **Endpoint:** `POST /api/auth/login`
 *   **Acceso:** Público
-*   **Cuerpo de la petición:**
+*   **Cuerpo:**
     ```json
     {
       "username": "usuario",
       "password": "password"
     }
     ```
-*   **Respuesta (200 OK):**
-    ```json
-    {
-      "token": "eyJhbG...",
-      "username": "usuario",
-      "roles": ["ROLE_USER"]
-    }
-    ```
+*   **Respuesta:** Token JWT y roles del usuario.
 
-### Registro Público
+### Registro Público (Auto-registro)
 *   **Endpoint:** `POST /api/auth/signup`
 *   **Acceso:** Público
-*   **Descripción:** Crea un nuevo usuario con el rol `ROLE_USER`.
-*   **Cuerpo de la petición:**
+*   **Descripción:** Permite a cualquier persona registrarse. Por defecto, se asigna el rol `ROLE_USER`.
+*   **Cuerpo:**
     ```json
     {
       "username": "nuevo_usuario",
       "password": "password"
     }
     ```
-*   **Respuesta (200 OK):** `"User registered successfully!"`
 
 ---
 
-## 2. Gestión de Música (Canciones, Álbumes, Artistas)
+## 2. Música (Canciones, Álbumes, Artistas)
 
-### Canciones
-| Método | Endpoint | Acceso | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/songs` | USER, ADMIN | Lista todas las canciones (formato DTO) |
-| `GET` | `/api/songs/{id}` | USER, ADMIN | Obtiene una canción por ID |
-| `POST` | `/api/songs` | ADMIN | Crea una nueva canción |
-| `PUT` | `/api/songs/{id}` | ADMIN | Actualiza una canción existente |
-| `DELETE` | `/api/songs/{id}` | ADMIN | Elimina una canción |
+### Reglas de Acceso
+*   **Lectura (`GET`):** Usuarios (`ROLE_USER`) y Administradores (`ROLE_ADMIN`).
+*   **Escritura (`POST`, `PUT`, `DELETE`):** Solo Administradores (`ROLE_ADMIN`).
 
-**Estructura de SongDTO (Respuesta):**
+### Canciones (`/api/songs`)
+*   `GET /api/songs`: Listado general.
+*   `GET /api/songs/{id}`: Detalle de canción.
+*   `POST /api/songs`: Crear (Requiere título, género, etc.).
+*   `PUT /api/songs/{id}`: Modificar metadatos.
+
+### Álbumes (`/api/albums`) y Artistas (`/api/artists`)
+*   Siguen el mismo esquema CRUD que las canciones. Los objetos devueltos son DTOs que contienen IDs de relaciones para evitar redundancia.
+
+---
+
+## 3. Playlists (`/api/playlists`)
+
+Las playlists tienen lógica de propiedad y visibilidad basada en el usuario autenticado.
+
+### Endpoints de Consulta
+*   `GET /api/playlists/my`: Lista **todas** tus playlists (públicas y privadas).
+*   `GET /api/playlists/user/{userId}`: Lista las playlists **públicas** de otro usuario.
+*   `GET /api/playlists/{id}`: Acceso permitido si:
+    *   La playlist es pública (`isPublic: true`).
+    *   Eres el creador de la playlist.
+
+### Endpoints de Gestión
+*   `POST /api/playlists`: Crea una playlist. El creador se asigna automáticamente.
+*   `PUT /api/playlists/{id}`: Solo el **dueño** puede modificarla.
+*   `DELETE /api/playlists/{id}`: Solo el **dueño** o un **Administrador** pueden eliminarla.
+
+**Cuerpo (JSON):**
 ```json
 {
-  "id": 1,
-  "title": "Song Title",
-  "duration_ms": 180000,
-  "genre": "Pop",
-  "bpm": 120,
-  "picture_url": "http://...",
-  "artistIds": [1, 2],
-  "albumId": 5
+  "name": "Nombre Playlist",
+  "description": "Descripción opcional",
+  "isPublic": true,
+  "songIds": [1, 2, 3]
 }
 ```
 
-### Álbumes
-| Método | Endpoint | Acceso | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/albums` | USER, ADMIN | Lista todos los álbumes |
-| `GET` | `/api/albums/{id}` | USER, ADMIN | Obtiene un álbum por ID |
-| `POST` | `/api/albums` | ADMIN | Crea un nuevo álbum |
-| `PUT` | `/api/albums/{id}` | ADMIN | Actualiza un álbum |
-| `DELETE` | `/api/albums/{id}` | ADMIN | Elimina un álbum |
-
-### Artistas
-| Método | Endpoint | Acceso | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/artists` | USER, ADMIN | Lista todos los artistas |
-| `GET` | `/api/artists/{id}` | USER, ADMIN | Obtiene un artista por ID |
-| `POST` | `/api/artists` | ADMIN | Crea un nuevo artista |
-| `PUT` | `/api/artists/{id}` | ADMIN | Actualiza un artista |
-| `DELETE` | `/api/artists/{id}` | ADMIN | Elimina un artista |
-
 ---
 
-## 3. Playlists
+## 4. Administración de Usuarios (`/api/users`)
 
-| Método | Endpoint | Acceso | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/playlists` | USER, ADMIN | Lista todas las playlists |
-| `GET` | `/api/playlists/{id}` | USER, ADMIN | Obtiene una playlist por ID |
-| `POST` | `/api/playlists` | USER, ADMIN | Crea una nueva playlist |
-| `PUT` | `/api/playlists/{id}` | ADMIN | Actualiza una playlist |
-| `DELETE` | `/api/playlists/{id}` | ADMIN | Elimina una playlist |
+Acceso exclusivo para `ROLE_ADMIN`.
 
----
-
-## 4. Gestión de Usuarios (Administración)
-
-Todos estos endpoints requieren el rol `ROLE_ADMIN`.
-
-### Listar Usuarios
-*   **Endpoint:** `GET /api/users`
-*   **Acceso:** ADMIN
-
-### Crear Usuario/Admin
+### Crear Usuarios o Administradores
 *   **Endpoint:** `POST /api/users`
-*   **Acceso:** ADMIN
-*   **Cuerpo de la petición:**
+*   **Descripción:** Un administrador puede crear otros usuarios y decidir si son administradores.
+*   **Cuerpo:**
     ```json
     {
-      "username": "admin_creado",
+      "username": "nombre",
       "password": "password",
-      "isAdmin": true
+      "isAdmin": true 
     }
     ```
-*   **Respuesta (200 OK):** `"User created successfully by admin!"`
 
-### Actualizar/Eliminar
-| Método | Endpoint | Descripción |
-| :--- | :--- | :--- |
-| `PUT` | `/api/users/{id}` | Actualiza datos de usuario (incluyendo password cifrada) |
-| `DELETE` | `/api/users/{id}` | Elimina un usuario |
+### Gestión General
+*   `GET /api/users`: Lista completa de usuarios del sistema.
+*   `PUT /api/users/{id}`: Modificar datos de cualquier usuario (incluye cifrado de password automático).
+*   `DELETE /api/users/{id}`: Eliminar usuario.
