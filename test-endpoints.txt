@@ -1,0 +1,65 @@
+# GUIA DE PRUEBAS API SELFPOTIFY
+
+# 1. AUTENTICACION Y REGISTRO
+
+# Registrar un usuario normal (Publico)
+curl -X POST http://localhost:8080/api/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"username": "user1", "password": "password123"}'
+
+# Registrar un administrador (Para pruebas iniciales, usa el endpoint de Admin una vez tengas un admin real, 
+# o create uno directamente en DB si es el primero. Aqui asumimos que el endpoint /api/auth/signup solo crea users)
+# Login para obtener el TOKEN (Cambia el username/password segun corresponda)
+curl -X POST http://localhost:8080/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "user1", "password": "password123"}'
+
+# NOTA: Copia el valor de "token" de la respuesta y guardalo en una variable:
+# export TOKEN="tu_token_aqui"
+
+# ---------------------------------------------------------
+
+# 2. PRUEBAS DE MUSICA (Requiere ROLE_ADMIN para escritura)
+
+# Listar canciones (Cualquier usuario)
+curl -X GET http://localhost:8080/api/songs \
+     -H "Authorization: Bearer $TOKEN"
+
+# Crear una cancion (Solo ADMIN - Fallara si usas el token de user1)
+curl -X POST http://localhost:8080/api/songs \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"title": "Bohemian Rhapsody", "genre": "Rock", "duration_ms": 354000, "bpm": 72}'
+
+# ---------------------------------------------------------
+
+# 3. PRUEBAS DE PLAYLISTS (Logica de propiedad y visibilidad)
+
+# Crear una playlist propia
+curl -X POST http://localhost:8080/api/playlists \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Mis Favoritas", "description": "Rock clasico", "isPublic": true, "songIds": []}'
+
+# Ver mis propias playlists
+curl -X GET http://localhost:8080/api/playlists/my \
+     -H "Authorization: Bearer $TOKEN"
+
+# Ver playlists de otro usuario (Solo veras las publicas)
+# Sustituye {id} por el ID del otro usuario
+curl -X GET http://localhost:8080/api/playlists/user/{id} \
+     -H "Authorization: Bearer $TOKEN"
+
+# ---------------------------------------------------------
+
+# 4. ADMINISTRACION DE USUARIOS (Solo ROLE_ADMIN)
+
+# Listar todos los usuarios
+curl -X GET http://localhost:8080/api/users \
+     -H "Authorization: Bearer $TOKEN"
+
+# Crear un nuevo Administrador desde un Administrador existente
+curl -X POST http://localhost:8080/api/users \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"username": "admin2", "password": "adminpassword", "isAdmin": true}'

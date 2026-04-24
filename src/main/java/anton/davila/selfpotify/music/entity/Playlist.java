@@ -18,6 +18,8 @@ public class Playlist {
 
     private String name;
 
+    private String description;
+
     @ManyToMany
     @JoinTable(
         name = "playlist_song",
@@ -41,10 +43,11 @@ public class Playlist {
     }
 
     public void copy(Playlist p) {
+        this.setName(p.getName());
+        this.setDescription(p.getDescription());
         this.setSongs(p.getSongs());
         this.setDuration_ms(p.getDuration_ms());
         this.setPublic(p.isPublic());
-        this.setCreator(p.getCreator());
     }
 
 }
