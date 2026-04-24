@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.user.entity;
 
 import anton.davila.selfpotify.user.profile.entity.Profile;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -20,6 +21,8 @@ public class User {
     private Profile profile;
 
     private String username;
+
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     public void copy(User u) {
