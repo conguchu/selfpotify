@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.music.entity;
 
 import anton.davila.selfpotify.user.entity.User;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -28,6 +29,8 @@ public class Playlist {
     )
     private List<Song> songs;
     private int duration_ms = 0;
+
+    @JsonProperty("isPublic")
     private boolean isPublic = false;
 
     @ManyToOne
