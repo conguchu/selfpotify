@@ -1,4 +1,4 @@
-package anton.davila.selfpotify.entity.music;
+package anton.davila.selfpotify.music.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -22,4 +22,10 @@ public class Artist {
     // un artista puede tener varias canciones. una cancion puede tener varios artistas
     @ManyToMany(mappedBy = "artists")
     private List<Song> songs;
+
+    public void copy(Artist a) {
+        this.setName(a.getName());
+        this.setListeners(a.getListeners());
+        this.setPicture_path(a.getPicture_path());
+    }
 }

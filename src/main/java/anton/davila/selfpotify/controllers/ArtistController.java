@@ -1,0 +1,77 @@
+package anton.davila.selfpotify.controllers;
+
+import anton.davila.selfpotify.controllers.dto.ArtistDTO;
+import anton.davila.selfpotify.music.entity.Artist;
+import anton.davila.selfpotify.music.service.ArtistService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/artists")
+public class ArtistController {
+
+    @Autowired
+    private ArtistService artistService;
+
+    @GetMapping
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public List<ArtistDTO> getAll() {
+        return artistService.getAll().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ArtistDTO> getById(@PathVariable Long id) {
+        return artistService.getById(id)
+                .map(artist -> ResponseEntity.ok(convertToDTO(artist)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ArtistDTO create(@RequestBody Artist artist) {
+        return convertToDTO(artistService.add(artist));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ArtistDTO> update(@PathVariable Long id, @RequestBody Artist artistDetails) {
+        try {
+            return ResponseEntity.ok(convertToDTO(artistService.update(id, artistDetails)));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        try {
+            artistService.delete(id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    private ArtistDTO convertToDTO(Artist artist) {
+        ArtistDTO dto = new ArtistDTO();
+        dto.setId(artist.getId());
+        dto.setName(artist.getName());
+        dto.setPhotoUrl(artist.getPicture_path());
+        if (artist.getAlbums() != null) {
+            dto.setAlbumIds(artist.getAlbums().stream().map(a -> a.getId()).collect(Collectors.toList()));
+        }
+        if (artist.getSongs() != null) {
+            dto.setSongIds(artist.getSongs().stream().map(s -> s.getId()).collect(Collectors.toList()));
+        }
+        return dto;
+    }
+}

@@ -3,9 +3,9 @@ package anton.davila.selfpotify;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-import anton.davila.selfpotify.entity.music.Song;
-import anton.davila.selfpotify.repository.SongRepository;
-import anton.davila.selfpotify.service.SongService;
+import anton.davila.selfpotify.music.entity.Song;
+import anton.davila.selfpotify.music.repository.SongRepository;
+import anton.davila.selfpotify.music.service.SongService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

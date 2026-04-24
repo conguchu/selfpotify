@@ -1,8 +1,8 @@
-package anton.davila.selfpotify.service;
+package anton.davila.selfpotify.music.service;
 
-import anton.davila.selfpotify.entity.music.Album;
-import anton.davila.selfpotify.entity.music.Song;
-import anton.davila.selfpotify.repository.SongRepository;
+import anton.davila.selfpotify.music.entity.Album;
+import anton.davila.selfpotify.music.entity.Song;
+import anton.davila.selfpotify.music.repository.SongRepository;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;

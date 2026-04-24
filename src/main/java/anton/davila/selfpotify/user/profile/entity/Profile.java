@@ -1,6 +1,6 @@
-package anton.davila.selfpotify.entity.user.profile;
+package anton.davila.selfpotify.user.profile.entity;
 
-import anton.davila.selfpotify.entity.music.Song;
+import anton.davila.selfpotify.music.entity.Song;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -17,5 +17,11 @@ public class Profile {
     @ManyToOne
     @JoinColumn(name = "favourite_song_id")
     private Song favouriteSong;
+
+    public void copy(Profile p) {
+        this.setName(p.getName());
+        this.setAvatarURL(p.getAvatarURL());
+        this.setFavouriteSong(p.getFavouriteSong());
+    }
 
 }

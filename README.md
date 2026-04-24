@@ -16,16 +16,35 @@ Este software permitiría a los usuarios poder disfrutar de escuchar música lib
 
 ## Tecnologías a emplear
 
-| Tecnología | Uso |
-|---|---|
+| Tecnología             | Uso |
+|------------------------|---|
 | **Spring Boot (REST)** | API, lógica back-end y servidor web |
-| **FFMPEG** | Procesado de audio en fragmentos para streaming |
-| **Thymeleaf + Tailwind + hls.js** | Front-end del cliente web y recepción de streaming |
-| **MongoDB** | Base de datos principal por su flexibilidad con datos dinámicos (playlists, likes…) |
-| **Jetpack Compose** | Aplicación móvil y televisión (Android) |
-| **Media3** | Recepción de streaming en la app móvil |
+| **FFMPEG**             | Procesado de audio en fragmentos para streaming |
+| **React + Next JS**    | Front-end del cliente web y recepción de streaming |
+| **MongoDB**            | Base de datos principal por su flexibilidad con datos dinámicos (playlists, likes…) |
+| **Jetpack Compose**    | Aplicación móvil y televisión (Android) |
+| **Media3**             | Recepción de streaming en la app móvil |
 
 ---
+
+## Decisiones de diseño
+
+He decidido crear esta aplicación basada en **microservicios** en vez de usar una arquitectura monolítica. Esto porque pienso que 
+así puedo desarrollar una aplicación más escalable, cuyo core sea el servidor API de springboot, del que consumen diferentes clientes
+como el web o mobile, dándome la posibilidad a futuro de crear más para otras plataformas.
+
+**Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre,
+por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la 
+estructura de red para permitir el acceso desde internet. Por esto, al arrancar el servidor por primera vez, tendrá un pequeño wizard web que permite cambiar estos parámetros (IP de acceso, directorios de música...).
+
+
+## Gestión de recursos
+
+Al ser un aplicativo pensado para un uso personal, normalmente con pocos usuarios, el servidor no requiere de grandes prestaciones hardware. 
+Sí serán necesarios unos mínimos para poder emitir correctamente el streaming, como una buena conexión de red (CAT5 mínimo) y 2 GB de RAM. 
+
+La única limitación de recursos en el uso de la aplicación, al estar tratando con archivos multimedia, es el espacio en disco del server para almacenar la música. No hay un mínimo, pero se recomienda tener abundante (200 GB) para poder llegar a disponer 
+de un catálogo considerable de música, sobre todo si el usuario se preocupa por la calidad de la misma. 
 
 ## Diagrama de clases
 
@@ -39,20 +58,12 @@ classDiagram
         - int duration_ms
         - String genre
         - int listeners
+        - int bpm
+        - String songPath
+        - List~Artist~ artists
+        - Album album
         - String picture_url
-        + getId() Long
-        + getTitle() String
-        + getDuration_ms() int
-        + getGenre() String
-        + getListeners() int
-        + getPicture_url() String
-        + setTitle(String)
-        + setDuration_ms(int)
-        + setGenre(String)
-        + setListeners(int)
-        + setPicture_url(String)
-        + setAlbum(Album)
-        + setArtists(List~Artist~)
+        + copy(Song)
     }
 
     class Album {
@@ -60,15 +71,9 @@ classDiagram
         - String name
         - int duration_ms
         - String picture_url
-        + getId() Long
-        + getName() String
-        + getDuration_ms() int
-        + getPicture_url() String
-        + setName(String)
-        + setDuration_ms(int)
-        + setPicture_url(String)
-        + setArtists(List~Artist~)
-        + setSongs(List~Song~)
+        - List~Artist~ artists
+        - List~Song~ songs
+        + copy(Album)
     }
 
     class Artist {
@@ -76,39 +81,26 @@ classDiagram
         - String name
         - int listeners
         - String picture_path
-        + getId() Long
-        + getName() String
-        + getListeners() int
-        + getPicture_path() String
-        + setName(String)
-        + setListeners(int)
-        + setPicture_path(String)
-        + setAlbums(List~Album~)
-        + setSongs(List~Song~)
+        - List~Album~ albums
+        - List~Song~ songs
+        + copy(Artist)
     }
 
     class Playlist {
         - Long id
+        - List~Song~ songs
         - int duration_ms
         - boolean isPublic
-        + Playlist()
-        + Playlist(List~Song~)
-        + getId() Long
-        + getDuration_ms() int
-        + isPublic() boolean
-        + setSongs(List~Song~)
-        + setCreator(User)
-        + setPublic(boolean)
+        - User creator
+        + copy(Playlist)
     }
 
     class User {
         - Long id
+        - Profile profile
         - String username
-        + getId() Long
-        + getUsername() String
-        + getProfile() Profile
-        + setUsername(String)
-        + setProfile(Profile)
+        - String password
+        + copy(User)
     }
 
     class Admin {
@@ -118,13 +110,8 @@ classDiagram
         - Long id
         - String name
         - String avatarURL
-        + getId() Long
-        + getName() String
-        + getAvatarURL() String
-        + getFavouriteSong() Song
-        + setName(String)
-        + setAvatarURL(String)
-        + setFavouriteSong(Song)
+        - Song favouriteSong
+        + copy(Profile)
     }
 
     %% Herencia
@@ -203,6 +190,23 @@ graph LR
     UC3 -.->|include| UC3b
 ```
 
+### UC4 — Login
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC4("Iniciar sesión")
+        UC4a("Validar credenciales")
+        UC4b("Emitir JWT")
+    end
+
+    User --> UC4
+    UC4 -.->|include| UC4a
+    UC4a -.->|include| UC4b
+```
+
 ### UC5 — Escuchar una canción
 
 ```mermaid
@@ -220,19 +224,6 @@ graph LR
     UC5 -.->|include| UC5b
 ```
 
-### UC4 — Login
+## Diagrama de arquitectura
 
-```mermaid
-graph LR
-    User["👤 Usuario"]
-
-    subgraph Sistema Self-Potify
-        UC4("Iniciar sesión")
-        UC4a("Validar credenciales")
-        UC4b("Emitir JWT")
-    end
-
-    User --> UC4
-    UC4 -.->|include| UC4a
-    UC4a -.->|include| UC4b
-```
+![Diagrama sin título.drawio.png](img/Diagrama%20sin%20t%C3%ADtulo.drawio.png)

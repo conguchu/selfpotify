@@ -1,4 +1,4 @@
-package anton.davila.selfpotify.entity.user;
+package anton.davila.selfpotify.user.entity;
 
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
