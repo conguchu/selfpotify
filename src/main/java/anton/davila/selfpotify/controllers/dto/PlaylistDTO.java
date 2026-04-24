@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.controllers.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,6 +11,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonAutoDetect(isGetterVisibility = JsonAutoDetect.Visibility.NONE)
 public class PlaylistDTO {
     private Long id;
     private String name;

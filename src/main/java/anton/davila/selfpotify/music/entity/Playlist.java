@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.music.entity;
 
 import anton.davila.selfpotify.user.entity.User;
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -11,6 +12,7 @@ import java.util.List;
 @Entity
 @Data
 @NoArgsConstructor
+@JsonAutoDetect(isGetterVisibility = JsonAutoDetect.Visibility.NONE)
 public class Playlist {
 
     @Id
