@@ -24,6 +24,8 @@ import java.util.Optional;
  * Este es el controller que se encarga de darle a la librería media 3 un archivo
  * por su ID
  */
+@CrossOrigin(origins = "*", maxAge = 3600,
+        exposedHeaders = {"Content-Range", "Accept-Ranges", "Content-Length"})
 @RestController
 @RequestMapping("/api/listen")
 public class StreamingController {
