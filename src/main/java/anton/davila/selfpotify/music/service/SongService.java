@@ -112,6 +112,27 @@ public class SongService {
         return saveMany(songsToSave);
     }
 
+    /**
+     * Comprueba que está disponible el archivo de música asociado con una cancion
+     * @param song
+     * @return
+     */
+    public boolean isPathAvailable(Song song) {
+
+        String songPath = song.getSongPath();
+
+        if (songPath == null || songPath.isBlank()) {
+            log.warn("La ruta proporcionada está vacía o es nula");
+            return false;
+        }
+        Path path = Paths.get(songPath);
+        boolean available = Files.exists(path) && Files.isRegularFile(path) && Files.isReadable(path);
+        if (!available) {
+            log.warn("El archivo no está disponible: {}", songPath);
+        }
+        return available;
+    }
+
     private boolean isAudioFile(Path path) {
         String fileName = path.toString().toLowerCase();
         return fileName.endsWith(".mp3") || fileName.endsWith(".wav");
@@ -176,6 +197,8 @@ public class SongService {
 
         return song;
     }
+
+    
 }
 
 
