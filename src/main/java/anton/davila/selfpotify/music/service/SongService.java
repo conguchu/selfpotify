@@ -129,6 +129,8 @@ public class SongService {
         boolean available = Files.exists(path) && Files.isRegularFile(path) && Files.isReadable(path);
         if (!available) {
             log.warn("El archivo no está disponible: {}", songPath);
+            song.setAvailable(false);
+            songRepository.save(song);
         }
         return available;
     }

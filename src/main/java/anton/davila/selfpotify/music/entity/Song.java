@@ -23,6 +23,7 @@ public class Song {
     private int listeners;
     private int bpm;
     private String songPath;
+    private boolean available = true;
 
     // una cancion puede tener varios artistas
     @ManyToMany
