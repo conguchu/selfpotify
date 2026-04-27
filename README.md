@@ -29,14 +29,21 @@ Este software permitiría a los usuarios poder disfrutar de escuchar música lib
 
 ## Decisiones de diseño
 
+### Arquitectura
 He decidido crear esta aplicación basada en **microservicios** en vez de usar una arquitectura monolítica. Esto porque pienso que 
 así puedo desarrollar una aplicación más escalable, cuyo core sea el servidor API de springboot, del que consumen diferentes clientes
 como el web o mobile, dándome la posibilidad a futuro de crear más para otras plataformas.
+
+### Despliegue
 
 **Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre,
 por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la 
 estructura de red para permitir el acceso desde internet. Por esto, al arrancar el servidor por primera vez, tendrá un pequeño wizard web que permite cambiar estos parámetros (IP de acceso, directorios de música...).
 
+### Funcionamiento del streaming
+
+Para hacer que los clientes puedan recibir la música en pedazos de bytes con la librería media3, he implementado la ruta de la API
+``/api/listen/{id}``, endpoint que soporta http range, permitiendo reproducir sin descargar el archivo completo.
 
 ## Gestión de recursos
 
