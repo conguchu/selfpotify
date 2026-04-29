@@ -18,6 +18,8 @@ public class ArtistController {
     @Autowired
     private ArtistService artistService;
 
+    // todo: getAllByListeners con paginación (los 10 más escuchados) para añadirlos a la pantalla en una sección
+
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public List<ArtistDTO> getAll() {
