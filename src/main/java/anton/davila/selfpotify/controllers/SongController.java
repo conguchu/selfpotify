@@ -1,13 +1,19 @@
 package anton.davila.selfpotify.controllers;
 
+import anton.davila.selfpotify.controllers.dto.ImportRequest;
 import anton.davila.selfpotify.controllers.dto.SongDTO;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.service.SongService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -65,6 +71,23 @@ public class SongController {
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @PostMapping("/import")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<SongDTO> importFolder(@RequestBody ImportRequest request) {
+        String raw = request == null ? null : request.getPath();
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo 'path' es obligatorio");
+        }
+        Path folder = Paths.get(raw);
+        if (!Files.exists(folder) || !Files.isDirectory(folder) || !Files.isReadable(folder)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La ruta no existe, no es un directorio o no es legible: " + raw);
+        }
+        return songService.loadFolder(folder.toAbsolutePath().toString()).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
     private SongDTO convertToDTO(Song song) {
