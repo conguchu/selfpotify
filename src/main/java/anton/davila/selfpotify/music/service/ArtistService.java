@@ -52,6 +52,7 @@ public class ArtistService {
      * Incrementa una escucha a un artista
      * @param id id de la cancion
      */
+    @Transactional
     public void incrementListeners(Long id) {
         artistRepository.incrementListeners(id);
     }

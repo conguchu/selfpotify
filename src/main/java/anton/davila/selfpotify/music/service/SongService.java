@@ -204,6 +204,7 @@ public class SongService {
      * Incrementa una escucha a una canción
      * @param id id de la cancion
      */
+    @Transactional
     public void incrementListeners(long id) {
         songRepository.incrementListeners(id);
     }
