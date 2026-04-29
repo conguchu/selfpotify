@@ -1,0 +1,94 @@
+export type Role = "ROLE_USER" | "ROLE_ADMIN";
+
+export interface JwtResponse {
+  token: string;
+  type: "Bearer";
+  username: string;
+  roles: Role[];
+}
+
+export interface SongDTO {
+  id: number;
+  title: string;
+  duration_ms: number;
+  genre: string | null;
+  bpm: number;
+  picture_url: string | null;
+  artistIds: number[];
+  albumId: number | null;
+}
+
+export interface ArtistDTO {
+  id: number;
+  name: string;
+  biography: string | null;
+  photoUrl: string | null;
+  albumIds: number[];
+  songIds: number[];
+}
+
+export interface AlbumDTO {
+  id: number;
+  name: string;
+  releaseDate: string | null;
+  pictureUrl: string | null;
+  artistId: number | null;
+  songIds: number[];
+}
+
+export interface PlaylistDTO {
+  id: number;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+  creatorId: number;
+  songIds: number[];
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  profile: unknown | null;
+  type: "USER" | "ADMIN";
+}
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export interface SignupPayload {
+  username: string;
+  password: string;
+}
+
+export interface AdminSignupPayload extends SignupPayload {
+  signupKey: string;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  password: string;
+  isAdmin: boolean;
+}
+
+export interface ImportFolderPayload {
+  path: string;
+}
+
+export interface CreateSongPayload {
+  title: string;
+  songPath: string;
+  genre?: string;
+  bpm?: number;
+  duration_ms?: number;
+  picture_url?: string;
+  available?: boolean;
+}
+
+export interface PlaylistInput {
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  songIds: number[];
+}
