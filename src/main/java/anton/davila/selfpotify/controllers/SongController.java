@@ -16,6 +16,9 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/songs")
 public class SongController {
 
+
+    // todo: getAllByListeners con paginación (los 10 más escuchados) para añadirlos a la pantalla en una sección
+
     @Autowired
     private SongService songService;
 
