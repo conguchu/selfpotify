@@ -200,7 +200,14 @@ public class SongService {
         return song;
     }
 
-    
+    /**
+     * Incrementa una escucha a una canción
+     * @param id id de la cancion
+     */
+    public void incrementListeners(long id) {
+        songRepository.incrementListeners(id);
+    }
+
 }
 
 

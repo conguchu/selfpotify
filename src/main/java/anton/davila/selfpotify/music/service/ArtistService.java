@@ -48,4 +48,11 @@ public class ArtistService {
         artistRepository.delete(artist);
         return artist;
     }
+    /**
+     * Incrementa una escucha a un artista
+     * @param id id de la cancion
+     */
+    public void incrementListeners(Long id) {
+        artistRepository.incrementListeners(id);
+    }
 }
