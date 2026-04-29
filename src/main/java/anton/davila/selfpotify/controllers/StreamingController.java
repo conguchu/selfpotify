@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.music.entity.Song;
+import anton.davila.selfpotify.music.service.ArtistService;
 import anton.davila.selfpotify.music.service.SongService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -32,6 +33,8 @@ public class StreamingController {
 
     @Autowired
     private SongService songService;
+    @Autowired
+    private ArtistService artistService;
 
     @GetMapping("{songId}")
     public ResponseEntity<StreamingResponseBody> stream(
@@ -51,6 +54,14 @@ public class StreamingController {
         if (!songService.isPathAvailable(song)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encuentra el archivo de la canción");
         }
+
+        // añadimos la escucha a la canción y al artista
+        songService.incrementListeners(song.getId());
+        song.getArtists().forEach(
+                artist -> {
+                    artistService.incrementListeners(artist.getId());
+                }
+        );
 
         Path filePath = Paths.get(song.getSongPath());
 
