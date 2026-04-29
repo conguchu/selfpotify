@@ -28,7 +28,7 @@ echo "[selfpotify] arrancando backend en :8080..."
 ./mvnw -q spring-boot:run &
 BACK_PID=$!
 
-echo "[selfpotify] arrancando frontend en :3000..."
+echo "[selfpotify] arrancando frontend en :8081..."
 ( cd front && pnpm dev ) &
 FRONT_PID=$!
 
