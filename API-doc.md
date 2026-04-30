@@ -1,6 +1,10 @@
 # Documentación de la API de Selfpotify
 
-API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por defecto en `http://localhost:8080` y la persistencia es H2 en memoria (`create-drop` en cada arranque).
+API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por defecto en `http://localhost:8080`.
+
+**Persistencia:**
+- Datos de música, usuarios y playlists → H2 en memoria (`create-drop` en cada arranque, no sobrevive a reinicios).
+- Configuración del servidor (branding, rutas a escanear, flags) → fichero YAML externo en `~/.selfpotify/config.yml` (sobrevive a reinicios). Override vía `app.config.path`.
 
 > Estado: este documento refleja el código fuente real (controllers + WebSecurityConfig + DTOs). No incluye comportamientos no implementados.
 
@@ -85,7 +89,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Acceso:** `ROLE_ADMIN`.
 - **Respuesta:** `204 No Content` o `404 Not Found`.
 
-### `POST /api/songs/import` — Escanear carpeta del servidor *(NUEVO)*
+### `POST /api/songs/import` — Escanear carpeta del servidor (one-shot)
 - **Acceso:** `ROLE_ADMIN`.
 - **Body:**
   ```json
@@ -94,6 +98,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Comportamiento:** recorre recursivamente la carpeta, extrae metadatos ID3 de los `.mp3` y `.wav` (`SongService.loadFolder`), persiste cada canción y devuelve la lista importada como `List<SongDTO>`.
 - **Respuesta `200 OK`:** lista de las canciones recién persistidas.
 - **Errores:** `400 Bad Request` si la ruta está vacía / no existe / no es directorio / no es legible; `500 Internal Server Error` si falla la lectura.
+- **Nota:** importación manual one-shot. La ruta NO queda registrada para re-escaneo. Para escaneo persistente con re-escaneo periódico usar `POST /api/config/scan-paths` (§7.5).
 
 ---
 
@@ -201,6 +206,98 @@ Acceso exclusivo `ROLE_ADMIN`.
 
 ---
 
+## 7.5 Configuración del servidor (`/api/config`)
+
+La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/config.yml` y se mantiene en memoria como copia volátil. Las escrituras se hacen a fichero temporal + `ATOMIC_MOVE`. **No** vive en H2 (que está en `create-drop`).
+
+### `GET /api/config/public`
+- **Acceso:** público (sin auth). El frontend lo consume antes del login para aplicar branding.
+- **Respuesta `200 OK BrandingDTO`:**
+  ```json
+  {
+    "appName": "selfpotify",
+    "logoUrl": "/assets/logo.png",
+    "colors": { "--color-bg": "#0a0a0a", "--color-accent": "#b91c1c", ... }
+  }
+  ```
+
+### `GET /api/config`
+- **Acceso:** `ROLE_ADMIN`.
+- **Respuesta `200 OK ServerConfigDTO`** (ver §8).
+
+### `PUT /api/config`
+- **Acceso:** `ROLE_ADMIN`.
+- **Body:** `ConfigUpdateRequest` — todos los campos opcionales; los nulos se dejan sin tocar.
+  ```json
+  {
+    "branding": { "appName": "myTunes", "colors": { "--color-accent": "#22c55e" } },
+    "autoCompleteMetadata": true,
+    "scanIntervalSeconds": 600
+  }
+  ```
+- **Validaciones:**
+  - `appName`: no en blanco, máx 64 caracteres.
+  - Cada color: hex `#RGB` o `#RRGGBB`.
+  - `scanIntervalSeconds`: entre 30 y 86400.
+- **Respuesta:** `ServerConfigDTO` actualizado.
+- **Hot-reload:** el cambio de `scanIntervalSeconds` se aplica en el siguiente tick del scheduler **sin reinicio**.
+
+### `POST /api/config/scan-paths`
+- **Acceso:** `ROLE_ADMIN`.
+- **Body:** `{ "path": "/ruta/absoluta" }`.
+- **Comportamiento:** valida que la ruta exista, sea directorio y legible. La normaliza (`toAbsolutePath().normalize()`), la añade a la lista persistente, y dispara un escaneo inicial **asíncrono** sobre esa ruta.
+- **Errores:** `400` si la ruta es inválida; `409` si ya estaba en la lista.
+- **Respuesta:** `ServerConfigDTO` actualizado.
+
+### `DELETE /api/config/scan-paths?path=<ruta>`
+- **Acceso:** `ROLE_ADMIN`.
+- **Comportamiento:** quita la ruta de la lista (no borra las canciones ya importadas; solo deja de vigilarla).
+- **Errores:** `404` si la ruta no estaba registrada.
+- **Respuesta:** `ServerConfigDTO` actualizado.
+
+### `POST /api/config/logo`
+- **Acceso:** `ROLE_ADMIN`.
+- **Body:** `multipart/form-data` con campo `file`.
+- **Validaciones:** tamaño máx **2 MB**; MIME en `{image/png, image/jpeg, image/svg+xml, image/webp}`. La extensión se deriva del MIME, no del nombre del cliente.
+- **Comportamiento:** borra logos previos (cualquier extensión aceptada), guarda como `~/.selfpotify/assets/logo.<ext>` y actualiza `branding.logoUrl` a `/assets/logo.<ext>`.
+- **Errores:** `400` sin archivo; `413` si excede 2 MB; `415` si el MIME no está soportado.
+- **Respuesta:** `BrandingDTO`.
+
+### `POST /api/config/scan/run`
+- **Acceso:** `ROLE_ADMIN`.
+- **Comportamiento:** dispara un escaneo inmediato de todas las rutas configuradas. Bloqueado con `ReentrantLock`: si ya hay un escaneo en curso (manual o periódico), responde `409`.
+- **Respuesta `200 OK`:**
+  ```json
+  { "status": "ok", "lastRunEpochSec": 1714492800 }
+  ```
+
+### Ejemplo de `~/.selfpotify/config.yml`
+```yaml
+branding:
+  appName: selfpotify
+  logoUrl: /assets/logo.png
+  colors:
+    "--color-bg": "#0a0a0a"
+    "--color-accent": "#b91c1c"
+features:
+  autoCompleteMetadata: false
+scan:
+  paths:
+    - /Users/antondavila/Music
+  intervalSeconds: 3600
+  lastRunEpochSec: 1714492800
+```
+
+---
+
+## 7.6 Recursos estáticos (`/assets/**`)
+
+- **Acceso:** público (sin auth).
+- El servidor mapea `/assets/**` al directorio `~/.selfpotify/assets/` (al lado del `config.yml`). Si se override `app.config.path`, los assets viven en el `assets/` hermano del fichero indicado.
+- Caso de uso principal: servir el logo subido vía `POST /api/config/logo`.
+
+---
+
 ## 8. Forma de los DTOs
 
 ### `SongDTO`
@@ -264,6 +361,44 @@ Acceso exclusivo `ROLE_ADMIN`.
 }
 ```
 
+### `BrandingDTO`
+```json
+{
+  "appName": "selfpotify",
+  "logoUrl": "/assets/logo.png",
+  "colors": {
+    "--color-bg": "#0a0a0a",
+    "--color-accent": "#b91c1c"
+  }
+}
+```
+
+### `ServerConfigDTO`
+```json
+{
+  "branding": { "appName": "selfpotify", "logoUrl": null, "colors": { "...": "..." } },
+  "autoCompleteMetadata": false,
+  "scanPaths": ["/Users/antondavila/Music"],
+  "scanIntervalSeconds": 3600,
+  "lastScanEpochSec": 0
+}
+```
+
+### `ConfigUpdateRequest` (PUT `/api/config`)
+```json
+{
+  "branding": { "appName": "myTunes", "colors": { "--color-accent": "#22c55e" } },
+  "autoCompleteMetadata": true,
+  "scanIntervalSeconds": 600
+}
+```
+Todos los campos son opcionales; los nulos se dejan sin tocar.
+
+### `ScanPathRequest` (POST `/api/config/scan-paths`)
+```json
+{ "path": "/ruta/absoluta/a/carpeta" }
+```
+
 ### `User` (devuelto por `/api/users`)
 ```json
 {
@@ -299,9 +434,18 @@ spring.jpa.hibernate.ddl-auto=create-drop
 
 # Clave para registrar admins vía /api/auth/signup-admin
 app.admin.signup-key=changeme-admin-key
+
+# Límites de upload (logo)
+spring.servlet.multipart.max-file-size=2MB
+spring.servlet.multipart.max-request-size=2MB
+
+# Override opcional de la ruta del YAML de configuración
+# app.config.path=~/.selfpotify/config.yml
 ```
 
 **Consola H2:** `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:testdb`, user `sa`, sin contraseña).
+
+**Configuración del servidor (no en BD):** `~/.selfpotify/config.yml` se crea en el primer arranque. Si existe `app.music.import-folder` apuntando a un directorio válido, se siembra como primera ruta de escaneo.
 
 ---
 
@@ -312,6 +456,8 @@ Definidos en `WebSecurityConfig`:
 - `OPTIONS /**` (preflight CORS)
 - `/api/auth/**`
 - `/api/test/public`
+- `/api/config/public`
+- `/assets/**`
 - `/h2-console/**`
 - `/error`
 
