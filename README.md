@@ -45,6 +45,12 @@ estructura de red para permitir el acceso desde internet. Por esto, al arrancar 
 Para hacer que los clientes puedan recibir la música en pedazos de bytes con la librería media3, he implementado la ruta de la API
 ``/api/listen/{id}``, endpoint que soporta http range, permitiendo reproducir sin descargar el archivo completo.
 
+### Gestión de la biblioteca musical
+
+La biblioteca musical será gestionada por los admins, que tendrán la posibilidad de añadir carpetas que el backend escaneará periódicamente en busca de cambios o nuevas canciones, para poder administrar la música de forma sencilla con el explorer.
+
+---
+
 ## Gestión de recursos
 
 Al ser un aplicativo pensado para un uso personal, normalmente con pocos usuarios, el servidor no requiere de grandes prestaciones hardware. 
