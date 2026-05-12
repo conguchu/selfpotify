@@ -9,11 +9,9 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ServerConfigDTO {
-    private BrandingDTO branding;
-    private boolean autoCompleteMetadata;
-    private boolean setupComplete;
+public class SetupRequest {
+    private String appName;
     private List<String> scanPaths;
-    private long scanIntervalSeconds;
-    private long lastScanEpochSec;
+    private Boolean autoCompleteMetadata;
+    private Long scanIntervalSeconds;
 }

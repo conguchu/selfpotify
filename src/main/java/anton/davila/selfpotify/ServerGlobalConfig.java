@@ -51,6 +51,7 @@ public class ServerGlobalConfig {
     @AllArgsConstructor
     public static class Features {
         private boolean autoCompleteMetadata = false;
+        private boolean setupComplete = false;
     }
 
     @Data

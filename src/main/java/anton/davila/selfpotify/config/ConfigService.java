@@ -36,9 +36,7 @@ public class ConfigService {
     @Value("${app.config.path:#{systemProperties['user.home'] + '/.selfpotify/config.yml'}}")
     private String configPathProp;
 
-    @Value("${app.music.import-folder:#{systemProperties['user.home'] + '/Downloads'}}")
-    private String legacyImportFolder;
-
+    /** Inicializa rutas, crea el directorio de assets y carga (o crea) el config.yml. */
     @PostConstruct
     public void init() throws IOException {
         this.configPath = Paths.get(configPathProp).toAbsolutePath().normalize();
@@ -51,20 +49,10 @@ public class ConfigService {
             mergeColorDefaults(this.current);
             log.info("Loaded config from {}", configPath);
         } else {
-            this.current = buildDefaults();
+            this.current = new ServerGlobalConfig();
             persistInternal(this.current);
-            log.info("Created default config at {}", configPath);
+            log.info("Created blank config at {} (setupComplete=false)", configPath);
         }
-    }
-
-    private ServerGlobalConfig buildDefaults() {
-        ServerGlobalConfig cfg = new ServerGlobalConfig();
-        Path seed = Paths.get(legacyImportFolder);
-        if (Files.isDirectory(seed) && Files.isReadable(seed)) {
-            cfg.getScan().getPaths().add(seed.toAbsolutePath().normalize().toString());
-            log.info("Seeded scan path from app.music.import-folder: {}", seed);
-        }
-        return cfg;
     }
 
     private void mergeColorDefaults(ServerGlobalConfig cfg) {
@@ -79,18 +67,22 @@ public class ConfigService {
         cfg.getBranding().setColors(merged);
     }
 
+    /** Devuelve la configuración actual cargada en memoria. */
     public ServerGlobalConfig getConfig() {
         return current;
     }
 
+    /** Directorio donde se almacenan los assets servidos en /assets/**. */
     public Path assetsDir() {
         return assetsDir;
     }
 
+    /** Ruta absoluta del fichero config.yml. */
     public Path configPath() {
         return configPath;
     }
 
+    /** Actualiza el nombre de la app y/o los colores de branding y persiste a disco. */
     public void updateBranding(String appName, Map<String, String> colors) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
@@ -103,6 +95,7 @@ public class ConfigService {
         }
     }
 
+    /** Activa o desactiva el autocompletado de metadatos y persiste el cambio. */
     public void updateFeatures(Boolean autoCompleteMetadata) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
@@ -112,6 +105,7 @@ public class ConfigService {
         }
     }
 
+    /** Cambia en caliente el intervalo (en segundos) del escaneo periódico. */
     public void updateScanInterval(long intervalSeconds) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
@@ -121,6 +115,7 @@ public class ConfigService {
         }
     }
 
+    /** Añade una ruta a escanear. Devuelve false si ya estaba registrada. */
     public boolean addScanPath(String absolutePath) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
@@ -134,6 +129,7 @@ public class ConfigService {
         }
     }
 
+    /** Elimina una ruta de escaneo. Devuelve true si existía y fue eliminada. */
     public boolean removeScanPath(String absolutePath) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
@@ -146,6 +142,7 @@ public class ConfigService {
         }
     }
 
+    /** Establece la URL (o ruta /assets/...) del logo de la app. */
     public void setLogoUrl(String logoUrl) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
@@ -155,12 +152,44 @@ public class ConfigService {
         }
     }
 
+    /** Registra el timestamp (epoch en segundos) del último escaneo finalizado. */
     public void markScanFinished(long epochSec) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
             cfg.getScan().setLastRunEpochSec(epochSec);
             persistInternal(cfg);
             current = cfg;
+        }
+    }
+
+    /** Marca el setup inicial como completado para no volver a mostrarlo. */
+    public void markSetupComplete() {
+        synchronized (writeLock) {
+            ServerGlobalConfig cfg = copy(current);
+            cfg.getFeatures().setSetupComplete(true);
+            persistInternal(cfg);
+            current = cfg;
+        }
+    }
+
+    /** Borra assets y config.yml y regenera una configuración en blanco por defecto. */
+    public void resetToDefaults() throws IOException {
+        synchronized (writeLock) {
+            if (Files.isDirectory(assetsDir)) {
+                try (var stream = Files.list(assetsDir)) {
+                    stream.forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            log.warn("No se pudo borrar asset {}", p, e);
+                        }
+                    });
+                }
+            }
+            Files.deleteIfExists(configPath);
+            this.current = new ServerGlobalConfig();
+            persistInternal(this.current);
+            log.info("Config reseteada a valores por defecto en {}", configPath);
         }
     }
 

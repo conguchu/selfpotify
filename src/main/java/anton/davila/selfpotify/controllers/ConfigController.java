@@ -2,11 +2,14 @@ package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.ServerGlobalConfig;
 import anton.davila.selfpotify.config.ConfigService;
+import anton.davila.selfpotify.config.ResetService;
 import anton.davila.selfpotify.config.ScanService;
 import anton.davila.selfpotify.controllers.dto.BrandingDTO;
 import anton.davila.selfpotify.controllers.dto.ConfigUpdateRequest;
+import anton.davila.selfpotify.controllers.dto.PublicConfigDTO;
 import anton.davila.selfpotify.controllers.dto.ScanPathRequest;
 import anton.davila.selfpotify.controllers.dto.ServerConfigDTO;
+import anton.davila.selfpotify.controllers.dto.SetupRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -22,6 +25,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -50,10 +54,17 @@ public class ConfigController {
     @Autowired
     private ScanService scanService;
 
+    @Autowired
+    private ResetService resetService;
+
     @GetMapping("/public")
-    public BrandingDTO getPublic() {
-        ServerGlobalConfig.Branding b = configService.getConfig().getBranding();
-        return new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors());
+    public PublicConfigDTO getPublic() {
+        ServerGlobalConfig cfg = configService.getConfig();
+        ServerGlobalConfig.Branding b = cfg.getBranding();
+        return new PublicConfigDTO(
+                new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
+                cfg.getFeatures().isSetupComplete()
+        );
     }
 
     @GetMapping
@@ -190,11 +201,73 @@ public class ConfigController {
         }
     }
 
+    @PostMapping("/setup")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ServerConfigDTO setup(@RequestBody SetupRequest req) {
+        if (configService.getConfig().getFeatures().isSetupComplete()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El servidor ya está configurado");
+        }
+        if (req == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Body requerido");
+        }
+        if (req.getAppName() != null) {
+            String name = req.getAppName();
+            if (name.isBlank() || name.length() > MAX_APP_NAME) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "appName no puede estar vacío ni superar " + MAX_APP_NAME + " caracteres");
+            }
+            configService.updateBranding(name, null);
+        }
+        if (req.getAutoCompleteMetadata() != null) {
+            configService.updateFeatures(req.getAutoCompleteMetadata());
+        }
+        if (req.getScanIntervalSeconds() != null) {
+            long s = req.getScanIntervalSeconds();
+            if (s < MIN_INTERVAL || s > MAX_INTERVAL) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "scanIntervalSeconds debe estar entre " + MIN_INTERVAL + " y " + MAX_INTERVAL);
+            }
+            configService.updateScanInterval(s);
+        }
+        if (req.getScanPaths() != null) {
+            for (String raw : req.getScanPaths()) {
+                if (raw == null || raw.isBlank()) continue;
+                Path folder = Paths.get(raw).toAbsolutePath().normalize();
+                if (!Files.exists(folder) || !Files.isDirectory(folder) || !Files.isReadable(folder)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "La ruta no existe, no es un directorio o no es legible: " + raw);
+                }
+                configService.addScanPath(folder.toString());
+            }
+        }
+        configService.markSetupComplete();
+        if (req.getScanPaths() != null && !req.getScanPaths().isEmpty()) {
+            java.util.concurrent.CompletableFuture.runAsync(() -> scanService.runScan());
+        }
+        return toDTO(configService.getConfig());
+    }
+
+    @PostMapping("/reset")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> reset() {
+        try {
+            resetService.resetAll();
+        } catch (IOException e) {
+            log.error("Error reseteando el servidor", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo completar el reset");
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "ok");
+        body.put("message", "Servidor reseteado. Vuelve a iniciar sesión con admin/admin");
+        return ResponseEntity.ok(body);
+    }
+
     private ServerConfigDTO toDTO(ServerGlobalConfig cfg) {
         ServerGlobalConfig.Branding b = cfg.getBranding();
         return new ServerConfigDTO(
                 new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
                 cfg.getFeatures().isAutoCompleteMetadata(),
+                cfg.getFeatures().isSetupComplete(),
                 cfg.getScan().getPaths(),
                 cfg.getScan().getIntervalSeconds(),
                 cfg.getScan().getLastRunEpochSec()
