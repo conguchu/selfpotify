@@ -30,10 +30,12 @@ public class ScanService {
 
     private final ReentrantLock scanLock = new ReentrantLock();
 
+    /** Indica si hay un escaneo en curso en este momento. */
     public boolean isScanning() {
         return scanLock.isLocked();
     }
 
+    /** Ejecuta un escaneo de todas las rutas configuradas. Devuelve false si ya había uno en curso. */
     public boolean runScan() {
         if (!scanLock.tryLock()) {
             log.info("ScanService: scan ya en curso, se omite el tick");
@@ -63,6 +65,7 @@ public class ScanService {
         }
     }
 
+    /** Lanza un escaneo inicial asíncrono sobre una única ruta recién añadida. */
     public CompletableFuture<Void> runScanForPath(String absolutePath) {
         return CompletableFuture.runAsync(() -> {
             if (!scanLock.tryLock()) {
