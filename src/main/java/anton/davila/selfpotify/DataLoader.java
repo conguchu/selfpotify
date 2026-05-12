@@ -29,7 +29,7 @@ public class DataLoader implements CommandLineRunner {
         if (userRepository.findByUsername("admin").isEmpty()) {
             Admin admin = new Admin();
             admin.setUsername("admin");
-            admin.setPassword(passwordEncoder.encode("admin123"));
+            admin.setPassword(passwordEncoder.encode("admin"));
             userRepository.save(admin);
         }
     }
