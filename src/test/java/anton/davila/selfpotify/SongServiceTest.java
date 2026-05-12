@@ -134,7 +134,7 @@ public class SongServiceTest {
     void testLoadFolderWithRealFiles() {
         // 1. CONFIGURACIÓN DE RUTA: Escribe aquí la ruta real de tu sistema
         // IMPORTANTE: Recuerda usar barras dobles (\\) en Windows o barra simple (/)
-        String miRutaReal = "/Volumes/CONGUCHU/agosto 25";
+        String miRutaReal = "/Users/antondavila/Music";
 
         // Simulamos el repositorio para que devuelva lo mismo que se intenta guardar
         when(songRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
