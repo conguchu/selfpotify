@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.music.service;
 
 import anton.davila.selfpotify.music.entity.Album;
+import anton.davila.selfpotify.music.entity.Artist;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import jakarta.transaction.Transactional;
@@ -31,6 +32,9 @@ public class SongService {
 
     @Autowired
     private SongRepository songRepository;
+
+    @Autowired
+    private LastFmService lastFmService;
 
 
     // =====================================
@@ -207,6 +211,53 @@ public class SongService {
     @Transactional
     public void incrementListeners(long id) {
         songRepository.incrementListeners(id);
+    }
+
+    /**
+     * Si la canción no tiene género asignado, lo consulta en Last.fm
+     * a partir de su título y primer artista, y lo persiste.
+     * Si ya tiene género, no hace nada.
+     *
+     * @param song canción a clasificar (debe estar gestionada o tener id)
+     * @return la canción (actualizada si se le ha aplicado género)
+     */
+    @Transactional
+    public Song applyGenreIfMissing(Song song) {
+        if (song == null) {
+            log.warn("applyGenreIfMissing: canción nula, se ignora.");
+            return null;
+        }
+        if (song.getGenre() != null && !song.getGenre().isBlank()) {
+            log.debug("La canción '{}' ya tiene género '{}', se omite.", song.getTitle(), song.getGenre());
+            return song;
+        }
+
+        String artistName = primaryArtistName(song);
+        if (artistName == null) {
+            log.warn("No se puede clasificar la canción '{}' (id={}): no tiene artista asociado.",
+                    song.getTitle(), song.getId());
+            return song;
+        }
+
+        Optional<String> genre = lastFmService.fetchGenre(artistName, song.getTitle());
+        if (genre.isEmpty()) {
+            log.info("Last.fm no devolvió género para '{} - {}'.", artistName, song.getTitle());
+            return song;
+        }
+
+        song.setGenre(genre.get());
+        Song saved = songRepository.save(song);
+        log.info("Género '{}' asignado a la canción '{}' (id={}).",
+                saved.getGenre(), saved.getTitle(), saved.getId());
+        return saved;
+    }
+
+    private String primaryArtistName(Song song) {
+        List<Artist> artists = song.getArtists();
+        if (artists == null || artists.isEmpty()) return null;
+        Artist first = artists.get(0);
+        if (first == null || first.getName() == null || first.getName().isBlank()) return null;
+        return first.getName();
     }
 
 }
