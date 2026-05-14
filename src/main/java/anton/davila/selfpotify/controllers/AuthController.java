@@ -4,12 +4,9 @@ import anton.davila.selfpotify.controllers.dto.JwtResponse;
 import anton.davila.selfpotify.controllers.dto.LoginRequest;
 import anton.davila.selfpotify.controllers.dto.SignupRequest;
 import anton.davila.selfpotify.security.JwtUtils;
-import anton.davila.selfpotify.user.entity.Admin;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,9 +34,6 @@ public class AuthController {
 
     @Autowired
     PasswordEncoder encoder;
-
-    @Value("${app.admin.signup-key}")
-    private String adminSignupKey;
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
@@ -78,21 +72,4 @@ public class AuthController {
         return ResponseEntity.ok("User registered successfully!");
     }
 
-    @PostMapping("/signup-admin")
-    public ResponseEntity<?> registerAdmin(@RequestBody SignupRequest signUpRequest,
-                                           @RequestHeader(value = "X-Admin-Signup-Key", required = false) String key) {
-        if (key == null || !key.equals(adminSignupKey)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Invalid admin signup key");
-        }
-        if (userRepository.findByUsername(signUpRequest.getUsername()).isPresent()) {
-            return ResponseEntity.badRequest().body("Error: Username is already taken!");
-        }
-
-        Admin admin = new Admin();
-        admin.setUsername(signUpRequest.getUsername());
-        admin.setPassword(encoder.encode(signUpRequest.getPassword()));
-        userRepository.save(admin);
-
-        return ResponseEntity.ok("Admin registered successfully!");
-    }
 }
