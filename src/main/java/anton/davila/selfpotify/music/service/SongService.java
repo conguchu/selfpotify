@@ -43,6 +43,7 @@ public class SongService {
     public Song add(Song s) {
         log.info("Intentando añadir una nueva canción: {}", s.getTitle());
         Song saved = songRepository.save(s);
+        applyGenreIfMissing(s);
         log.debug("Canción guardada con éxito. ID: {}", saved.getId());
         return saved;
     }
@@ -87,6 +88,9 @@ public class SongService {
     @Transactional
     public List<Song> saveMany(List<Song> songs) {
         log.warn("Guardando una lista de " + songs.size() + " canciones...");
+
+        songs.forEach(this::applyGenreIfMissing);
+
         songRepository.saveAll(songs);
         log.info("Guardadas " + songs.size() + " canciones correctamente.");
         return songs;
