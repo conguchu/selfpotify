@@ -1,4 +1,4 @@
-package anton.davila.selfpotify.music.service;
+package anton.davila.selfpotify.music.service.external;
 
 import anton.davila.selfpotify.config.AppProperties;
 import lombok.extern.slf4j.Slf4j;

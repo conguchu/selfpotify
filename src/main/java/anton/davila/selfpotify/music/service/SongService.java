@@ -1,9 +1,8 @@
 package anton.davila.selfpotify.music.service;
 
-import anton.davila.selfpotify.music.entity.Album;
-import anton.davila.selfpotify.music.entity.Artist;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
+import anton.davila.selfpotify.music.service.external.GenreApiService;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
@@ -12,7 +11,6 @@ import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -20,7 +18,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -34,7 +31,7 @@ public class SongService {
     private SongRepository songRepository;
 
     @Autowired
-    private LastFmService lastFmService;
+    private GenreApiService genreApiService;
 
 
     // =====================================
@@ -43,7 +40,7 @@ public class SongService {
     public Song add(Song s) {
         log.info("Intentando añadir una nueva canción: {}", s.getTitle());
         Song saved = songRepository.save(s);
-        applyGenreIfMissing(s);
+        genreApiService.applyGenreIfMissing(s);
         log.debug("Canción guardada con éxito. ID: {}", saved.getId());
         return saved;
     }
@@ -89,7 +86,7 @@ public class SongService {
     public List<Song> saveMany(List<Song> songs) {
         log.warn("Guardando una lista de " + songs.size() + " canciones...");
 
-        songs.forEach(this::applyGenreIfMissing);
+        songs.forEach(genreApiService::applyGenreIfMissing);
 
         songRepository.saveAll(songs);
         log.info("Guardadas " + songs.size() + " canciones correctamente.");
@@ -215,53 +212,6 @@ public class SongService {
     @Transactional
     public void incrementListeners(long id) {
         songRepository.incrementListeners(id);
-    }
-
-    /**
-     * Si la canción no tiene género asignado, lo consulta en Last.fm
-     * a partir de su título y primer artista, y lo persiste.
-     * Si ya tiene género, no hace nada.
-     *
-     * @param song canción a clasificar (debe estar gestionada o tener id)
-     * @return la canción (actualizada si se le ha aplicado género)
-     */
-    @Transactional
-    public Song applyGenreIfMissing(Song song) {
-        if (song == null) {
-            log.warn("applyGenreIfMissing: canción nula, se ignora.");
-            return null;
-        }
-        if (song.getGenre() != null && !song.getGenre().isBlank()) {
-            log.debug("La canción '{}' ya tiene género '{}', se omite.", song.getTitle(), song.getGenre());
-            return song;
-        }
-
-        String artistName = primaryArtistName(song);
-        if (artistName == null) {
-            log.warn("No se puede clasificar la canción '{}' (id={}): no tiene artista asociado.",
-                    song.getTitle(), song.getId());
-            return song;
-        }
-
-        Optional<String> genre = lastFmService.fetchGenre(artistName, song.getTitle());
-        if (genre.isEmpty()) {
-            log.info("Last.fm no devolvió género para '{} - {}'.", artistName, song.getTitle());
-            return song;
-        }
-
-        song.setGenre(genre.get());
-        Song saved = songRepository.save(song);
-        log.info("Género '{}' asignado a la canción '{}' (id={}).",
-                saved.getGenre(), saved.getTitle(), saved.getId());
-        return saved;
-    }
-
-    private String primaryArtistName(Song song) {
-        List<Artist> artists = song.getArtists();
-        if (artists == null || artists.isEmpty()) return null;
-        Artist first = artists.get(0);
-        if (first == null || first.getName() == null || first.getName().isBlank()) return null;
-        return first.getName();
     }
 
 }
