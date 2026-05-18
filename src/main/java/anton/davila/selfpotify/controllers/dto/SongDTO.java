@@ -17,5 +17,7 @@ public class SongDTO {
     private int bpm;
     private String picture_url;
     private List<Long> artistIds;
+    private List<String> artistNames;
+    private int listeners;
     private Long albumId;
 }
