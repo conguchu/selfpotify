@@ -15,6 +15,8 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     Optional<Artist> findByNameIgnoreCase(String name);
 
+    Optional<Artist> findByMbid(String mbid);
+
     List<Artist> findTop10ByOrderByListenersDesc();
 
     @Modifying
