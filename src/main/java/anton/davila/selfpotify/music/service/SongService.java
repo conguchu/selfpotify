@@ -338,6 +338,16 @@ public class SongService {
         songRepository.incrementListeners(id);
     }
 
+    /**
+     * Devuelve las 10 canciones más escuchadas de un género.
+     * @param genre nombre del género
+     * @return lista (máx. 10) de canciones del género ordenadas por escuchas desc
+     */
+    public List<Song> getTop10ByGenre(String genre) {
+        log.info("Recuperando las 10 canciones más escuchadas del género: {}", genre);
+        return songRepository.findTop10ByGenreOrderByListenersDesc(genre);
+    }
+
 }
 
 
