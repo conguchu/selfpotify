@@ -3,6 +3,7 @@ package anton.davila.selfpotify.user.service;
 import anton.davila.selfpotify.user.entity.Admin;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.AdminRepository;
+import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -44,6 +45,19 @@ public class UserService {
     public Optional<User> getByUsername(String username) {
         log.info("Buscando usuario por nombre: {}", username);
         return userRepository.findByUsername(username);
+    }
+
+    /**
+     * Obtiene el feed del usuario indicado por su ID.
+     *
+     * @param id identificador del usuario
+     * @return el feed asociado al usuario
+     */
+    public UserFeed getUserFeedById(long id) {
+        log.info("Buscando feed del usuario con ID: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
+        return user.getUserFeed();
     }
 
     @Transactional
