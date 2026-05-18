@@ -27,9 +27,18 @@ public class User {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
-    @OneToOne
-    @JoinColumn(name = "feed_id")
+    // todo usuario tiene obligatoriamente un único feed, creado junto al usuario
+    @OneToOne(cascade = CascadeType.ALL, optional = false, orphanRemoval = true)
+    @JoinColumn(name = "feed_id", nullable = false)
     private UserFeed userFeed;
+
+    /** Garantiza que todo usuario se persista con un UserFeed asociado. */
+    @PrePersist
+    private void ensureUserFeed() {
+        if (this.userFeed == null) {
+            this.userFeed = new UserFeed();
+        }
+    }
 
     public void copy(User u) {
         this.setUsername(u.getUsername());
