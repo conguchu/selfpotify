@@ -7,7 +7,12 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
+
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
+
+    Optional<Artist> findByNameIgnoreCase(String name);
+
     @Modifying
     @Transactional
     @Query("update Artist a set a.listeners = a.listeners + 1 where a.id = :id")
