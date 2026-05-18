@@ -41,11 +41,16 @@ public class UserFeed {
     /**
      * Apila un género como el más recientemente escuchado. Mantiene el orden
      * cronológico (índice 0 = más reciente) y descarta el más antiguo si se
-     * supera la capacidad máxima.
+     * supera la capacidad máxima. Si el género coincide con la cabeza actual
+     * no se apila de nuevo: así una sola escucha (que el reproductor sirve en
+     * varias peticiones de rango) cuenta como una única entrada.
      *
      * @param genero género de la canción recién escuchada
      */
     public void pushGenero(String genero) {
+        if (!last20GenresListened.isEmpty() && last20GenresListened.get(0).equals(genero)) {
+            return;
+        }
         last20GenresListened.add(0, genero);
         if (last20GenresListened.size() > MAX_GENEROS) {
             last20GenresListened.remove(last20GenresListened.size() - 1);
