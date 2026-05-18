@@ -12,6 +12,7 @@ public class AppProperties {
     private Admin admin = new Admin();
     private Jwt jwt = new Jwt();
     private Web web = new Web();
+    private Lastfm lastfm = new Lastfm();
 
     @Getter
     @Setter
@@ -31,5 +32,12 @@ public class AppProperties {
     @Setter
     public static class Web {
         private String origin = "http://localhost:3000";
+    }
+
+    @Getter
+    @Setter
+    public static class Lastfm {
+        private String apiKey = "";
+        private String baseUrl = "https://ws.audioscrobbler.com/2.0/";
     }
 }
