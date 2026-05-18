@@ -15,6 +15,8 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     Optional<Artist> findByNameIgnoreCase(String name);
 
+    List<Artist> findTop10ByOrderByListenersDesc();
+
     @Modifying
     @Transactional
     @Query("update Artist a set a.listeners = a.listeners + 1 where a.id = :id")
