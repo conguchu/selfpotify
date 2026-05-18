@@ -3,12 +3,17 @@ package anton.davila.selfpotify.controllers;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.service.ArtistService;
 import anton.davila.selfpotify.music.service.SongService;
+import anton.davila.selfpotify.user.entity.User;
+import anton.davila.selfpotify.user.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -32,11 +37,15 @@ import java.util.Optional;
 public class StreamingController {
 
     @Autowired
+    private UserService userService;
+
+    @Autowired
     private SongService songService;
     @Autowired
     private ArtistService artistService;
 
     @GetMapping("{songId}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<StreamingResponseBody> stream(
             @PathVariable String songId,
             @RequestHeader(value = "Range", required = false) String rangeHeader
@@ -62,6 +71,15 @@ public class StreamingController {
                     artistService.incrementListeners(artist.getId());
                 }
         );
+
+        // añadimos el genero de la canción a los gustos del usuario
+        User currentUser = getCurrentUser();
+        if (!song.getGenre().isBlank()) {
+            userService
+                    .getUserFeedById( currentUser.getId() )
+                    .pushGenero(song.getGenre());
+        }
+
 
         Path filePath = Paths.get(song.getSongPath());
 
@@ -143,6 +161,18 @@ public class StreamingController {
             case ".aac" -> "audio/aac";
             default -> "application/octet-stream";
         };
+    }
+
+    private User getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username;
+        if (principal instanceof UserDetails) {
+            username = ((UserDetails) principal).getUsername();
+        } else {
+            username = principal.toString();
+        }
+        return userService.getByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
     }
 
 }
