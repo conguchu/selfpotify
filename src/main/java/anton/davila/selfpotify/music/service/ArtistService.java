@@ -1,7 +1,9 @@
 package anton.davila.selfpotify.music.service;
 
 import anton.davila.selfpotify.music.entity.Artist;
+import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
+import anton.davila.selfpotify.music.repository.SongRepository;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,9 @@ public class ArtistService {
 
     @Autowired
     private ArtistRepository artistRepository;
+
+    @Autowired
+    private SongRepository songRepository;
 
     public Artist add(Artist a) {
         log.info("Añadiendo nuevo artista: {}", a.getName());
@@ -55,5 +60,12 @@ public class ArtistService {
     @Transactional
     public void incrementListeners(Long id) {
         artistRepository.incrementListeners(id);
+    }
+
+    public List<Song> getTop10SongsById(Long id) {
+        log.info("Recuperando top 10 canciones del artista con ID: {}", id);
+        artistRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el artista con ID " + id));
+        return songRepository.findTop10ByArtistIdOrderByListenersDesc(id);
     }
 }
