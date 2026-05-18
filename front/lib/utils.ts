@@ -17,8 +17,10 @@ export function rawSongToDTO(song: RawSong): SongDTO {
     duration_ms: song.duration_ms,
     genre: song.genre,
     bpm: song.bpm,
+    listeners: song.listeners,
     picture_url: song.picture_url,
     artistIds: (song.artists ?? []).map((a) => a.id),
+    artistNames: (song.artists ?? []).map((a) => a.name),
     albumId: song.album?.id ?? null,
   };
 }

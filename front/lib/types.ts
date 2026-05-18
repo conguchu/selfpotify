@@ -13,8 +13,10 @@ export interface SongDTO {
   duration_ms: number;
   genre: string | null;
   bpm: number;
+  listeners: number;
   picture_url: string | null;
   artistIds: number[];
+  artistNames: string[];
   albumId: number | null;
 }
 

@@ -24,10 +24,17 @@ export function SongRow({
   const isCurrent = current?.id === song.id;
   const showPause = isCurrent && isPlaying;
 
+  // "Artista - Género" bajo el título; se omite la parte que falte.
+  const artistLabel = song.artistNames?.length
+    ? song.artistNames.join(", ")
+    : "";
+  const subtitle =
+    [artistLabel, song.genre].filter(Boolean).join(" - ") || "—";
+
   return (
     <div
       className={cn(
-        "group grid grid-cols-[2.5rem_1fr_8rem_3rem] items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-bg-hover",
+        "group grid grid-cols-[2.5rem_1fr_5rem_8rem_3rem] items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-bg-hover",
         className,
       )}
     >
@@ -46,7 +53,7 @@ export function SongRow({
           {showPause ? <Pause /> : <Play />}
         </IconButton>
       </div>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3 text-left">
         <CoverArt src={song.picture_url} alt={song.title} size="sm" rounded="md" />
         <div className="min-w-0">
           <p
@@ -58,10 +65,14 @@ export function SongRow({
           >
             {song.title}
           </p>
-          <p className="truncate text-xs text-text-muted">
-            {song.genre || "—"}
+          <p className="truncate text-xs text-text-muted" title={subtitle}>
+            {subtitle}
           </p>
         </div>
+      </div>
+      <div className="flex items-center justify-end gap-1.5 text-xs text-text-muted tabular-nums">
+        <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
+        {song.listeners ?? 0}
       </div>
       <div className="text-xs text-text-muted">
         {song.bpm > 0 ? `${song.bpm} BPM` : ""}
