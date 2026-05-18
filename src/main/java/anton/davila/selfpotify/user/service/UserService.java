@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,6 +59,23 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
         return user.getUserFeed();
+    }
+
+    /**
+     * Obtiene los 10 géneros escuchados más recientemente por el usuario.
+     * La pila de géneros del feed mantiene el índice 0 como el más reciente,
+     * por lo que basta con tomar la cabecera de la lista.
+     *
+     * @param id identificador del usuario
+     * @return como máximo los 10 últimos géneros, del más reciente al más antiguo
+     */
+    @Transactional
+    public List<String> getLast10GenresListened(long id) {
+        log.info("Recuperando los 10 últimos géneros escuchados por el usuario con ID: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
+        List<String> genres = user.getUserFeed().getLast20GenresListened();
+        return new ArrayList<>(genres.subList(0, Math.min(10, genres.size())));
     }
 
     @Transactional
