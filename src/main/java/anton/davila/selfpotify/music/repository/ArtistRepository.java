@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
+import java.util.List;
+
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     Optional<Artist> findByNameIgnoreCase(String name);
