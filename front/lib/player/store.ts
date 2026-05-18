@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { SongDTO } from "@/lib/types";
 
 interface PlayerState {
@@ -23,47 +24,57 @@ interface PlayerState {
   stop: () => void;
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
-  current: null,
-  queue: [],
-  isPlaying: false,
-  volume: 0.8,
-  positionMs: 0,
-  durationMs: 0,
-
-  playSong: (song, queue) =>
-    set({
-      current: song,
-      queue: queue ?? [song],
-      isPlaying: true,
+export const usePlayerStore = create<PlayerState>()(
+  persist(
+    (set, get) => ({
+      current: null,
+      queue: [],
+      isPlaying: false,
+      volume: 0.8,
       positionMs: 0,
+      durationMs: 0,
+
+      playSong: (song, queue) =>
+        set({
+          current: song,
+          queue: queue ?? [song],
+          isPlaying: true,
+          positionMs: 0,
+        }),
+      togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+      pause: () => set({ isPlaying: false }),
+      resume: () => set({ isPlaying: true }),
+      next: () => {
+        const { current, queue } = get();
+        if (!current) return;
+        const idx = queue.findIndex((s) => s.id === current.id);
+        if (idx === -1 || idx === queue.length - 1) return;
+        set({ current: queue[idx + 1], positionMs: 0, isPlaying: true });
+      },
+      prev: () => {
+        const { current, queue, positionMs } = get();
+        if (!current) return;
+        if (positionMs > 3000) {
+          set({ positionMs: 0 });
+          return;
+        }
+        const idx = queue.findIndex((s) => s.id === current.id);
+        if (idx <= 0) {
+          set({ positionMs: 0 });
+          return;
+        }
+        set({ current: queue[idx - 1], positionMs: 0, isPlaying: true });
+      },
+      setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
+      setPosition: (ms) => set({ positionMs: ms }),
+      setDuration: (ms) => set({ durationMs: ms }),
+      stop: () => set({ current: null, isPlaying: false, positionMs: 0 }),
     }),
-  togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
-  pause: () => set({ isPlaying: false }),
-  resume: () => set({ isPlaying: true }),
-  next: () => {
-    const { current, queue } = get();
-    if (!current) return;
-    const idx = queue.findIndex((s) => s.id === current.id);
-    if (idx === -1 || idx === queue.length - 1) return;
-    set({ current: queue[idx + 1], positionMs: 0, isPlaying: true });
-  },
-  prev: () => {
-    const { current, queue, positionMs } = get();
-    if (!current) return;
-    if (positionMs > 3000) {
-      set({ positionMs: 0 });
-      return;
-    }
-    const idx = queue.findIndex((s) => s.id === current.id);
-    if (idx <= 0) {
-      set({ positionMs: 0 });
-      return;
-    }
-    set({ current: queue[idx - 1], positionMs: 0, isPlaying: true });
-  },
-  setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
-  setPosition: (ms) => set({ positionMs: ms }),
-  setDuration: (ms) => set({ durationMs: ms }),
-  stop: () => set({ current: null, isPlaying: false, positionMs: 0 }),
-}));
+    {
+      name: "selfpotify.player",
+      storage: createJSONStorage(() => localStorage),
+      // Solo se persiste el volumen — el resto del estado es efímero.
+      partialize: (s) => ({ volume: s.volume }),
+    },
+  ),
+);
