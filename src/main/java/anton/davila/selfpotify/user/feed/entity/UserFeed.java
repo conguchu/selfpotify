@@ -54,5 +54,6 @@ public class UserFeed {
 
     public void copy(UserFeed f) {
         this.setRecommendedArtists(f.getRecommendedArtists());
+        this.setLast20GenresListened(f.getLast20GenresListened());
     }
 }
