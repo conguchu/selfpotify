@@ -158,6 +158,28 @@ flowchart TD
     Reschedule --> Tick
 ```
 
+### Feed de recomendaciones del home
+
+Cada usuario tiene asociado obligatoriamente un `UserFeed` (relación `@OneToOne` con `cascade = ALL` y `orphanRemoval`, garantizada por un `@PrePersist` que lo crea si falta). El feed almacena la lista de artistas recomendados que el usuario ve al abrir el home.
+
+El endpoint `GET /api/feed` regenera el feed **en cada acceso al home**: `UserFeedService.regenerateFeedForUser` construye el feed por defecto (los 10 artistas con más oyentes, vía `ArtistRepository.findTop10ByOrderByListenersDesc`) y, si el usuario ya tenía feed, sobrescribe sus artistas con `copy`. De momento todos los usuarios reciben las mismas recomendaciones; la estructura queda preparada para personalizarlas por usuario en el futuro.
+
+#### Flujo de regeneración del feed
+
+```mermaid
+flowchart TD
+    Home([Usuario abre el home]) --> Get[GET /api/feed]
+    Get --> Auth[Resolver usuario autenticado<br/>desde el SecurityContext]
+    Auth --> Regen[regenerateFeedForUser]
+    Regen --> Build[buildDefaultFeed:<br/>findTop10ByOrderByListenersDesc]
+    Build --> Has{¿El usuario<br/>ya tiene feed?}
+    Has -- no --> Save[Guardar feed nuevo<br/>y asociarlo al usuario]
+    Has -- sí --> Copy[feed.copy:<br/>sobrescribir artistas<br/>recomendados]
+    Save --> DTO[Mapear artistas a ArtistDTO]
+    Copy --> DTO
+    DTO --> Render([Cliente renderiza<br/>los artistas recomendados])
+```
+
 ---
 
 ## Gestión de recursos
@@ -222,6 +244,7 @@ classDiagram
         - Profile profile
         - String username
         - String password
+        - UserFeed userFeed
         + copy(User)
     }
 
@@ -236,12 +259,22 @@ classDiagram
         + copy(Profile)
     }
 
+    class UserFeed {
+        - Long id
+        - List~Artist~ recommendedArtists
+        + copy(UserFeed)
+    }
+
     %% Herencia
     Admin --|> User : es un
 
     %% Relaciones User
     User "1" --> "1" Profile : tiene
+    User "1" --> "1" UserFeed : tiene
     User "1" --> "N" Playlist : crea
+
+    %% Relaciones UserFeed
+    UserFeed "N" o--o "N" Artist : recomienda
 
     %% Relaciones Profile
     Profile "N" --> "1" Song : tiene como favorita
@@ -407,6 +440,42 @@ graph LR
     UC8 -.->|include| UC8a
     UC8 -.->|include| UC8b
     UC8b -.->|include| UC8c
+```
+
+### UC9 — Ver el feed de recomendaciones del home
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC9("Abrir el home")
+        UC9a("Regenerar feed del usuario")
+        UC9b("Calcular top 10 artistas<br/>por oyentes")
+        UC9c("Mostrar artistas recomendados")
+    end
+
+    User --> UC9
+    UC9 -.->|include| UC9a
+    UC9a -.->|include| UC9b
+    UC9 -.->|include| UC9c
+```
+
+### UC10 — Ver la página de un artista
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC10("Abrir página de artista")
+        UC10a("Consultar datos del artista")
+        UC10b("Listar top 10 canciones<br/>del artista por oyentes")
+    end
+
+    User --> UC10
+    UC10 -.->|include| UC10a
+    UC10 -.->|include| UC10b
 ```
 
 ## Diagrama de arquitectura
