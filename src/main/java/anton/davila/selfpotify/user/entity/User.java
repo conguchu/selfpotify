@@ -1,5 +1,7 @@
 package anton.davila.selfpotify.user.entity;
 
+
+import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.profile.entity.Profile;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -24,6 +26,10 @@ public class User {
 
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
+
+    @OneToOne
+    @JoinColumn(name = "feed_id")
+    private UserFeed userFeed;
 
     public void copy(User u) {
         this.setUsername(u.getUsername());
