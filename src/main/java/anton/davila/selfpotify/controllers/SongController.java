@@ -111,6 +111,7 @@ public class SongController {
         dto.setDuration_ms(song.getDuration_ms());
         dto.setGenre(song.getGenre());
         dto.setBpm(song.getBpm());
+        dto.setListeners(song.getListeners());
         dto.setPicture_url(song.getPicture_url());
         if (song.getAlbum() != null) {
             dto.setAlbumId(song.getAlbum().getId());
@@ -118,6 +119,9 @@ public class SongController {
         if (song.getArtists() != null) {
             dto.setArtistIds(song.getArtists().stream()
                     .map(artist -> artist.getId())
+                    .collect(Collectors.toList()));
+            dto.setArtistNames(song.getArtists().stream()
+                    .map(artist -> artist.getName())
                     .collect(Collectors.toList()));
         }
         return dto;
