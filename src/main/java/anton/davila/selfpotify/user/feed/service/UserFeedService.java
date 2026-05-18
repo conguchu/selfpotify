@@ -73,6 +73,30 @@ public class UserFeedService {
     }
 
     /**
+     * Regenera el feed del usuario indicado con el feed por defecto
+     * (los 10 artistas más escuchados). Se invoca cada vez que el usuario
+     * accede al home de la plataforma.
+     *
+     * @param userId identificador del usuario
+     * @return el feed ya regenerado
+     */
+    @Transactional
+    public UserFeed regenerateFeedForUser(long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + userId));
+        log.info("Regenerando feed del usuario con ID: {}", userId);
+        UserFeed defaultFeed = buildDefaultFeed();
+        UserFeed feed = user.getUserFeed();
+        if (feed == null) {
+            feed = userFeedRepository.save(defaultFeed);
+            user.setUserFeed(feed);
+        } else {
+            feed.copy(defaultFeed);
+        }
+        return feed;
+    }
+
+    /**
      * Asigna a todos los usuarios que aún no tienen feed un feed por defecto
      * con los 10 artistas más escuchados.
      *
