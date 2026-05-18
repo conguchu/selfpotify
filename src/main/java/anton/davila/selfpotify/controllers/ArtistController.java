@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.controllers;
 
+import anton.davila.selfpotify.controllers.dto.Top10ArtistTracksDTO;
 import anton.davila.selfpotify.controllers.dto.ArtistDTO;
 import anton.davila.selfpotify.music.entity.Artist;
 import anton.davila.selfpotify.music.service.ArtistService;
@@ -34,6 +35,16 @@ public class ArtistController {
         return artistService.getById(id)
                 .map(artist -> ResponseEntity.ok(convertToDTO(artist)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/top-10-tracks")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<Top10ArtistTracksDTO> getTopTracks(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(new Top10ArtistTracksDTO(artistService.getTop10SongsById(id)));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping
