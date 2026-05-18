@@ -50,6 +50,12 @@ export interface Top10ArtistTracks {
   tracks: RawSong[];
 }
 
+/** Respuesta de `GET /api/songs/{genre}/top`. */
+export interface Top10GenreSongs {
+  genre: string;
+  top: SongDTO[];
+}
+
 export interface AlbumDTO {
   id: number;
   name: string;

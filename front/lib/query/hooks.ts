@@ -12,9 +12,15 @@ import {
   updatePlaylist,
   getPlaylist,
 } from "@/lib/api/playlists";
-import { listSongs, importFolder, createSong, deleteSong } from "@/lib/api/songs";
+import {
+  listSongs,
+  importFolder,
+  createSong,
+  deleteSong,
+  getGenreTopSongs,
+} from "@/lib/api/songs";
 import { listArtists, getArtist, getArtistTopTracks } from "@/lib/api/artists";
-import { getHomeFeed } from "@/lib/api/feed";
+import { getHomeFeed, getRecentGenres } from "@/lib/api/feed";
 import { listAlbums } from "@/lib/api/albums";
 import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
 import {
@@ -37,6 +43,8 @@ export const queryKeys = {
   artistTopTracks: (id: number) => ["artists", id, "top-tracks"] as const,
   albums: ["albums"] as const,
   homeFeed: ["feed", "home"] as const,
+  recentGenres: ["feed", "genres"] as const,
+  genreTopSongs: (genre: string) => ["songs", "genre", genre, "top"] as const,
   playlists: ["playlists", "my"] as const,
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
@@ -70,6 +78,29 @@ export function useHomeFeed(enabled = true) {
     staleTime: 0,
     gcTime: 0,
     refetchOnMount: "always",
+  });
+}
+
+/**
+ * Géneros escuchados recientemente. Como el feed, refleja el estado de
+ * escucha del usuario, así que se refresca en cada montaje y no se cachea.
+ */
+export function useRecentGenres(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.recentGenres,
+    queryFn: getRecentGenres,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useGenreTopSongs(genre: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.genreTopSongs(genre),
+    queryFn: () => getGenreTopSongs(genre),
+    enabled: enabled && genre.length > 0,
   });
 }
 

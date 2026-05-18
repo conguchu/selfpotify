@@ -11,3 +11,14 @@ import type { ArtistDTO } from "@/lib/types";
 export function getHomeFeed() {
   return apiFetch<ArtistDTO[]>("/api/feed");
 }
+
+/**
+ * Carga los 10 géneros escuchados más recientemente por el usuario
+ * (`GET /api/feed/genres`). El índice 0 es el más reciente.
+ *
+ * Refleja el estado de escucha del usuario, así que el hook que lo
+ * consume tampoco cachea la respuesta.
+ */
+export function getRecentGenres() {
+  return apiFetch<string[]>("/api/feed/genres");
+}
