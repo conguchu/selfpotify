@@ -41,6 +41,11 @@ public class UserService {
         return userRepository.findById(id);
     }
 
+    public Optional<User> getByUsername(String username) {
+        log.info("Buscando usuario por nombre: {}", username);
+        return userRepository.findByUsername(username);
+    }
+
     @Transactional
     public User update(long id, User userData) {
         log.info("Actualizando usuario con ID: {}", id);
