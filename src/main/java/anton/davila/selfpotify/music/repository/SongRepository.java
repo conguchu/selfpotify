@@ -18,5 +18,8 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     @Query("select s from Song s join s.artists a where a.id = :artistId order by s.listeners desc limit 10")
     List<Song> findTop10ByArtistIdOrderByListenersDesc(@Param("artistId") Long artistId);
 
+    @Query("select s from Song s where s.genre = :genre and s.available = true order by s.listeners desc limit 10")
+    List<Song> findTop10ByGenreOrderByListenersDesc(@Param("genre") String genre);
+
     Optional<Song> findFirstBySongPath(String songPath);
 }
