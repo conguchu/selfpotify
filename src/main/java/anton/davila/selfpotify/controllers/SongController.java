@@ -2,6 +2,7 @@ package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.controllers.dto.ImportRequest;
 import anton.davila.selfpotify.controllers.dto.SongDTO;
+import anton.davila.selfpotify.controllers.dto.Top10GenreSongsDTO;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.service.SongService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,16 @@ public class SongController {
         return songService.getById(id)
                 .map(song -> ResponseEntity.ok(convertToDTO(song)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{genre}/top")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<Top10GenreSongsDTO> getTopGenreSongs(@PathVariable("genre") String genre) {
+        List<Song> topSongs = songService.getTop10ByGenre(genre);
+        if (topSongs.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(new Top10GenreSongsDTO(genre, topSongs));
     }
 
     @PostMapping
