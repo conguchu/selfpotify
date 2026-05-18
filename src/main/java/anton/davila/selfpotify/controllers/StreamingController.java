@@ -74,11 +74,7 @@ public class StreamingController {
 
         // añadimos el genero de la canción a los gustos del usuario
         User currentUser = getCurrentUser();
-        if (!song.getGenre().isBlank()) {
-            userService
-                    .getUserFeedById( currentUser.getId() )
-                    .pushGenero(song.getGenre());
-        }
+        userService.registerGenreListen(currentUser.getId(), song.getGenre());
 
 
         Path filePath = Paths.get(song.getSongPath());
