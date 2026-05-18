@@ -111,9 +111,30 @@ public class LastFmService {
         for (Map<String, Object> tag : tags) {
             Object name = tag.get("name");
             if (name instanceof String s && !s.isBlank()) {
-                return Optional.of(s);
+                return Optional.of(toTitleCase(s));
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Capitaliza la primera letra de cada palabra del género
+     * (p. ej. "latin pop" -> "Latin Pop").
+     */
+    private String toTitleCase(String value) {
+        StringBuilder result = new StringBuilder(value.length());
+        boolean startOfWord = true;
+        for (char c : value.toCharArray()) {
+            if (Character.isWhitespace(c)) {
+                startOfWord = true;
+                result.append(c);
+            } else if (startOfWord) {
+                result.append(Character.toTitleCase(c));
+                startOfWord = false;
+            } else {
+                result.append(Character.toLowerCase(c));
+            }
+        }
+        return result.toString();
     }
 }
