@@ -17,6 +17,12 @@ public class Artist {
     private int listeners;
     private String picture_path;
 
+    // Identificador estable de MusicBrainz resuelto vía Last.fm durante el escaneo.
+    // Permite emparejar variantes de escritura del mismo artista (p. ej. "El Alfa",
+    // "✅EL ALFA EL JEFE") en una única fila. Puede ser null si Last.fm no lo conoce.
+    @Column(unique = true)
+    private String mbid;
+
     // un artista puede tener varios albumes. un album puede estar hecho por varios artistas
     // @JsonIgnore: evita la recursión infinita al serializar Song -> artists -> albums -> ...
     @JsonIgnore
