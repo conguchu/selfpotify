@@ -62,6 +62,25 @@ public class UserService {
     }
 
     /**
+     * Apila el género de una canción recién escuchada en el feed del usuario.
+     * Se ejecuta dentro de una transacción para que el dirty checking de
+     * Hibernate persista la pila {@code last20GenresListened}. Los géneros
+     * nulos o en blanco se ignoran.
+     *
+     * @param userId identificador del usuario que escucha
+     * @param genre  género de la canción reproducida
+     */
+    @Transactional
+    public void registerGenreListen(long userId, String genre) {
+        if (genre == null || genre.isBlank()) {
+            return;
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + userId));
+        user.getUserFeed().pushGenero(genre);
+    }
+
+    /**
      * Obtiene los 10 géneros escuchados más recientemente por el usuario.
      * La pila de géneros del feed mantiene el índice 0 como el más reciente,
      * por lo que basta con tomar la cabecera de la lista.
