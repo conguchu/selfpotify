@@ -28,7 +28,6 @@ public class UserFeed {
 
     // capacidad máxima de la pila de géneros
     private static final int MAX_GENEROS = 20;
-
     // guarda los ultimos generos escuchados por el usuario.
     // cada vez que se escucha una canción, se almacena su género en la pila.
     // se comporta como una pila acotada: la cabeza (índice 0) es el último
@@ -38,7 +37,7 @@ public class UserFeed {
     @CollectionTable(name = "feed_generos",
             joinColumns = @JoinColumn(name = "feed_id"))
     private List<String> last20GenresListened = new ArrayList<>();
-
+    //todo: generar una playlist de cada uno de los 5 ultimos generos con los temas con mas escuchas para recomendarlos al usuario
     /**
      * Apila un género como el más recientemente escuchado. Mantiene el orden
      * cronológico (índice 0 = más reciente) y descarta el más antiguo si se
