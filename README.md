@@ -158,6 +158,32 @@ flowchart TD
     Reschedule --> Tick
 ```
 
+#### Resolución de identidad de artistas
+
+El artista de cada canción se deduce del tag ID3 `ARTIST` (o del nombre de archivo), un valor que escribe quien etiquetó el MP3 y que es inconsistente entre archivos del mismo artista: emojis, espacios sobrantes, mayúsculas, alias o abreviaciones. Emparejar por comparación exacta del nombre hacía que el mismo artista real acabara en varias filas `Artist` distintas (caso observado: `El Alfa`, `✅EL ALFA EL JEFE` y `Alfa` como tres artistas separados; `Mala  fe` y `Mala Fe` como dos).
+
+La decisión es **no fiarse del string del tag y resolver cada artista contra una fuente de verdad externa**. Se descartaron la normalización pura del nombre (no resuelve alias ni abreviaciones), la tabla de alias manual (requiere mantenimiento) y el *fuzzy matching* (riesgo de fusionar artistas reales distintos). Se eligió Last.fm porque el proyecto ya lo integra para clasificar géneros, así que no añade ni dependencias ni variables de entorno nuevas.
+
+Durante el escaneo, `SongService.resolveArtist` limpia el nombre de adornos, lo consulta en Last.fm (`artist.getInfo` con `autocorrect=1`) y obtiene el **nombre canónico** y el **MBID** (MusicBrainz ID, identificador estable). El emparejamiento pasa a hacerse por MBID —no por nombre—, persistido en la columna `Artist.mbid`. Si una fila ya existía sin MBID, se le rellena. Si Last.fm no está configurado o no reconoce al artista, se cae al emparejamiento por nombre limpio, que ya unifica los casos triviales (espacios, mayúsculas). Una caché por lote evita repetir llamadas HTTP dentro del mismo escaneo.
+
+Esta estrategia previene **nuevos** duplicados; los ya existentes en BD requieren una limpieza puntual (o un futuro endpoint de merge para admin).
+
+```mermaid
+flowchart TD
+    Raw([Nombre del tag ID3]) --> Clean[Limpiar nombre:<br/>quitar emojis/símbolos,<br/>colapsar espacios]
+    Clean --> LastFm[Last.fm artist.getInfo<br/>autocorrect=1]
+    LastFm --> HasId{¿Devuelve MBID?}
+    HasId -- sí --> ByMbid{findByMbid}
+    ByMbid -- existe --> Reuse[Reusar artista]
+    ByMbid -- no --> ByName1{findByNameIgnoreCase<br/>nombre canónico}
+    ByName1 -- existe --> Backfill[Rellenar MBID<br/>en la fila existente]
+    ByName1 -- no --> Create[Crear artista<br/>con nombre canónico + MBID]
+    HasId -- no / sin API key --> ByName2{findByNameIgnoreCase<br/>nombre limpio}
+    ByName2 -- existe --> Reuse
+    ByName2 -- no --> CreatePlain[Crear artista<br/>solo con nombre]
+    Backfill --> Reuse
+```
+
 ### Feed de recomendaciones del home
 
 Cada usuario tiene asociado obligatoriamente un `UserFeed` (relación `@OneToOne` con `cascade = ALL` y `orphanRemoval`, garantizada por un `@PrePersist` que lo crea si falta). El feed almacena la lista de artistas recomendados que el usuario ve al abrir el home.
