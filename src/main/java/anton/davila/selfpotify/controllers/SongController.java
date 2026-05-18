@@ -52,7 +52,10 @@ public class SongController {
         if (topSongs.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(new Top10GenreSongsDTO(genre, topSongs));
+        List<SongDTO> top = topSongs.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(new Top10GenreSongsDTO(genre, top));
     }
 
     @PostMapping
