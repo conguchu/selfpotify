@@ -91,7 +91,10 @@ public class UserFeedService {
             feed = userFeedRepository.save(defaultFeed);
             user.setUserFeed(feed);
         } else {
-            feed.copy(defaultFeed);
+            // solo se refrescan los artistas recomendados; la pila de géneros
+            // escuchados (last20GenresListened) es historial del usuario y no
+            // debe vaciarse al regenerar el home
+            feed.setRecommendedArtists(new ArrayList<>(defaultFeed.getRecommendedArtists()));
         }
         return feed;
     }
