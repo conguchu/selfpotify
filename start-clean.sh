@@ -2,6 +2,7 @@
 # Variante de start.sh que borra la configuración del servidor almacenada
 # localmente ANTES de arrancar la app web y el backend (arranque "limpio").
 set -euo pipefail
+set -m  # job control: cada proceso en background recibe su propio process group
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
@@ -31,7 +32,7 @@ cleanup() {
   echo "[selfpotify] parando procesos..."
   for pid in "$BACK_PID" "$FRONT_PID"; do
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
+      kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
     fi
   done
   wait 2>/dev/null || true
