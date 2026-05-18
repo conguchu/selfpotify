@@ -6,6 +6,7 @@ import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.feed.service.UserFeedService;
 import anton.davila.selfpotify.user.repository.UserRepository;
+import anton.davila.selfpotify.user.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,6 +27,9 @@ public class FeedController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private UserService userService;
+
     /**
      * Home de la plataforma. Cada vez que el usuario accede, su feed se
      * regenera con el feed por defecto (los 10 artistas más escuchados).
@@ -37,6 +41,17 @@ public class FeedController {
         return feed.getRecommendedArtists().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Devuelve los 10 géneros escuchados más recientemente por el usuario
+     * autenticado (índice 0 = más reciente). Alimenta la sección de géneros
+     * del home, igual que {@link #getHomeFeed()} alimenta la de artistas.
+     */
+    @GetMapping("/genres")
+    public List<String> getRecentGenres() {
+        User currentUser = getCurrentUser();
+        return userService.getLast10GenresListened(currentUser.getId());
     }
 
     private User getCurrentUser() {
