@@ -66,6 +66,7 @@ public class AlbumController {
         dto.setId(album.getId());
         dto.setName(album.getName());
         dto.setPictureUrl(album.getPicture_url());
+        dto.setListeners(album.getListeners());
         if (album.getSongs() != null) {
             dto.setSongIds(album.getSongs().stream().map(s -> s.getId()).collect(Collectors.toList()));
         }
