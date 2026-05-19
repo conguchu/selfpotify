@@ -5,6 +5,7 @@ import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.external.GenreApiService;
+import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
 import anton.davila.selfpotify.music.service.external.LastFmService;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,9 @@ public class SongService {
 
     @Autowired
     private SongRepository songRepository;
+
+    @Autowired
+    private UserSongListenRepository userSongListenRepository;
 
     @Autowired
     private GenreApiService genreApiService;
@@ -80,6 +84,7 @@ public class SongService {
 
         // (metodo para copiar los atributos del objeto sin tener que hacerlo a mano siempre)
     }
+    @Transactional
     public Song delete(long id) {
         log.warn("Intentando eliminar la canción con ID: {}", id);
         Optional<Song> s = getById(id);
@@ -88,6 +93,8 @@ public class SongService {
             throw new RuntimeException("No se ha encontrado la cancion con ID " + id);
         }
         Song song = s.get();
+        // liberamos primero la FK de la tabla cruzada de escuchas
+        userSongListenRepository.deleteBySongId(id);
         songRepository.delete(song);
         log.info("Canción con ID {} eliminada correctamente", id);
         return song;
