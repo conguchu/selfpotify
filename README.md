@@ -206,6 +206,46 @@ flowchart TD
     DTO --> Render([Cliente renderiza<br/>los artistas recomendados])
 ```
 
+### Registro de escuchas por usuario
+
+El campo `Song.listeners` es un contador global: cuenta el total de
+reproducciones de una canción sumando las de todos los usuarios, sin saber
+quién la escuchó. Para poder personalizar las recomendaciones hace falta el
+dato por usuario, así que se añade una **tabla cruzada `user_song_listen`**
+(entidad `UserSongListen`, con `@ManyToOne` a `User` y a `Song`) que registra,
+fila a fila, qué usuario escuchó qué canción y cuándo. `Song.listeners` **no se
+toca**: sigue siendo el agregado global y vive de forma independiente.
+
+El registro se dispara en `StreamingController` junto al incremento de
+contadores y al `registerGenreListen`, llamando a
+`UserSongListenService.recordListen(userId, songId)`. La decisión es **crear un
+registro por cada petición HTTP** de `/api/listen/{id}`: como el reproductor
+sirve una reproducción en varias peticiones de rango, una sola escucha real
+genera varias filas. Se asume a propósito por simplicidad, y el límite por
+usuario (ver abajo) absorbe esa multiplicidad.
+
+Para que la tabla no crezca sin control, se acota a **1000 registros por
+usuario** con descarte **FIFO**: tras insertar, `recordListen` cuenta las filas
+del usuario y, si superan 1000, borra las más antiguas hasta volver al límite
+(constante `MAX_ESCUCHAS`, fija en el servicio igual que `MAX_GENEROS` en
+`UserFeed` — es un límite de diseño, no configuración por instalación). 1000
+escuchas recientes son suficientes para alimentar las recomendaciones y evitan
+que el histórico se dispare con muchos usuarios o reproducciones largas. La FK
+`song_id` obliga además a vaciar esta tabla antes de borrar canciones, tanto en
+el borrado individual (`SongService.delete`) como en el reset
+(`ResetService.resetAll`).
+
+```mermaid
+flowchart TD
+    Listen([Usuario escucha<br/>GET /api/listen/id]) --> Record[UserSongListenService<br/>.recordListen]
+    Record --> Resolve[Resolver usuario<br/>y canción por id]
+    Resolve --> Save[Guardar fila en<br/>user_song_listen]
+    Save --> Count{¿más de 1000<br/>escuchas del usuario?}
+    Count -- no --> End([Fin])
+    Count -- sí --> Evict[Borrar las N más<br/>antiguas FIFO]
+    Evict --> End
+```
+
 ---
 
 ## Gestión de recursos
@@ -291,6 +331,13 @@ classDiagram
         + copy(UserFeed)
     }
 
+    class UserSongListen {
+        - Long id
+        - User user
+        - Song song
+        - Instant listenedAt
+    }
+
     %% Herencia
     Admin --|> User : es un
 
@@ -301,6 +348,10 @@ classDiagram
 
     %% Relaciones UserFeed
     UserFeed "N" o--o "N" Artist : recomienda
+
+    %% Tabla cruzada de escuchas (máx. 1000 por usuario, FIFO)
+    UserSongListen "N" --> "1" User : la registra
+    UserSongListen "N" --> "1" Song : referencia
 
     %% Relaciones Profile
     Profile "N" --> "1" Song : tiene como favorita
