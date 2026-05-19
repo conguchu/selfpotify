@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.music.entity.Song;
+import anton.davila.selfpotify.music.service.AlbumService;
 import anton.davila.selfpotify.music.service.ArtistService;
 import anton.davila.selfpotify.music.service.SongService;
 import anton.davila.selfpotify.user.entity.User;
@@ -43,6 +44,8 @@ public class StreamingController {
     private SongService songService;
     @Autowired
     private ArtistService artistService;
+    @Autowired
+    private AlbumService albumService;
 
     @GetMapping("{songId}")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
@@ -64,13 +67,16 @@ public class StreamingController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encuentra el archivo de la canción");
         }
 
-        // añadimos la escucha a la canción y al artista
+        // añadimos la escucha a la canción, al artista y al álbum
         songService.incrementListeners(song.getId());
         song.getArtists().forEach(
                 artist -> {
                     artistService.incrementListeners(artist.getId());
                 }
         );
+        if (song.getAlbum() != null) {
+            albumService.incrementListeners(song.getAlbum().getId());
+        }
 
         // añadimos el genero de la canción a los gustos del usuario
         User currentUser = getCurrentUser();
