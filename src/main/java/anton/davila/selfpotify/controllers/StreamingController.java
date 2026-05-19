@@ -5,6 +5,7 @@ import anton.davila.selfpotify.music.service.AlbumService;
 import anton.davila.selfpotify.music.service.ArtistService;
 import anton.davila.selfpotify.music.service.SongService;
 import anton.davila.selfpotify.user.entity.User;
+import anton.davila.selfpotify.user.listen.service.UserSongListenService;
 import anton.davila.selfpotify.user.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -39,6 +40,9 @@ public class StreamingController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private UserSongListenService userSongListenService;
 
     @Autowired
     private SongService songService;
@@ -81,6 +85,9 @@ public class StreamingController {
         // añadimos el genero de la canción a los gustos del usuario
         User currentUser = getCurrentUser();
         userService.registerGenreListen(currentUser.getId(), song.getGenre());
+
+        // registramos la escucha en la tabla cruzada usuario-canción
+        userSongListenService.recordListen(currentUser.getId(), song.getId());
 
 
         Path filePath = Paths.get(song.getSongPath());
