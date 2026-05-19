@@ -41,6 +41,16 @@ public class AlbumService {
         return album;
     }
 
+    /**
+     * Incrementa una escucha al álbum indicado.
+     * @param id id del álbum
+     */
+    @Transactional
+    public void incrementListeners(long id) {
+        log.info("Incrementando escuchas del álbum con ID: {}", id);
+        albumRepository.incrementListeners(id);
+    }
+
     public Album delete(long id) {
         log.warn("Eliminando álbum con ID: {}", id);
         Album album = albumRepository.findById(id)
