@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: .env
+    volumes:
+      - selfpotify-data:/data/selfpotify
+      - ${MUSIC_LIBRARY_PATH:?Define MUSIC_LIBRARY_PATH en .env apuntando a la carpeta del host con tu música}:/music:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks: [internal]
+
+  next:
+    build:
+      context: ./front
+      args:
+        NEXT_PUBLIC_API_BASE: ""
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks: [internal]
+
+  web:
+    build: ./docker/web
+    depends_on:
+      - api
+      - next
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  selfpotify-data:
+
+networks:
+  internal:

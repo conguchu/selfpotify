@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.7
+
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+RUN ./mvnw -B -q dependency:go-offline
+COPY src/ src/
+RUN ./mvnw -B -DskipTests package
+
+FROM eclipse-temurin:17-jre-alpine AS runtime
+RUN addgroup -S app && adduser -S -G app app \
+    && mkdir -p /data/selfpotify && chown -R app:app /data
+USER app
+WORKDIR /app
+COPY --from=build /build/target/selfpotify-*.jar /app/app.jar
+ENV APP_CONFIG_PATH=/data/selfpotify/config.yml \
+    JAVA_OPTS=""
+EXPOSE 8080
+VOLUME ["/data/selfpotify"]
+ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -jar /app/app.jar"]

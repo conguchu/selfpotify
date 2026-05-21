@@ -128,6 +128,69 @@ public class SongService {
     }
 
     /**
+     * Re-escaneo idempotente: por cada audio de la carpeta inserta si su songPath
+     * no estaba en BBDD, recupera (available=true) si estaba marcado como no
+     * disponible, y deja intactas las canciones ya presentes y disponibles.
+     */
+    public RescanStats rescanFolder(String folderPath) {
+        log.info("Iniciando re-escaneo (idempotente) de carpeta: {}", folderPath);
+
+        int added = 0, recovered = 0, skipped = 0, failed = 0;
+        Map<String, Artist> artistCache = new HashMap<>();
+
+        try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
+            List<Path> audioPaths = paths
+                    .filter(Files::isRegularFile)
+                    .filter(this::isAudioFile)
+                    .toList();
+
+            for (Path path : audioPaths) {
+                String absolutePath = path.toAbsolutePath().normalize().toString();
+                Optional<Song> existing = songRepository.findFirstBySongPath(absolutePath);
+                if (existing.isPresent()) {
+                    Song s = existing.get();
+                    if (!s.isAvailable()) {
+                        s.setAvailable(true);
+                        songRepository.save(s);
+                        recovered++;
+                    } else {
+                        skipped++;
+                    }
+                    continue;
+                }
+
+                Song song = safeExtractMetadata(path, artistCache);
+                if (song == null) {
+                    failed++;
+                    continue;
+                }
+                song.setSongPath(absolutePath);
+                songRepository.save(song);
+                genreApiService.applyGenreIfMissing(song);
+                added++;
+            }
+        } catch (IOException e) {
+            log.error("Error al releer la carpeta: {}", folderPath, e);
+            throw new RuntimeException("No se pudo acceder a la ruta", e);
+        }
+
+        log.info("Re-escaneo de {} terminado: added={}, recovered={}, skipped={}, failed={}",
+                folderPath, added, recovered, skipped, failed);
+        return new RescanStats(added, recovered, skipped, failed);
+    }
+
+    public record RescanStats(int added, int recovered, int skipped, int failed) {
+        public RescanStats plus(RescanStats other) {
+            return new RescanStats(
+                    added + other.added,
+                    recovered + other.recovered,
+                    skipped + other.skipped,
+                    failed + other.failed
+            );
+        }
+    }
+
+    /**
      * Comprueba que está disponible el archivo de música asociado con una cancion
      * @param song
      * @return

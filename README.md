@@ -67,6 +67,60 @@ flowchart TD
     ResetCfg --> Public
 ```
 
+#### Empaquetado y arranque con Docker
+
+Para facilitar al máximo el set-up al usuario técnico, el servidor se empaqueta como una pila de **tres contenedores** orquestada con `docker compose`, manteniendo la filosofía de microservicios y permitiendo escalar o reiniciar cada pieza por separado:
+
+- **`api`** — Spring Boot (`Dockerfile.api`, build multi-stage con Maven → JRE Alpine). Escucha en `:8080`, expuesto al host para los clientes Android/TV. Persiste `config.yml`, logo y assets en el volumen Docker `selfpotify-data` montado en `/data/selfpotify`.
+- **`next`** — Frontend Next.js (`front/Dockerfile`, build con `output: "standalone"`). Escucha en `:3000` **solo en la red interna del compose**; nunca se publica al host.
+- **`web`** — Nginx (`docker/web/`) escuchando en `:80` (único puerto público del front). Sirve los estáticos `_next/static/`, hace `proxy_pass` a `next:3000` para SSR y a `api:8080` para `/api/*` y `/assets/*`. Con esto, el navegador habla siempre con un único host (`:80`) y se evita CORS y la exposición pública directa del backend a través del front.
+
+Los clientes web pasan por Nginx (`:80`); los clientes Android/TV consumen la API directamente (`:8080`).
+
+```mermaid
+flowchart LR
+    Browser["Navegador web"]
+    Mobile["Cliente Android / TV"]
+
+    subgraph Host["Host (docker compose)"]
+        direction LR
+        Web["web<br/>(Nginx :80)"]
+        Next["next<br/>(Next standalone :3000)"]
+        Api["api<br/>(Spring Boot :8080)"]
+        Vol[("volumen<br/>selfpotify-data<br/>/data/selfpotify")]
+    end
+
+    Browser -->|http :80| Web
+    Mobile -->|http :8080| Api
+
+    Web -->|/| Next
+    Web -->|/api/, /assets/| Api
+    Api --- Vol
+```
+
+##### Variables clave del `.env`
+
+Toda la configuración por instalación se declara en `.env` (ver `.env.example`). En modo Docker conviene revisar especialmente:
+
+| Variable | Valor recomendado en Docker | Para qué sirve |
+|---|---|---|
+| `SERVER_PORT` | `8080` | Puerto interno de la API (no cambiar salvo conflicto). |
+| `WEB_ORIGIN` | `http://localhost` (o el host público) | CORS del backend. Sin puerto porque el navegador entra por Nginx en `:80`. |
+| `JWT_SECRET` | cadena aleatoria ≥32 chars | Firma de JWT; obligatorio cambiarlo del valor del ejemplo. |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | credenciales iniciales | Admin auto-bootstrap en el primer arranque si la BBDD está vacía. |
+| `DB_URL` | `jdbc:h2:file:/data/selfpotify/db/selfpotify;AUTO_SERVER=TRUE` | Para persistir la BBDD entre reinicios del contenedor (con `DB_DDL_AUTO=update`). El valor por defecto (H2 in-memory) pierde los datos al reiniciar. |
+| `APP_CONFIG_PATH` | **no sobreescribir** | Lo fija el contenedor a `/data/selfpotify/config.yml`, que vive en el volumen `selfpotify-data` y sobrevive a reinicios. |
+| `H2_CONSOLE_ENABLED` | `false` | Deshabilitar la consola H2 en despliegue. |
+
+##### Arranque
+
+```bash
+cp .env.example .env        # ajusta JWT_SECRET, ADMIN_PASSWORD y WEB_ORIGIN
+docker compose up -d --build
+```
+
+Tras unos segundos, la app está disponible en `http://localhost/` (web) y en `http://<host>:8080/api/...` (clientes móviles).
+
 ### Funcionamiento del streaming
 
 Para hacer que los clientes puedan recibir la música en pedazos de bytes con la librería media3, he implementado la ruta de la API

@@ -1,0 +1,11 @@
+.git/
+.idea/
+target/
+data/
+front/
+img/
+*.iml
+*.md
+.env
+.env.*
+CLAUDE.local.md
