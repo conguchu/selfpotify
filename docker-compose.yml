@@ -6,6 +6,7 @@ services:
     env_file: .env
     volumes:
       - selfpotify-data:/data/selfpotify
+      - ${MUSIC_LIBRARY_PATH:?Define MUSIC_LIBRARY_PATH en .env apuntando a la carpeta del host con tu música}:/music:ro
     ports:
       - "8080:8080"
     restart: unless-stopped

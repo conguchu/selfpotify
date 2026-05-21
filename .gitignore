@@ -40,5 +40,8 @@ build/
 ### Runtime data (BBDD H2 file, config.yml local, etc.) ###
 data/
 
+### Librería musical local (opcional, ver MUSIC_LIBRARY_PATH en .env) ###
+/music/
+
 ### Claude (memoria local no versionada) ###
 CLAUDE.local.md
