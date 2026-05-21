@@ -15,6 +15,7 @@ import {
 import { listSongs, importFolder, createSong, deleteSong } from "@/lib/api/songs";
 import { listArtists } from "@/lib/api/artists";
 import { listAlbums } from "@/lib/api/albums";
+import { rescanLibrary } from "@/lib/api/config";
 import {
   createUser,
   deleteUser,
@@ -121,6 +122,18 @@ export function useImportFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: ImportFolderPayload) => importFolder(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+    },
+  });
+}
+
+export function useRescanLibrary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: rescanLibrary,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.songs });
       qc.invalidateQueries({ queryKey: queryKeys.artists });

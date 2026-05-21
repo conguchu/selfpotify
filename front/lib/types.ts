@@ -92,3 +92,10 @@ export interface PlaylistInput {
   isPublic: boolean;
   songIds: number[];
 }
+
+export interface RescanResult {
+  added: number;
+  recovered: number;
+  skipped: number;
+  failed: number;
+}

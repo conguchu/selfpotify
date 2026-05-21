@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Disc3, ListMusic, Music2, Users } from "lucide-react";
+import { Disc3, ListMusic, Music2, RotateCw, Users } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { ApiError } from "@/lib/api/client";
 import {
   useAlbums,
   useArtists,
   useMyPlaylists,
+  useRescanLibrary,
   useSongs,
   useUsers,
 } from "@/lib/query/hooks";
@@ -18,6 +22,27 @@ export default function AdminDashboardPage() {
   const albums = useAlbums();
   const users = useUsers();
   const playlists = useMyPlaylists();
+  const rescan = useRescanLibrary();
+
+  const handleRescan = () => {
+    rescan.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(
+          `Re-escaneo completado: ${result.added} nuevas, ${result.recovered} recuperadas, ${result.skipped} ya estaban` +
+            (result.failed > 0 ? `, ${result.failed} con errores` : ""),
+        );
+      },
+      onError: (err) => {
+        const msg =
+          err instanceof ApiError && err.status === 409
+            ? "Ya hay un escaneo en curso"
+            : err instanceof Error
+              ? err.message
+              : "No se pudo re-escanear";
+        toast.error(msg);
+      },
+    });
+  };
 
   const items = [
     {
@@ -88,6 +113,14 @@ export default function AdminDashboardPage() {
             <Users className="h-4 w-4" />
             Gestionar usuarios
           </Link>
+          <Button
+            variant="outline"
+            onClick={handleRescan}
+            loading={rescan.isPending}
+            leftIcon={<RotateCw className="h-4 w-4" />}
+          >
+            Re-escanear biblioteca
+          </Button>
         </div>
       </Card>
     </div>
