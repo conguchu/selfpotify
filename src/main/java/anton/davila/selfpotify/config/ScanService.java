@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.config;
 
+import anton.davila.selfpotify.controllers.dto.RescanResultDTO;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.SongService;
@@ -85,6 +86,44 @@ public class ScanService {
                 scanLock.unlock();
             }
         });
+    }
+
+    /**
+     * Re-escaneo idempotente sobre todas las rutas configuradas: añade canciones
+     * cuyo songPath aún no estaba en BBDD y recupera (available=true) las que
+     * estaban marcadas como no disponibles. Devuelve null si ya hay un escaneo
+     * en curso.
+     */
+    public RescanResultDTO rescan() {
+        if (!scanLock.tryLock()) {
+            log.info("ScanService: rescan ya en curso, se omite la petición");
+            return null;
+        }
+        try {
+            log.info("ScanService: starting rescan");
+            SongService.RescanStats total = new SongService.RescanStats(0, 0, 0, 0);
+            List<String> paths = configService.getConfig().getScan().getPaths();
+            for (String p : paths) {
+                Path folder = Paths.get(p);
+                if (!Files.isDirectory(folder) || !Files.isReadable(folder)) {
+                    log.warn("ScanService: ruta no accesible para rescan, se omite: {}", p);
+                    continue;
+                }
+                try {
+                    SongService.RescanStats stats = songService.rescanFolder(
+                            folder.toAbsolutePath().normalize().toString());
+                    total = total.plus(stats);
+                } catch (Exception e) {
+                    log.error("ScanService: error en rescan de {}", p, e);
+                }
+            }
+            sweepAvailability();
+            configService.markScanFinished(Instant.now().getEpochSecond());
+            log.info("ScanService: rescan completed → {}", total);
+            return new RescanResultDTO(total.added(), total.recovered(), total.skipped(), total.failed());
+        } finally {
+            scanLock.unlock();
+        }
     }
 
     private void sweepAvailability() {

@@ -7,6 +7,7 @@ import anton.davila.selfpotify.config.ScanService;
 import anton.davila.selfpotify.controllers.dto.BrandingDTO;
 import anton.davila.selfpotify.controllers.dto.ConfigUpdateRequest;
 import anton.davila.selfpotify.controllers.dto.PublicConfigDTO;
+import anton.davila.selfpotify.controllers.dto.RescanResultDTO;
 import anton.davila.selfpotify.controllers.dto.ScanPathRequest;
 import anton.davila.selfpotify.controllers.dto.ServerConfigDTO;
 import anton.davila.selfpotify.controllers.dto.SetupRequest;
@@ -188,6 +189,16 @@ public class ConfigController {
         body.put("status", "ok");
         body.put("lastRunEpochSec", configService.getConfig().getScan().getLastRunEpochSec());
         return ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/scan/rescan")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RescanResultDTO> rescan() {
+        RescanResultDTO result = scanService.rescan();
+        if (result == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya hay un escaneo en curso");
+        }
+        return ResponseEntity.ok(result);
     }
 
     private void deleteExistingLogos() {
