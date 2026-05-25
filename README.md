@@ -1,4 +1,9 @@
-# Self-Potify
+
+
+<div align="center">
+  <h1>SelfPotify</h1>
+  <img src="img/selfpotify-logo.png" alt="selfpotify-logo" width="240"/>
+</div>
 
 ## Objetivos
 
