@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.SongService;
+import anton.davila.selfpotify.music.service.external.CoverApiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,6 +28,11 @@ public class SongServiceTest {
 
     @MockitoBean
     private SongRepository songRepository;
+
+    // El escaneo dispara la resolución de carátulas; se mockea para que el test
+    // no toque la red ni extraiga arte embebido al recorrer una carpeta real.
+    @MockitoBean
+    private CoverApiService coverApiService;
 
     private Song songOriginal;
 
