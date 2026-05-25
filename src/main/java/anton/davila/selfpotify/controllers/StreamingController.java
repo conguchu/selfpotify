@@ -1,8 +1,6 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.music.entity.Song;
-import anton.davila.selfpotify.music.service.AlbumService;
-import anton.davila.selfpotify.music.service.ArtistService;
 import anton.davila.selfpotify.music.service.SongService;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.listen.service.UserSongListenService;
@@ -46,10 +44,6 @@ public class StreamingController {
 
     @Autowired
     private SongService songService;
-    @Autowired
-    private ArtistService artistService;
-    @Autowired
-    private AlbumService albumService;
 
     @GetMapping("{songId}")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
@@ -71,22 +65,14 @@ public class StreamingController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encuentra el archivo de la canción");
         }
 
-        // añadimos la escucha a la canción, al artista y al álbum
-        songService.incrementListeners(song.getId());
-        song.getArtists().forEach(
-                artist -> {
-                    artistService.incrementListeners(artist.getId());
-                }
-        );
-        if (song.getAlbum() != null) {
-            albumService.incrementListeners(song.getAlbum().getId());
-        }
-
         // añadimos el genero de la canción a los gustos del usuario
         User currentUser = getCurrentUser();
         userService.registerGenreListen(currentUser.getId(), song.getGenre());
 
-        // registramos la escucha en la tabla cruzada usuario-canción
+        // registramos la escucha en la tabla cruzada usuario-canción. Es la
+        // única fuente de los recuentos: la popularidad de canciones, álbumes,
+        // artistas y géneros se deriva por consulta de user_song_listen, así
+        // que ya no se tocan contadores numéricos al hacer streaming.
         userSongListenService.recordListen(currentUser.getId(), song.getId());
 
 

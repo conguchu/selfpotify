@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -32,8 +33,11 @@ public class SongController {
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public List<SongDTO> getAllSongs() {
+        // Una única consulta agrupada para la popularidad de todas las
+        // canciones (evita el N+1 de contar escuchas por cada fila).
+        Map<Long, Long> listenCounts = songService.getListenCountsBySong();
         return songService.getAll().stream()
-                .map(this::convertToDTO)
+                .map(song -> convertToDTO(song, listenCounts.getOrDefault(song.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -41,7 +45,7 @@ public class SongController {
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<SongDTO> getSongById(@PathVariable("id") Long id) {
         return songService.getById(id)
-                .map(song -> ResponseEntity.ok(convertToDTO(song)))
+                .map(song -> ResponseEntity.ok(convertToDTO(song, songService.getListenCount(song.getId()))))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -52,8 +56,9 @@ public class SongController {
         if (topSongs.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+        Map<Long, Long> listenCounts = songService.getListenCountsBySong();
         List<SongDTO> top = topSongs.stream()
-                .map(this::convertToDTO)
+                .map(song -> convertToDTO(song, listenCounts.getOrDefault(song.getId(), 0L)))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(new Top10GenreSongsDTO(genre, top));
     }
@@ -61,8 +66,9 @@ public class SongController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public SongDTO createSong(@RequestBody Song song) {
-        // For simplicity, receiving Song entity but we could use SongDTO
-        return convertToDTO(songService.add(song));
+        // For simplicity, receiving Song entity but we could use SongDTO.
+        // Una canción recién creada todavía no tiene escuchas registradas.
+        return convertToDTO(songService.add(song), 0L);
     }
 
     @PutMapping("/{id}")
@@ -70,7 +76,7 @@ public class SongController {
     public ResponseEntity<SongDTO> updateSong(@PathVariable("id") Long id, @RequestBody Song songDetails) {
         try {
             Song updatedSong = songService.update(id, songDetails);
-            return ResponseEntity.ok(convertToDTO(updatedSong));
+            return ResponseEntity.ok(convertToDTO(updatedSong, songService.getListenCount(updatedSong.getId())));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -99,19 +105,20 @@ public class SongController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "La ruta no existe, no es un directorio o no es legible: " + raw);
         }
+        // Canciones recién importadas: aún sin escuchas registradas.
         return songService.loadFolder(folder.toAbsolutePath().toString()).stream()
-                .map(this::convertToDTO)
+                .map(song -> convertToDTO(song, 0L))
                 .collect(Collectors.toList());
     }
 
-    private SongDTO convertToDTO(Song song) {
+    private SongDTO convertToDTO(Song song, long listeners) {
         SongDTO dto = new SongDTO();
         dto.setId(song.getId());
         dto.setTitle(song.getTitle());
         dto.setDuration_ms(song.getDuration_ms());
         dto.setGenre(song.getGenre());
         dto.setBpm(song.getBpm());
-        dto.setListeners(song.getListeners());
+        dto.setListeners(listeners);
         dto.setPicture_url(song.getPicture_url());
         if (song.getAlbum() != null) {
             dto.setAlbumId(song.getAlbum().getId());

@@ -17,8 +17,10 @@ import java.time.Instant;
 
 /**
  * Tabla cruzada que registra qué usuario ha escuchado qué canción.
- * Es independiente del contador global {@code Song.listeners}: aquí cada fila
- * es un evento de escucha de un usuario concreto, no un agregado.
+ * Es la <strong>única fuente de los recuentos</strong>: cada fila es un evento
+ * de escucha de un usuario concreto y la popularidad de canciones, álbumes,
+ * artistas y géneros se deriva por consulta sobre esta tabla, en vez de
+ * mantener contadores numéricos en las entidades.
  */
 @Entity
 @Data

@@ -15,6 +15,7 @@ import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -243,7 +244,6 @@ public class SongService {
     private Song extractMetadata(File file, Map<String, Artist> artistCache) {
         Song song = new Song();
         song.setSongPath(file.getAbsolutePath());
-        song.setListeners(0); // Valor por defecto para canciones nuevas
 
         // Respaldo a partir del nombre de archivo (convención "Artista - Título.ext").
         NameParts fromFileName = parseFileName(file.getName());
@@ -415,22 +415,41 @@ public class SongService {
     private record NameParts(String artist, String title) {}
 
     /**
-     * Incrementa una escucha a una canción
-     * @param id id de la cancion
-     */
-    @Transactional
-    public void incrementListeners(long id) {
-        songRepository.incrementListeners(id);
-    }
-
-    /**
-     * Devuelve las 10 canciones más escuchadas de un género.
+     * Devuelve las 10 canciones más escuchadas de un género, ordenadas por su
+     * recuento de escuchas derivado de la tabla {@code user_song_listen}.
      * @param genre nombre del género
      * @return lista (máx. 10) de canciones del género ordenadas por escuchas desc
      */
     public List<Song> getTop10ByGenre(String genre) {
         log.info("Recuperando las 10 canciones más escuchadas del género: {}", genre);
-        return songRepository.findTop10ByGenreOrderByListenersDesc(genre);
+        return userSongListenRepository.findSongsByGenreOrderByGlobalListensDesc(genre, PageRequest.of(0, 10));
+    }
+
+    /**
+     * Recuento global de escuchas por canción, derivado de los eventos de
+     * {@code user_song_listen}. Devuelve un mapa id→escuchas que incluye sólo
+     * las canciones con al menos una escucha; el resto se asume 0 en quien lo
+     * consuma. Una única consulta agrupada evita el N+1 al exponer la
+     * popularidad en los listados.
+     *
+     * @return mapa de id de canción a número de escuchas
+     */
+    public Map<Long, Long> getListenCountsBySong() {
+        Map<Long, Long> counts = new HashMap<>();
+        for (Object[] row : userSongListenRepository.countListensGroupedBySong()) {
+            counts.put((Long) row[0], (Long) row[1]);
+        }
+        return counts;
+    }
+
+    /**
+     * Recuento global de escuchas de una única canción, derivado de los eventos.
+     *
+     * @param songId id de la canción
+     * @return número de escuchas registradas de esa canción
+     */
+    public long getListenCount(long songId) {
+        return userSongListenRepository.countBySong_Id(songId);
     }
 
 }

@@ -15,6 +15,5 @@ public class AlbumDTO {
     private String releaseDate;
     private String pictureUrl;
     private Long artistId;
-    private int listeners;
     private List<Long> songIds;
 }

@@ -14,7 +14,6 @@ public class Artist {
     private Long id;
 
     private String name;
-    private int listeners;
     private String picture_path;
 
     // Identificador estable de MusicBrainz resuelto vía Last.fm durante el escaneo.
@@ -36,7 +35,6 @@ public class Artist {
 
     public void copy(Artist a) {
         this.setName(a.getName());
-        this.setListeners(a.getListeners());
         this.setPicture_path(a.getPicture_path());
     }
 }

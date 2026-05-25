@@ -20,7 +20,6 @@ public class Song {
     private String title;
     private int duration_ms;
     private String genre;
-    private int listeners;
     private int bpm;
     private String songPath;
     private boolean available = true;
@@ -43,7 +42,6 @@ public class Song {
         this.setTitle(s.getTitle());
         this.setDuration_ms(s.getDuration_ms());
         this.setGenre(s.getGenre());
-        this.setListeners(s.getListeners());
         this.setBpm(s.getBpm());
         this.setSongPath(s.getSongPath());
     }

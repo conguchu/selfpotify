@@ -18,6 +18,8 @@ public class SongDTO {
     private String picture_url;
     private List<Long> artistIds;
     private List<String> artistNames;
-    private int listeners;
+    // Popularidad DERIVADA: número de escuchas de la canción contado sobre la
+    // tabla de eventos user_song_listen (no es un campo almacenado en Song).
+    private long listeners;
     private Long albumId;
 }

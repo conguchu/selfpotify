@@ -16,8 +16,6 @@ public class Album {
     // autocalcular
     private int duration_ms;
     private String picture_url;
-    // recuento de escuchas: se incrementa al reproducir una canción del álbum
-    private int listeners;
 
     // un album puede tener varios artistas
     // @JsonIgnore: evita la recursión infinita al serializar Song -> album -> artists -> ...
@@ -39,7 +37,6 @@ public class Album {
         this.setName(a.getName());
         this.setDuration_ms(a.getDuration_ms());
         this.setPicture_url(a.getPicture_url());
-        this.setListeners(a.getListeners());
         this.setArtists(a.getArtists());
         this.setSongs(a.getSongs());
     }
