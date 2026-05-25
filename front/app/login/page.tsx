@@ -8,9 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { useAuthStore } from "@/lib/auth/store";
+import { useAppName } from "@/lib/query/hooks";
 
 export default function LoginPage() {
   const router = useRouter();
+  const appName = useAppName();
   const hydrated = useAuthStore((s) => s.hydrated);
   const token = useAuthStore((s) => s.token);
   const isAdmin = useAuthStore((s) => s.roles.includes("ROLE_ADMIN"));
@@ -28,7 +30,7 @@ export default function LoginPage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/20 ring-4 ring-accent-soft">
             <Disc3 className="h-7 w-7 text-accent" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">selfpotify</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{appName}</h1>
           <p className="text-sm text-text-muted">
             Tu música, en tu servidor.
           </p>

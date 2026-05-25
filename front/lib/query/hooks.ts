@@ -48,6 +48,12 @@ export function usePublicConfig() {
   });
 }
 
+/** Nombre de la app del branding, con fallback a "selfpotify". */
+export function useAppName(): string {
+  const { data } = usePublicConfig();
+  return data?.branding.appName?.trim() || "selfpotify";
+}
+
 export function useSongs(enabled = true) {
   return useQuery({
     queryKey: queryKeys.songs,

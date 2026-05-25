@@ -9,7 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CreatePlaylistModal } from "@/components/music/CreatePlaylistModal";
 import { PlaylistItem } from "@/components/music/PlaylistItem";
-import { useMyPlaylists } from "@/lib/query/hooks";
+import { useMyPlaylists, useAppName } from "@/lib/query/hooks";
 import { useAuthStore } from "@/lib/auth/store";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +18,13 @@ export function Sidebar() {
   const isAdmin = useAuthStore((s) => s.roles.includes("ROLE_ADMIN"));
   const [createOpen, setCreateOpen] = useState(false);
   const playlistsQuery = useMyPlaylists();
+  const appName = useAppName();
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col gap-3 border-r border-border bg-bg-elevated p-4">
       <Link href="/home" className="flex items-center gap-2 px-2 py-1">
         <Disc3 className="h-7 w-7 text-accent" />
-        <span className="text-lg font-bold tracking-tight">selfpotify</span>
+        <span className="text-lg font-bold tracking-tight">{appName}</span>
       </Link>
 
       <nav className="flex flex-col gap-1">
