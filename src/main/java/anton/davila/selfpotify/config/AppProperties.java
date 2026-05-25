@@ -16,6 +16,7 @@ public class AppProperties {
     private Lastfm lastfm = new Lastfm();
     private Library library = new Library();
     private Logo logo = new Logo();
+    private CoverArt coverArt = new CoverArt();
 
     @Getter
     @Setter
@@ -61,5 +62,26 @@ public class AppProperties {
         private String dockerPath = "/music";
         /** Marca explícita de ejecución en Docker (la fija el Dockerfile). */
         private boolean docker = false;
+    }
+
+    /**
+     * Carátulas/fotos automáticas durante el escaneo. Todas las fuentes funcionan
+     * sin API key; sólo MusicBrainz exige un User-Agent descriptivo (su política
+     * de uso lo requiere). Por defecto todo está activado y funciona sin tocar nada.
+     */
+    @Getter
+    @Setter
+    public static class CoverArt {
+        /** Interruptor global de la resolución de carátulas online (COVER_ART_ENABLED). */
+        private boolean enabled = true;
+        /**
+         * User-Agent enviado a MusicBrainz (COVER_ART_USER_AGENT). Su política exige
+         * identificar la app y un contacto: "App/versión ( contacto )".
+         */
+        private String userAgent = "selfpotify/1.0 ( https://github.com/selfpotify )";
+        /** Timeout de conexión en milisegundos para las llamadas a fuentes externas. */
+        private int connectTimeoutMs = 4000;
+        /** Timeout de lectura en milisegundos para las llamadas a fuentes externas. */
+        private int readTimeoutMs = 6000;
     }
 }
