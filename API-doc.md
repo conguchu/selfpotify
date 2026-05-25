@@ -15,7 +15,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Base URL local:** `http://localhost:8080`
 - **Auth:** se envía como `Authorization: Bearer <jwt>` salvo en el endpoint de streaming, donde también se acepta el JWT vía query param `?token=<jwt>` (necesario porque `<audio>` no permite headers personalizados — implementado en `AuthTokenFilter.java:60-65`).
 - **Tipo de contenido:** `application/json` para request/response salvo el streaming, que devuelve `audio/*`.
-- **Roles:** `ROLE_USER` y `ROLE_ADMIN`. El discriminador JPA `users.type` (`USER` / `ADMIN`) determina el rol — un usuario no puede cambiar de rol post-creación.
+- **Roles:** `ROLE_USER` y `ROLE_ADMIN`. El discriminador JPA `users.type` (`USER` / `ADMIN`) determina el rol. Un `ADMIN` puede reasignarlo con `PUT /api/users/{id}/role` (ver §7).
 - **CORS:** abierto a cualquier origen (`*`); credenciales permitidas; cabeceras expuestas: `Content-Range`, `Accept-Ranges`, `Content-Length`.
 - **Sesión:** stateless, sin cookies. El token caduca a las 24 horas.
 - **Datos seed (`DataLoader`):** en cada arranque se garantizan los usuarios `user / password` (USER) y `admin / admin123` (ADMIN).
@@ -200,9 +200,10 @@ Acceso exclusivo `ROLE_ADMIN`.
 | GET | `/api/users/{id}` | — | `User` o `404` |
 | POST | `/api/users` | `{ "username", "password", "isAdmin" }` | `200 OK "User created successfully by admin!"`; `400` si el username está cogido |
 | PUT | `/api/users/{id}` | `User` (si trae `password` se reencripta automáticamente) | `200 OK User` o `404` |
+| PUT | `/api/users/{id}/role` | `{ "isAdmin": true\|false }` | `200 OK User` (con el `type` ya actualizado); `400` si se intenta degradar al último administrador; `404` si no existe |
 | DELETE | `/api/users/{id}` | — | `204 No Content` o `404` |
 
-**Limitación conocida:** cambiar el rol de un usuario existente no es posible — el discriminador JPA `users.type` no se reasigna mediante `PUT`. Para "promover" hay que borrar y volver a crear.
+**Cambio de rol:** `PUT /api/users/{id}/role` reasigna el discriminador JPA `users.type` (`USER` ⇄ `ADMIN`) mediante una query nativa, refrescando el contexto de persistencia. Si el body no cambia el rol actual, devuelve el usuario sin tocarlo. No permite degradar al último `ADMIN` existente (responde `400`).
 
 ---
 
