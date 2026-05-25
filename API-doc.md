@@ -211,15 +211,23 @@ Acceso exclusivo `ROLE_ADMIN`.
 La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/config.yml` y se mantiene en memoria como copia volátil. Las escrituras se hacen a fichero temporal + `ATOMIC_MOVE`. **No** vive en H2 (que está en `create-drop`).
 
 ### `GET /api/config/public`
-- **Acceso:** público (sin auth). El frontend lo consume antes del login para aplicar branding.
-- **Respuesta `200 OK BrandingDTO`:**
+- **Acceso:** público (sin auth). El frontend lo consume antes del login para aplicar branding y para decidir si mostrar el wizard de setup.
+- **Respuesta `200 OK PublicConfigDTO`:**
   ```json
   {
-    "appName": "selfpotify",
-    "logoUrl": "/assets/logo.png",
-    "colors": { "--color-bg": "#0a0a0a", "--color-accent": "#b91c1c", ... }
+    "branding": {
+      "appName": "selfpotify",
+      "logoUrl": "/assets/logo.png",
+      "colors": { "--color-bg": "#0a0a0a", "--color-accent": "#b91c1c", ... }
+    },
+    "setupComplete": false,
+    "lastfmEnabled": true,
+    "musicLibraryPath": "/music"
   }
   ```
+  - `setupComplete`: `false` mientras no se haya completado el wizard inicial.
+  - `lastfmEnabled`: `true` si hay `LASTFM_API_KEY` configurada (habilita autocompletar metadatos).
+  - `musicLibraryPath`: ruta de librería musical auto-detectada del `.env` (`/music` en Docker o `MUSIC_LIBRARY_PATH` en host), o `null` si no hay ninguna.
 
 ### `GET /api/config`
 - **Acceso:** `ROLE_ADMIN`.
@@ -241,6 +249,22 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
   - `scanIntervalSeconds`: entre 30 y 86400.
 - **Respuesta:** `ServerConfigDTO` actualizado.
 - **Hot-reload:** el cambio de `scanIntervalSeconds` se aplica en el siguiente tick del scheduler **sin reinicio**.
+
+### `POST /api/config/setup` — Wizard de configuración inicial (commit)
+- **Acceso:** `ROLE_ADMIN` **o "modo setup"** (ver nota al final de §7.5): mientras `setupComplete=false` es accesible **sin login**.
+- **Body:** `SetupRequest` — todos los campos opcionales.
+  ```json
+  {
+    "appName": "selfpotify",
+    "scanPaths": ["/ruta/extra"],
+    "scanIntervalSeconds": 3600,
+    "autoCompleteMetadata": false
+  }
+  ```
+- **Comportamiento:** valida y persiste branding/intervalo/flags y cada ruta de `scanPaths` (deben existir y ser legibles), marca `setupComplete=true` y **lanza un escaneo inicial asíncrono si hay CUALQUIER ruta configurada** — incluida la librería auto-añadida del `.env` (ver nota), no solo las del body. Tras esto el wizard queda inaccesible y los endpoints del modo setup vuelven a exigir `ROLE_ADMIN`.
+- **Validaciones:** `appName` máx 64; `scanIntervalSeconds` entre 30 y 86400; rutas existentes y legibles.
+- **Errores:** `409` si ya estaba completado; `400` por validación.
+- **Respuesta:** `ServerConfigDTO` con `setupComplete=true`.
 
 ### `POST /api/config/scan-paths`
 - **Acceso:** `ROLE_ADMIN`.
@@ -287,6 +311,11 @@ scan:
   intervalSeconds: 3600
   lastRunEpochSec: 1714492800
 ```
+
+### Modo setup (acceso sin login en el primer arranque)
+Mientras `setupComplete=false`, el backend reabre **sin login** los endpoints que necesita el wizard, gracias a `@setupGuard.inSetupMode()`: `POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, y `GET`/`POST /api/users`. Al completar el setup (`POST /api/config/setup`), todos vuelven a exigir `ROLE_ADMIN`.
+
+Además, en el primer arranque y solo mientras `setupComplete=false`, la librería musical configurada en el `.env` se **auto-añade** a `scan.paths`: `/music` si se ejecuta en Docker (`SELFPOTIFY_DOCKER=true` o `/.dockerenv`) o `MUSIC_LIBRARY_PATH` en host. Por eso el escaneo inicial de `POST /api/config/setup` se dispara aunque el body no traiga rutas.
 
 ---
 

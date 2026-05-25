@@ -265,7 +265,9 @@ public class ConfigController {
             }
         }
         configService.markSetupComplete();
-        if (req.getScanPaths() != null && !req.getScanPaths().isEmpty()) {
+        // Escaneo inicial asíncrono si hay CUALQUIER ruta configurada (incluida la
+        // librería auto-añadida del .env), no solo las que vengan en el body.
+        if (!configService.getConfig().getScan().getPaths().isEmpty()) {
             java.util.concurrent.CompletableFuture.runAsync(() -> scanService.runScan());
         }
         return toDTO(configService.getConfig());
