@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { Music } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveImageUrl } from "@/lib/image";
 
 type Size = "sm" | "md" | "lg" | "xl";
 
@@ -31,7 +32,8 @@ export function CoverArt({
   const cfg = SIZE[size];
   const radius =
     rounded === "lg" ? "rounded-lg" : rounded === "full" ? "rounded-full" : "rounded-md";
-  const showImg = src && !errored;
+  const resolved = resolveImageUrl(src);
+  const showImg = resolved && !errored;
   return (
     <div
       className={cn(
@@ -43,7 +45,7 @@ export function CoverArt({
     >
       {showImg ? (
         <Image
-          src={src}
+          src={resolved}
           alt={alt}
           fill
           sizes={`${cfg.px}px`}

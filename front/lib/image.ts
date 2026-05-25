@@ -1,3 +1,25 @@
+import { API_BASE } from "@/lib/api/client";
+
+/**
+ * Resuelve una URL de imagen del backend a una URL cargable por el navegador.
+ *
+ * Las carátulas/fotos pueden venir como (a) URL externa absoluta de un CDN
+ * (iTunes, Deezer, archive.org) — se usa tal cual — o como (b) ruta relativa
+ * `/assets/covers/...` (carátula embebida que el backend sirve en `/assets/**`).
+ * En el caso (b) hay que prefijar con `API_BASE`, porque el frontend corre en un
+ * origen distinto al backend; igual que hace `AppLogo` con `branding.logoUrl`.
+ * Devuelve `null`/`undefined` sin tocar para que los componentes pinten su
+ * fallback (icono o inicial).
+ */
+export function resolveImageUrl(
+  url?: string | null,
+): string | null | undefined {
+  if (!url) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/")) return `${API_BASE}${url}`;
+  return url;
+}
+
 /**
  * Redimensiona/recomprime una imagen en el cliente hasta que pese como máximo
  * `maxBytes`, para no superar el límite de subida del backend. Reduce calidad y,
