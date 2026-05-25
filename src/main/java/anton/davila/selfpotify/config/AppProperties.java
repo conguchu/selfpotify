@@ -13,6 +13,7 @@ public class AppProperties {
     private Jwt jwt = new Jwt();
     private Web web = new Web();
     private Lastfm lastfm = new Lastfm();
+    private Library library = new Library();
 
     @Getter
     @Setter
@@ -39,5 +40,16 @@ public class AppProperties {
     public static class Lastfm {
         private String apiKey = "";
         private String baseUrl = "https://ws.audioscrobbler.com/2.0/";
+    }
+
+    @Getter
+    @Setter
+    public static class Library {
+        /** Ruta de la librería musical en el host (MUSIC_LIBRARY_PATH). Se usa fuera de Docker. */
+        private String path = "";
+        /** Punto de montaje de la librería dentro del contenedor (fijado por docker compose). */
+        private String dockerPath = "/music";
+        /** Marca explícita de ejecución en Docker (la fija el Dockerfile). */
+        private boolean docker = false;
     }
 }

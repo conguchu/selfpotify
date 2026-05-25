@@ -15,7 +15,7 @@ import {
 import { listSongs, importFolder, createSong, deleteSong } from "@/lib/api/songs";
 import { listArtists } from "@/lib/api/artists";
 import { listAlbums } from "@/lib/api/albums";
-import { rescanLibrary } from "@/lib/api/config";
+import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
 import {
   createUser,
   deleteUser,
@@ -36,7 +36,17 @@ export const queryKeys = {
   playlists: ["playlists", "my"] as const,
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
+  publicConfig: ["config", "public"] as const,
 };
+
+export function usePublicConfig() {
+  return useQuery({
+    queryKey: queryKeys.publicConfig,
+    queryFn: getPublicConfig,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
 
 export function useSongs(enabled = true) {
   return useQuery({

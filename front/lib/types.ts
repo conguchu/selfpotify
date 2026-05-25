@@ -99,3 +99,23 @@ export interface RescanResult {
   skipped: number;
   failed: number;
 }
+
+export interface BrandingDTO {
+  appName: string;
+  logoUrl: string | null;
+  colors: Record<string, string>;
+}
+
+export interface PublicConfig {
+  branding: BrandingDTO;
+  setupComplete: boolean;
+  lastfmEnabled: boolean;
+  musicLibraryPath: string | null;
+}
+
+export interface SetupPayload {
+  appName?: string;
+  scanPaths?: string[];
+  autoCompleteMetadata?: boolean;
+  scanIntervalSeconds?: number;
+}

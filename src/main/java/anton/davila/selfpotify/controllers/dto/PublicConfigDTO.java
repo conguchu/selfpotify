@@ -10,4 +10,8 @@ import lombok.NoArgsConstructor;
 public class PublicConfigDTO {
     private BrandingDTO branding;
     private boolean setupComplete;
+    /** True si hay API key de Last.fm configurada (habilita autocompletar metadatos). */
+    private boolean lastfmEnabled;
+    /** Ruta de librería musical auto-detectada del .env (o null si no hay ninguna). */
+    private String musicLibraryPath;
 }

@@ -1,7 +1,9 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.ServerGlobalConfig;
+import anton.davila.selfpotify.config.AppProperties;
 import anton.davila.selfpotify.config.ConfigService;
+import anton.davila.selfpotify.config.MusicLibraryResolver;
 import anton.davila.selfpotify.config.ResetService;
 import anton.davila.selfpotify.config.ScanService;
 import anton.davila.selfpotify.controllers.dto.BrandingDTO;
@@ -58,13 +60,24 @@ public class ConfigController {
     @Autowired
     private ResetService resetService;
 
+    @Autowired
+    private AppProperties appProperties;
+
+    @Autowired
+    private MusicLibraryResolver musicLibraryResolver;
+
     @GetMapping("/public")
     public PublicConfigDTO getPublic() {
         ServerGlobalConfig cfg = configService.getConfig();
         ServerGlobalConfig.Branding b = cfg.getBranding();
+        boolean lastfmEnabled = appProperties.getLastfm().getApiKey() != null
+                && !appProperties.getLastfm().getApiKey().isBlank();
+        String musicLibraryPath = musicLibraryResolver.resolvePath().orElse(null);
         return new PublicConfigDTO(
                 new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
-                cfg.getFeatures().isSetupComplete()
+                cfg.getFeatures().isSetupComplete(),
+                lastfmEnabled,
+                musicLibraryPath
         );
     }
 
@@ -75,7 +88,7 @@ public class ConfigController {
     }
 
     @PutMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ServerConfigDTO update(@RequestBody ConfigUpdateRequest req) {
         if (req == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Body requerido");
@@ -149,7 +162,7 @@ public class ConfigController {
     }
 
     @PostMapping("/logo")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public BrandingDTO uploadLogo(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Archivo requerido");
@@ -213,7 +226,7 @@ public class ConfigController {
     }
 
     @PostMapping("/setup")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ServerConfigDTO setup(@RequestBody SetupRequest req) {
         if (configService.getConfig().getFeatures().isSetupComplete()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El servidor ya está configurado");

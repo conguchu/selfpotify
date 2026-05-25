@@ -32,6 +32,7 @@ public class UserController {
     private PasswordEncoder encoder;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public List<User> getAllUsers() {
         return userService.getAll();
     }
@@ -44,6 +45,7 @@ public class UserController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ResponseEntity<?> createUser(@RequestBody SignupRequest signUpRequest) {
         if (userRepository.findByUsername(signUpRequest.getUsername()).isPresent()) {
             return ResponseEntity
