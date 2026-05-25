@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -71,6 +71,16 @@ export default function SetupWizard() {
   }
 
   const colorKeys = useMemo(() => Object.keys(colors), [colors]);
+
+  // Preview en vivo: aplica la paleta editada a toda la pantalla (WYSIWYG).
+  useEffect(() => {
+    const root = document.documentElement;
+    for (const [key, value] of Object.entries(colors)) {
+      if (key.startsWith("--color-") && value) {
+        root.style.setProperty(key, value);
+      }
+    }
+  }, [colors]);
 
   // Recalcula la paleta completa desde primario+secundario (modo básico).
   const applySeed = (next: { primary?: string; secondary?: string }) => {
