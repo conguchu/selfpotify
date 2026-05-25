@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { usePublicConfig, useUsers, queryKeys } from "@/lib/query/hooks";
 import { updateBranding, uploadLogo, setupServer } from "@/lib/api/config";
 import { createUser } from "@/lib/api/users";
+import { derivePalette } from "@/lib/palette";
 
 interface NewUser {
   username: string;
@@ -41,6 +42,9 @@ export default function SetupWizard() {
   // Paso 1 — branding
   const [appName, setAppName] = useState("");
   const [colors, setColors] = useState<Record<string, string>>({});
+  const [primary, setPrimary] = useState("#b91c1c");
+  const [secondary, setSecondary] = useState("#0a0a0a");
+  const [advanced, setAdvanced] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [seeded, setSeeded] = useState(false);
 
@@ -59,11 +63,23 @@ export default function SetupWizard() {
   // Sembrar valores iniciales con la config pública la primera vez.
   if (!seeded && data) {
     setAppName(data.branding.appName ?? "");
-    setColors({ ...data.branding.colors });
+    const seedColors = { ...data.branding.colors };
+    setColors(seedColors);
+    if (seedColors["--color-accent"]) setPrimary(seedColors["--color-accent"]);
+    if (seedColors["--color-bg"]) setSecondary(seedColors["--color-bg"]);
     setSeeded(true);
   }
 
   const colorKeys = useMemo(() => Object.keys(colors), [colors]);
+
+  // Recalcula la paleta completa desde primario+secundario (modo básico).
+  const applySeed = (next: { primary?: string; secondary?: string }) => {
+    const p = next.primary ?? primary;
+    const s = next.secondary ?? secondary;
+    if (next.primary !== undefined) setPrimary(p);
+    if (next.secondary !== undefined) setSecondary(s);
+    setColors((prev) => derivePalette(p, s, prev));
+  };
 
   if (isLoading || !data) {
     return (
@@ -202,32 +218,92 @@ export default function SetupWizard() {
               />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <Label>Colores del tema</Label>
-              <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <Label>Colores del tema</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAdvanced((v) => !v)}
+                >
+                  {advanced ? "Modo simple" : "Avanzado"}
+                </Button>
+              </div>
+
+              {/* Modo básico: solo primario + secundario, el resto se autocompleta. */}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="flex items-center gap-2 rounded-md border border-border bg-bg px-2 py-1.5">
+                  <input
+                    type="color"
+                    value={primary}
+                    onChange={(e) => applySeed({ primary: e.target.value })}
+                    className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent"
+                    aria-label="Color primario"
+                  />
+                  <span className="truncate text-xs text-text-muted">
+                    Primario (acento)
+                  </span>
+                  <span className="ml-auto font-mono text-xs text-text-subtle">
+                    {primary}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-border bg-bg px-2 py-1.5">
+                  <input
+                    type="color"
+                    value={secondary}
+                    onChange={(e) => applySeed({ secondary: e.target.value })}
+                    className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent"
+                    aria-label="Color secundario"
+                  />
+                  <span className="truncate text-xs text-text-muted">
+                    Secundario (fondo)
+                  </span>
+                  <span className="ml-auto font-mono text-xs text-text-subtle">
+                    {secondary}
+                  </span>
+                </div>
+              </div>
+
+              {/* Previsualización de la paleta derivada. */}
+              <div className="flex flex-wrap gap-1.5">
                 {colorKeys.map((key) => (
-                  <div
+                  <span
                     key={key}
-                    className="flex items-center gap-2 rounded-md border border-border bg-bg px-2 py-1.5"
-                  >
-                    <input
-                      type="color"
-                      value={colors[key]}
-                      onChange={(e) =>
-                        setColors((prev) => ({ ...prev, [key]: e.target.value }))
-                      }
-                      className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent"
-                      aria-label={colorLabel(key)}
-                    />
-                    <span className="truncate text-xs capitalize text-text-muted">
-                      {colorLabel(key)}
-                    </span>
-                    <span className="ml-auto font-mono text-xs text-text-subtle">
-                      {colors[key]}
-                    </span>
-                  </div>
+                    title={`${colorLabel(key)} ${colors[key]}`}
+                    className="h-6 w-6 rounded border border-border"
+                    style={{ backgroundColor: colors[key] }}
+                  />
                 ))}
               </div>
+
+              {/* Modo avanzado: los 14 colores, ya rellenados y editables. */}
+              {advanced && (
+                <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {colorKeys.map((key) => (
+                    <div
+                      key={key}
+                      className="flex items-center gap-2 rounded-md border border-border bg-bg px-2 py-1.5"
+                    >
+                      <input
+                        type="color"
+                        value={colors[key]}
+                        onChange={(e) =>
+                          setColors((prev) => ({ ...prev, [key]: e.target.value }))
+                        }
+                        className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent"
+                        aria-label={colorLabel(key)}
+                      />
+                      <span className="truncate text-xs capitalize text-text-muted">
+                        {colorLabel(key)}
+                      </span>
+                      <span className="ml-auto font-mono text-xs text-text-subtle">
+                        {colors[key]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
