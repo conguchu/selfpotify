@@ -91,12 +91,13 @@ export function derivePalette(
   // es claro. En tema claro, todo se invierte.
   const dark = secTone < 50;
 
-  // Acento por ROLES (como Material): en vez de usar el tono crudo de la semilla
-  // —que no garantiza contraste ni como fondo ni como primer plano— fijamos
-  // tonos calibrados que conservan matiz/croma. En tema oscuro el acento es claro
-  // (resalta sobre fondos oscuros como icono/enlace) y `on-accent` queda oscuro;
-  // en tema claro, al revés. Así iconos, enlaces, logo y botones combinan.
-  const accentRoleTone = dark ? 80 : 45;
+  // El acento se usa sobre todo como FONDO de botón, así que debe PARECERSE al
+  // color elegido (un rojo vivo da un botón rojo, no pastel). Seguimos el tono
+  // de la semilla pero acotado a [36, 60]: nunca tan claro que quede pastel ni
+  // tan oscuro que se pierda. El contraste del texto encima lo garantiza aparte
+  // `on-accent` (ver onAccentFor), que elige claro u oscuro según el acento.
+  const accentSeedTone = Hct.fromInt(accentArgb).tone;
+  const accentRoleTone = clampTone(Math.min(60, Math.max(36, accentSeedTone)));
 
   // Texto/iconos: tienen en cuenta AMBAS semillas. El matiz es una mezcla del
   // secundario armonizado hacia el primario (Blend.hctHue), con croma muy bajo
@@ -131,9 +132,9 @@ export function derivePalette(
     // botones). `accent-soft` es el contenedor tenue que se empareja con texto
     // de acento (badges, tiles).
     "--color-accent": tone(accent, accentRoleTone),
-    "--color-accent-hover": tone(accent, dark ? 86 : 38),
-    "--color-accent-active": tone(accent, dark ? 72 : 54),
-    "--color-accent-soft": tone(accent, dark ? 30 : 90),
+    "--color-accent-hover": tone(accent, clampTone(accentRoleTone + 8)),
+    "--color-accent-active": tone(accent, clampTone(accentRoleTone - 8)),
+    "--color-accent-soft": tone(accent, dark ? 26 : 90),
 
     // Semánticos — fijos (no se derivan), respetando lo que ya hubiera.
     "--color-danger": base?.["--color-danger"] ?? DEFAULT_DANGER,
