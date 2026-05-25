@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Disc3, Home, Plus, Shield } from "lucide-react";
+import { Home, Plus, Shield } from "lucide-react";
+import { AppLogo } from "./AppLogo";
 import { IconButton } from "@/components/ui/IconButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -23,7 +24,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col gap-3 border-r border-border bg-bg-elevated p-4">
       <Link href="/home" className="flex items-center gap-2 px-2 py-1">
-        <Disc3 className="h-7 w-7 text-accent" />
+        <AppLogo className="h-7 w-7" iconClassName="h-7 w-7" />
         <span className="text-lg font-bold tracking-tight">{appName}</span>
       </Link>
 
