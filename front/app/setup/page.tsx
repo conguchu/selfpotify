@@ -225,7 +225,7 @@ export default function SetupWizard() {
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                 i < step
-                  ? "bg-accent text-text"
+                  ? "bg-accent text-on-accent"
                   : i === step
                     ? "bg-accent/30 text-text ring-2 ring-accent"
                     : "bg-bg-hover text-text-subtle"

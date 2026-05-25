@@ -69,7 +69,7 @@ export function TabsTrigger({
       className={cn(
         "rounded px-3 py-1.5 text-sm font-medium transition-colors",
         active
-          ? "bg-accent text-text"
+          ? "bg-accent text-on-accent"
           : "text-text-muted hover:text-text hover:bg-bg-hover",
         className,
       )}

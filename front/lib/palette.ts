@@ -15,16 +15,18 @@ import {
  * obtiene fijando el *tono* (luminancia perceptual 0–100) sobre una paleta tonal
  * que conserva el matiz y el croma de la semilla.
  *
- * - `primary`   → familia acento (--color-accent y variantes). Se respeta el
- *   color elegido exactamente como `--color-accent`; hover/active/soft son tonos
- *   derivados de su misma paleta tonal.
+ * - `primary`   → familia acento (--color-accent y variantes) por ROLES: tonos
+ *   calibrados que conservan matiz/croma de la semilla y garantizan contraste
+ *   tanto como primer plano (iconos/enlaces sobre el fondo) como fondo (con
+ *   `--color-on-accent` para el texto encima de los botones).
  * - `secondary` → fondos (--color-bg y variantes) y textos por contraste.
  *
  * `--color-danger` / `--color-success` son semánticos: se toman de `base` si
  * existen, o de los defaults rojo/verde.
  *
- * Las claves devueltas coinciden exactamente con las que valida el backend
- * (ServerGlobalConfig.defaultColors()).
+ * Devuelve las claves de `ServerGlobalConfig.defaultColors()` más
+ * `--color-on-accent` (clave extra que el backend almacena sin problema: el mapa
+ * de colores es abierto y solo se valida que cada valor sea hex).
  */
 
 const DEFAULT_DANGER = "#ef4444";
@@ -51,6 +53,21 @@ function readableTone(bgTone: number, ratio: number, lighter: boolean): number {
   return t < 0 ? (lighter ? 100 : 0) : t;
 }
 
+/**
+ * Tono de primer plano (texto/icono) legible SOBRE un fondo de tono `bgTone`.
+ * Prefiere casi-blanco o casi-negro según cuál alcance >=4.5:1; si ninguno llega,
+ * elige el de mayor contraste. Para el color "on-accent" de los botones.
+ */
+function onTone(bgTone: number): number {
+  const light = 98;
+  const dark = 12;
+  const cl = Contrast.ratioOfTones(bgTone, light);
+  const cd = Contrast.ratioOfTones(bgTone, dark);
+  if (cl >= 4.5) return light;
+  if (cd >= 4.5) return dark;
+  return cl >= cd ? light : dark;
+}
+
 export function derivePalette(
   primary: string,
   secondary: string,
@@ -68,11 +85,17 @@ export function derivePalette(
     Math.min(secHct.chroma, 8),
   );
 
-  const accentTone = Hct.fromInt(accentArgb).tone;
   const secTone = secHct.tone;
   // Tema oscuro si el fondo base es oscuro: los fondos suben de tono y el texto
   // es claro. En tema claro, todo se invierte.
   const dark = secTone < 50;
+
+  // Acento por ROLES (como Material): en vez de usar el tono crudo de la semilla
+  // —que no garantiza contraste ni como fondo ni como primer plano— fijamos
+  // tonos calibrados que conservan matiz/croma. En tema oscuro el acento es claro
+  // (resalta sobre fondos oscuros como icono/enlace) y `on-accent` queda oscuro;
+  // en tema claro, al revés. Así iconos, enlaces, logo y botones combinan.
+  const accentRoleTone = dark ? 80 : 45;
 
   // Texto/iconos: tienen en cuenta AMBAS semillas. El matiz es una mezcla del
   // secundario armonizado hacia el primario (Blend.hctHue), con croma muy bajo
@@ -102,11 +125,16 @@ export function derivePalette(
     "--color-text-muted": tone(textPalette, readable(4.5)),
     "--color-text-subtle": tone(textPalette, readable(3)),
 
-    // Acentos — el primario se respeta tal cual; variantes en su paleta tonal.
-    "--color-accent": hexFromArgb(accentArgb),
-    "--color-accent-hover": tone(accent, accentTone + 8),
-    "--color-accent-active": tone(accent, accentTone - 8),
-    "--color-accent-soft": tone(accent, dark ? 25 : 90),
+    // Acentos — tonos por rol que mantienen contraste contra el fondo (uso como
+    // icono/enlace) y, con `on-accent`, contra el propio acento (texto sobre
+    // botones). `accent-soft` es el contenedor tenue que se empareja con texto
+    // de acento (badges, tiles).
+    "--color-accent": tone(accent, accentRoleTone),
+    "--color-accent-hover": tone(accent, dark ? 86 : 38),
+    "--color-accent-active": tone(accent, dark ? 72 : 54),
+    "--color-accent-soft": tone(accent, dark ? 30 : 90),
+    // Texto/icono legible SOBRE el acento (botones, pestaña activa, etc.).
+    "--color-on-accent": tone(accent, onTone(accentRoleTone)),
 
     // Semánticos — fijos (no se derivan), respetando lo que ya hubiera.
     "--color-danger": base?.["--color-danger"] ?? DEFAULT_DANGER,
