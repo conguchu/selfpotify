@@ -17,16 +17,17 @@ import {
  *
  * - `primary`   → familia acento (--color-accent y variantes) por ROLES: tonos
  *   calibrados que conservan matiz/croma de la semilla y garantizan contraste
- *   tanto como primer plano (iconos/enlaces sobre el fondo) como fondo (con
- *   `--color-on-accent` para el texto encima de los botones).
+ *   como primer plano (iconos/enlaces sobre el fondo) y como fondo.
  * - `secondary` → fondos (--color-bg y variantes) y textos por contraste.
  *
  * `--color-danger` / `--color-success` son semánticos: se toman de `base` si
  * existen, o de los defaults rojo/verde.
  *
- * Devuelve las claves de `ServerGlobalConfig.defaultColors()` más
- * `--color-on-accent` (clave extra que el backend almacena sin problema: el mapa
- * de colores es abierto y solo se valida que cada valor sea hex).
+ * El color del texto SOBRE el acento (`--color-on-accent`) NO se devuelve aquí:
+ * se calcula siempre a partir del acento con {@link onAccentFor} al aplicar el
+ * tema, para que sea legible aunque el acento se edite a mano.
+ *
+ * Las claves devueltas coinciden con `ServerGlobalConfig.defaultColors()`.
  */
 
 const DEFAULT_DANGER = "#ef4444";
@@ -133,13 +134,22 @@ export function derivePalette(
     "--color-accent-hover": tone(accent, dark ? 86 : 38),
     "--color-accent-active": tone(accent, dark ? 72 : 54),
     "--color-accent-soft": tone(accent, dark ? 30 : 90),
-    // Texto/icono legible SOBRE el acento (botones, pestaña activa, etc.).
-    "--color-on-accent": tone(accent, onTone(accentRoleTone)),
 
     // Semánticos — fijos (no se derivan), respetando lo que ya hubiera.
     "--color-danger": base?.["--color-danger"] ?? DEFAULT_DANGER,
     "--color-success": base?.["--color-success"] ?? DEFAULT_SUCCESS,
   };
+}
+
+/**
+ * Color de texto/icono legible SOBRE un fondo de acento dado. Se calcula SIEMPRE
+ * a partir del acento real (no se almacena), de modo que `--color-on-accent`
+ * siga al acento aunque se edite a mano o provenga de una paleta antigua.
+ */
+export function onAccentFor(accentHex: string): string {
+  const argb = safeArgb(accentHex, 0xffb91c1c);
+  const hct = Hct.fromInt(argb);
+  return tone(TonalPalette.fromInt(argb), onTone(hct.tone));
 }
 
 /** Convierte un hex a ARGB; si el valor no es válido devuelve `fallback`. */

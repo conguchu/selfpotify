@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePublicConfig } from "@/lib/query/hooks";
+import { onAccentFor } from "@/lib/palette";
 
 /**
  * Aplica el branding guardado en el servidor: sobrescribe las variables
@@ -24,6 +25,10 @@ export function ThemeApplier() {
         root.style.setProperty(key, value);
       }
     }
+    // on-accent se calcula siempre desde el acento aplicado (no se almacena),
+    // para que el texto sobre botones sea legible con cualquier paleta.
+    const accent = colors["--color-accent"];
+    if (accent) root.style.setProperty("--color-on-accent", onAccentFor(accent));
   }, [colors]);
 
   useEffect(() => {

@@ -14,7 +14,7 @@ import Image from "next/image";
 import { usePublicConfig, useUsers, queryKeys } from "@/lib/query/hooks";
 import { updateBranding, uploadLogo, setupServer } from "@/lib/api/config";
 import { createUser } from "@/lib/api/users";
-import { derivePalette } from "@/lib/palette";
+import { derivePalette, onAccentFor } from "@/lib/palette";
 import { API_BASE } from "@/lib/api/client";
 import { resizeImageToFit, formatBytes } from "@/lib/image";
 
@@ -83,6 +83,8 @@ export default function SetupWizard() {
         root.style.setProperty(key, value);
       }
     }
+    const accent = colors["--color-accent"];
+    if (accent) root.style.setProperty("--color-on-accent", onAccentFor(accent));
   }, [colors]);
 
   // Preview del logo: el archivo recién elegido o, si no, el ya guardado.
