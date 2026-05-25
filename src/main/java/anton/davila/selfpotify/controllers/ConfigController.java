@@ -1,7 +1,9 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.ServerGlobalConfig;
+import anton.davila.selfpotify.config.AppProperties;
 import anton.davila.selfpotify.config.ConfigService;
+import anton.davila.selfpotify.config.MusicLibraryResolver;
 import anton.davila.selfpotify.config.ResetService;
 import anton.davila.selfpotify.config.ScanService;
 import anton.davila.selfpotify.controllers.dto.BrandingDTO;
@@ -41,7 +43,6 @@ public class ConfigController {
     private static final long MIN_INTERVAL = 30L;
     private static final long MAX_INTERVAL = 86400L;
     private static final int MAX_APP_NAME = 64;
-    private static final long MAX_LOGO_BYTES = 2L * 1024 * 1024;
     private static final Map<String, String> ACCEPTED_LOGO_MIME = Map.of(
             "image/png", "png",
             "image/jpeg", "jpg",
@@ -58,13 +59,25 @@ public class ConfigController {
     @Autowired
     private ResetService resetService;
 
+    @Autowired
+    private AppProperties appProperties;
+
+    @Autowired
+    private MusicLibraryResolver musicLibraryResolver;
+
     @GetMapping("/public")
     public PublicConfigDTO getPublic() {
         ServerGlobalConfig cfg = configService.getConfig();
         ServerGlobalConfig.Branding b = cfg.getBranding();
+        boolean lastfmEnabled = appProperties.getLastfm().getApiKey() != null
+                && !appProperties.getLastfm().getApiKey().isBlank();
+        String musicLibraryPath = musicLibraryResolver.resolvePath().orElse(null);
         return new PublicConfigDTO(
                 new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
-                cfg.getFeatures().isSetupComplete()
+                cfg.getFeatures().isSetupComplete(),
+                lastfmEnabled,
+                musicLibraryPath,
+                appProperties.getLogo().getMaxFileSize().toBytes()
         );
     }
 
@@ -75,7 +88,7 @@ public class ConfigController {
     }
 
     @PutMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ServerConfigDTO update(@RequestBody ConfigUpdateRequest req) {
         if (req == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Body requerido");
@@ -149,14 +162,16 @@ public class ConfigController {
     }
 
     @PostMapping("/logo")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public BrandingDTO uploadLogo(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Archivo requerido");
         }
-        if (file.getSize() > MAX_LOGO_BYTES) {
+        long maxBytes = appProperties.getLogo().getMaxFileSize().toBytes();
+        if (file.getSize() > maxBytes) {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
-                    "El archivo excede el tamaño máximo de 2MB");
+                    "El archivo excede el tamaño máximo permitido ("
+                            + appProperties.getLogo().getMaxFileSize().toMegabytes() + " MB)");
         }
         String mime = file.getContentType();
         String ext = ACCEPTED_LOGO_MIME.get(mime);
@@ -213,7 +228,7 @@ public class ConfigController {
     }
 
     @PostMapping("/setup")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ServerConfigDTO setup(@RequestBody SetupRequest req) {
         if (configService.getConfig().getFeatures().isSetupComplete()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El servidor ya está configurado");
@@ -252,7 +267,9 @@ public class ConfigController {
             }
         }
         configService.markSetupComplete();
-        if (req.getScanPaths() != null && !req.getScanPaths().isEmpty()) {
+        // Escaneo inicial asíncrono si hay CUALQUIER ruta configurada (incluida la
+        // librería auto-añadida del .env), no solo las que vengan en el body.
+        if (!configService.getConfig().getScan().getPaths().isEmpty()) {
             java.util.concurrent.CompletableFuture.runAsync(() -> scanService.runScan());
         }
         return toDTO(configService.getConfig());

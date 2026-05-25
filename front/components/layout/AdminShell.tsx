@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Disc3, Music2, Shield, Users } from "lucide-react";
+import { Music2, Shield, Users } from "lucide-react";
 import { ProfileMenu } from "./ProfileMenu";
+import { AppLogo } from "./AppLogo";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { useAppName } from "@/lib/query/hooks";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -21,15 +23,16 @@ export function AdminShell({
   title?: string;
 }) {
   const pathname = usePathname();
+  const appName = useAppName();
   return (
     <ProtectedRoute requireAdmin>
       <div className="flex h-screen flex-col">
         <header className="flex h-16 items-center justify-between border-b border-border bg-bg-elevated px-6">
           <div className="flex items-center gap-6">
             <Link href="/admin" className="flex items-center gap-2">
-              <Disc3 className="h-6 w-6 text-accent" />
+              <AppLogo className="h-6 w-6" iconClassName="h-6 w-6" />
               <span className="text-base font-bold tracking-tight">
-                selfpotify <span className="text-accent">admin</span>
+                {appName} <span className="text-accent">admin</span>
               </span>
             </Link>
             <nav className="flex items-center gap-1">

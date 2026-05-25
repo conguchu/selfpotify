@@ -36,11 +36,11 @@ como el web o mobile, dándome la posibilidad a futuro de crear más para otras 
 
 ### Despliegue
 
-**Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre,
-por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la 
-estructura de red para permitir el acceso desde internet. Por esto, al arrancar el servidor por primera vez, tendrá un pequeño wizard web que permite cambiar estos parámetros (IP de acceso, directorios de música...).
+**Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre, por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la estructura de red para permitir el acceso desde internet.
 
-El estado del wizard se persiste en un fichero YAML externo gestionado por `ConfigService`, con el flag `features.setupComplete` como interruptor entre "primer arranque" y "servidor ya operativo". El endpoint `POST /api/config/reset` permite al admin devolver el servidor a su estado de fábrica (vaciado de BBDD, usuarios por defecto `admin/admin` y `user/password`, y config en blanco), volviendo a forzar el wizard en el siguiente arranque.
+Por esto, en el **primer arranque** el servidor entra en **modo setup** y la web sirve un **wizard de configuración inicial al que se accede sin login**: mientras la instalación no esté completada, cualquier acceso al cliente web redirige siempre a este wizard. En él, el administrador deja el servidor operativo de una pasada — **branding** (nombre, colores y logo de la app), **biblioteca musical** (directorios a escanear e intervalo de escaneo) y **usuarios** (cuentas iniciales). El wizard funciona sin autenticación porque, en modo setup, el backend reabre temporalmente los endpoints que necesita (`POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, `POST /api/users`); el control real lo ejerce un guard dinámico (`@setupGuard.inSetupMode()`) ligado al flag `features.setupComplete`.
+
+El estado del wizard se persiste en un fichero YAML externo gestionado por `ConfigService`, con el flag `features.setupComplete` como interruptor entre "primer arranque" y "servidor ya operativo". Al confirmar el wizard, `POST /api/config/setup` marca `setupComplete=true`: el wizard queda **inaccesible** (el cliente deja de redirigir a él) y esos endpoints vuelven a exigir rol `ADMIN`. El endpoint `POST /api/config/reset` permite al admin devolver el servidor a su estado de fábrica (vaciado de BBDD, usuarios por defecto `admin/admin` y `user/password`, y config en blanco), volviendo a forzar el wizard en el siguiente acceso.
 
 #### Flujo de setup inicial y reset
 
@@ -52,8 +52,8 @@ flowchart TD
     Defaults --> Public
     Read --> Public[GET /api/config/public<br/>devuelve setupComplete]
     Public --> Decide{setupComplete?}
-    Decide -- false --> Wizard[Cliente muestra<br/>wizard de setup]
-    Wizard --> Setup[POST /api/config/setup<br/>appName, scanPaths,<br/>intervalo, features]
+    Decide -- false --> Wizard[Cliente redirige SIEMPRE al wizard<br/>sin login: branding+colores+logo,<br/>biblioteca y usuarios<br/>PUT /api/config · POST /logo · POST /api/users]
+    Wizard --> Setup[POST /api/config/setup<br/>commit final: appName, scanPaths,<br/>intervalo, features]
     Setup --> Validate{Validaciones OK?<br/>rutas existen,<br/>30 ≤ intervalo ≤ 86400}
     Validate -- no --> Err400[400 Bad Request]
     Validate -- sí --> Persist[ConfigService persiste<br/>YAML + markSetupComplete]
@@ -345,7 +345,7 @@ graph LR
 
 ```mermaid
 graph LR
-    Admin["👤 Administrador"]
+    Admin["👤 Operador (sin login,<br/>en modo setup)"]
 
     subgraph Sistema Self-Potify
         UC6("Completar setup inicial")
@@ -354,12 +354,14 @@ graph LR
         UC6c("Fijar intervalo de escaneo")
         UC6d("Persistir config en YAML<br/>y marcar setupComplete")
         UC6e("Lanzar escaneo inicial")
+        UC6f("Crear usuarios iniciales")
     end
 
     Admin --> UC6
     UC6 -.->|include| UC6a
     UC6 -.->|include| UC6b
     UC6 -.->|include| UC6c
+    UC6 -.->|include| UC6f
     UC6 -.->|include| UC6d
     UC6d -.->|include| UC6e
 ```

@@ -15,7 +15,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Base URL local:** `http://localhost:8080`
 - **Auth:** se envía como `Authorization: Bearer <jwt>` salvo en el endpoint de streaming, donde también se acepta el JWT vía query param `?token=<jwt>` (necesario porque `<audio>` no permite headers personalizados — implementado en `AuthTokenFilter.java:60-65`).
 - **Tipo de contenido:** `application/json` para request/response salvo el streaming, que devuelve `audio/*`.
-- **Roles:** `ROLE_USER` y `ROLE_ADMIN`. El discriminador JPA `users.type` (`USER` / `ADMIN`) determina el rol — un usuario no puede cambiar de rol post-creación.
+- **Roles:** `ROLE_USER` y `ROLE_ADMIN`. El discriminador JPA `users.type` (`USER` / `ADMIN`) determina el rol. Un `ADMIN` puede reasignarlo con `PUT /api/users/{id}/role` (ver §7).
 - **CORS:** abierto a cualquier origen (`*`); credenciales permitidas; cabeceras expuestas: `Content-Range`, `Accept-Ranges`, `Content-Length`.
 - **Sesión:** stateless, sin cookies. El token caduca a las 24 horas.
 - **Datos seed (`DataLoader`):** en cada arranque se garantizan los usuarios `user / password` (USER) y `admin / admin123` (ADMIN).
@@ -200,9 +200,10 @@ Acceso exclusivo `ROLE_ADMIN`.
 | GET | `/api/users/{id}` | — | `User` o `404` |
 | POST | `/api/users` | `{ "username", "password", "isAdmin" }` | `200 OK "User created successfully by admin!"`; `400` si el username está cogido |
 | PUT | `/api/users/{id}` | `User` (si trae `password` se reencripta automáticamente) | `200 OK User` o `404` |
+| PUT | `/api/users/{id}/role` | `{ "isAdmin": true\|false }` | `200 OK User` (con el `type` ya actualizado); `400` si se intenta degradar al último administrador; `404` si no existe |
 | DELETE | `/api/users/{id}` | — | `204 No Content` o `404` |
 
-**Limitación conocida:** cambiar el rol de un usuario existente no es posible — el discriminador JPA `users.type` no se reasigna mediante `PUT`. Para "promover" hay que borrar y volver a crear.
+**Cambio de rol:** `PUT /api/users/{id}/role` reasigna el discriminador JPA `users.type` (`USER` ⇄ `ADMIN`) mediante una query nativa, refrescando el contexto de persistencia. Si el body no cambia el rol actual, devuelve el usuario sin tocarlo. No permite degradar al último `ADMIN` existente (responde `400`).
 
 ---
 
@@ -211,15 +212,25 @@ Acceso exclusivo `ROLE_ADMIN`.
 La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/config.yml` y se mantiene en memoria como copia volátil. Las escrituras se hacen a fichero temporal + `ATOMIC_MOVE`. **No** vive en H2 (que está en `create-drop`).
 
 ### `GET /api/config/public`
-- **Acceso:** público (sin auth). El frontend lo consume antes del login para aplicar branding.
-- **Respuesta `200 OK BrandingDTO`:**
+- **Acceso:** público (sin auth). El frontend lo consume antes del login para aplicar branding y para decidir si mostrar el wizard de setup.
+- **Respuesta `200 OK PublicConfigDTO`:**
   ```json
   {
-    "appName": "selfpotify",
-    "logoUrl": "/assets/logo.png",
-    "colors": { "--color-bg": "#0a0a0a", "--color-accent": "#b91c1c", ... }
+    "branding": {
+      "appName": "selfpotify",
+      "logoUrl": "/assets/logo.png",
+      "colors": { "--color-bg": "#0a0a0a", "--color-accent": "#b91c1c", ... }
+    },
+    "setupComplete": false,
+    "lastfmEnabled": true,
+    "musicLibraryPath": "/music",
+    "logoMaxBytes": 2097152
   }
   ```
+  - `setupComplete`: `false` mientras no se haya completado el wizard inicial.
+  - `lastfmEnabled`: `true` si hay `LASTFM_API_KEY` configurada (habilita autocompletar metadatos).
+  - `musicLibraryPath`: ruta de librería musical auto-detectada del `.env` (`/music` en Docker o `MUSIC_LIBRARY_PATH` en host), o `null` si no hay ninguna.
+  - `logoMaxBytes`: tamaño máximo en bytes admitido por `POST /api/config/logo` (configurable vía `LOGO_MAX_FILE_SIZE`). El cliente lo usa para mostrar el límite y redimensionar la imagen antes de subirla.
 
 ### `GET /api/config`
 - **Acceso:** `ROLE_ADMIN`.
@@ -242,6 +253,22 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
 - **Respuesta:** `ServerConfigDTO` actualizado.
 - **Hot-reload:** el cambio de `scanIntervalSeconds` se aplica en el siguiente tick del scheduler **sin reinicio**.
 
+### `POST /api/config/setup` — Wizard de configuración inicial (commit)
+- **Acceso:** `ROLE_ADMIN` **o "modo setup"** (ver nota al final de §7.5): mientras `setupComplete=false` es accesible **sin login**.
+- **Body:** `SetupRequest` — todos los campos opcionales.
+  ```json
+  {
+    "appName": "selfpotify",
+    "scanPaths": ["/ruta/extra"],
+    "scanIntervalSeconds": 3600,
+    "autoCompleteMetadata": false
+  }
+  ```
+- **Comportamiento:** valida y persiste branding/intervalo/flags y cada ruta de `scanPaths` (deben existir y ser legibles), marca `setupComplete=true` y **lanza un escaneo inicial asíncrono si hay CUALQUIER ruta configurada** — incluida la librería auto-añadida del `.env` (ver nota), no solo las del body. Tras esto el wizard queda inaccesible y los endpoints del modo setup vuelven a exigir `ROLE_ADMIN`.
+- **Validaciones:** `appName` máx 64; `scanIntervalSeconds` entre 30 y 86400; rutas existentes y legibles.
+- **Errores:** `409` si ya estaba completado; `400` por validación.
+- **Respuesta:** `ServerConfigDTO` con `setupComplete=true`.
+
 ### `POST /api/config/scan-paths`
 - **Acceso:** `ROLE_ADMIN`.
 - **Body:** `{ "path": "/ruta/absoluta" }`.
@@ -258,9 +285,9 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
 ### `POST /api/config/logo`
 - **Acceso:** `ROLE_ADMIN`.
 - **Body:** `multipart/form-data` con campo `file`.
-- **Validaciones:** tamaño máx **2 MB**; MIME en `{image/png, image/jpeg, image/svg+xml, image/webp}`. La extensión se deriva del MIME, no del nombre del cliente.
+- **Validaciones:** tamaño máx configurable vía `LOGO_MAX_FILE_SIZE` (por defecto **2 MB**); MIME en `{image/png, image/jpeg, image/svg+xml, image/webp}`. La extensión se deriva del MIME, no del nombre del cliente.
 - **Comportamiento:** borra logos previos (cualquier extensión aceptada), guarda como `~/.selfpotify/assets/logo.<ext>` y actualiza `branding.logoUrl` a `/assets/logo.<ext>`.
-- **Errores:** `400` sin archivo; `413` si excede 2 MB; `415` si el MIME no está soportado.
+- **Errores:** `400` sin archivo; `413` si excede el máximo; `415` si el MIME no está soportado. El `413` por exceder el límite multipart lo emite un manejador global con cuerpo JSON `{ "status": 413, "error": "Payload Too Large", "message": "El archivo excede el tamaño máximo permitido (N MB)." }`.
 - **Respuesta:** `BrandingDTO`.
 
 ### `POST /api/config/scan/run`
@@ -287,6 +314,11 @@ scan:
   intervalSeconds: 3600
   lastRunEpochSec: 1714492800
 ```
+
+### Modo setup (acceso sin login en el primer arranque)
+Mientras `setupComplete=false`, el backend reabre **sin login** los endpoints que necesita el wizard, gracias a `@setupGuard.inSetupMode()`: `POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, y `GET`/`POST /api/users`. Al completar el setup (`POST /api/config/setup`), todos vuelven a exigir `ROLE_ADMIN`.
+
+Además, en el primer arranque y solo mientras `setupComplete=false`, la librería musical configurada en el `.env` se **auto-añade** a `scan.paths`: `/music` si se ejecuta en Docker (`SELFPOTIFY_DOCKER=true` o `/.dockerenv`) o `MUSIC_LIBRARY_PATH` en host. Por eso el escaneo inicial de `POST /api/config/setup` se dispara aunque el body no traiga rutas.
 
 ---
 
@@ -435,9 +467,10 @@ spring.jpa.hibernate.ddl-auto=create-drop
 # Clave para registrar admins vía /api/auth/signup-admin
 app.admin.signup-key=changeme-admin-key
 
-# Límites de upload (logo)
-spring.servlet.multipart.max-file-size=2MB
-spring.servlet.multipart.max-request-size=2MB
+# Límites de upload (logo) — controlado por LOGO_MAX_FILE_SIZE (.env)
+spring.servlet.multipart.max-file-size=${LOGO_MAX_FILE_SIZE:2MB}
+spring.servlet.multipart.max-request-size=${LOGO_MAX_FILE_SIZE:2MB}
+app.logo.max-file-size=${LOGO_MAX_FILE_SIZE:2MB}
 
 # Override opcional de la ruta del YAML de configuración
 # app.config.path=~/.selfpotify/config.yml

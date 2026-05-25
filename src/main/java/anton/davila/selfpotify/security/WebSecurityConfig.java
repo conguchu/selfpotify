@@ -78,6 +78,15 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/api/test/public").permitAll()
                                 .requestMatchers("/api/config/public").permitAll()
+                                // Endpoints del wizard de setup inicial: se permiten a nivel de
+                                // filtro para que la petición llegue al controlador; el gate real
+                                // (sin login solo mientras setupComplete=false) lo aplica
+                                // method-security vía @setupGuard.inSetupMode().
+                                .requestMatchers(HttpMethod.POST, "/api/config/setup").permitAll()
+                                .requestMatchers(HttpMethod.PUT, "/api/config").permitAll()
+                                .requestMatchers(HttpMethod.POST, "/api/config/logo").permitAll()
+                                .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/users").permitAll()
                                 .requestMatchers("/assets/**").permitAll()
                                 .requestMatchers("/h2-console/**").permitAll()
                                 .requestMatchers("/error").permitAll()

@@ -15,6 +15,7 @@ USER app
 WORKDIR /app
 COPY --from=build /build/target/selfpotify-*.jar /app/app.jar
 ENV APP_CONFIG_PATH=/data/selfpotify/config.yml \
+    SELFPOTIFY_DOCKER=true \
     JAVA_OPTS=""
 EXPOSE 8080
 VOLUME ["/data/selfpotify"]

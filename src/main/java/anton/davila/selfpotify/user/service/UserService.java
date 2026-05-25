@@ -1,7 +1,10 @@
 package anton.davila.selfpotify.user.service;
 
+import anton.davila.selfpotify.user.entity.Admin;
 import anton.davila.selfpotify.user.entity.User;
+import anton.davila.selfpotify.user.repository.AdminRepository;
 import anton.davila.selfpotify.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +19,12 @@ public class UserService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AdminRepository adminRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     public User add(User u) {
         log.info("Añadiendo nuevo usuario: {}", u.getUsername());
@@ -39,6 +48,29 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
         user.copy(userData);
         return user;
+    }
+
+    @Transactional
+    public User changeRole(long id, boolean admin) {
+        log.info("Cambiando rol del usuario con ID {} a {}", id, admin ? "ADMIN" : "USER");
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
+
+        boolean isAdmin = user instanceof Admin;
+        if (isAdmin == admin) {
+            return user;
+        }
+
+        if (isAdmin && adminRepository.count() <= 1) {
+            throw new IllegalStateException("No se puede degradar al último administrador");
+        }
+
+        userRepository.updateUserType(id, admin ? "ADMIN" : "USER");
+        entityManager.flush();
+        entityManager.clear();
+
+        return userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
     }
 
     public User delete(long id) {

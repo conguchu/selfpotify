@@ -69,7 +69,7 @@ export default function PlaylistPage({
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-end gap-6">
-        <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-active text-text shadow-2xl">
+        <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-active text-on-accent shadow-2xl">
           <ListMusic className="h-16 w-16" />
         </div>
         <div className="flex flex-1 flex-col gap-2">

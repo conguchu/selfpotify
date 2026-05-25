@@ -16,7 +16,7 @@ export interface IconButtonProps
 const VARIANT: Record<Variant, string> = {
   ghost: "bg-transparent text-text-muted hover:text-text hover:bg-bg-hover",
   solid: "bg-bg-card text-text hover:bg-bg-hover border border-border",
-  accent: "bg-accent text-text hover:bg-accent-hover active:bg-accent-active",
+  accent: "bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-active",
 };
 
 const SIZE: Record<Size, string> = {

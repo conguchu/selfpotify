@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.controllers;
 
+import anton.davila.selfpotify.controllers.dto.ChangeRoleRequest;
 import anton.davila.selfpotify.controllers.dto.SignupRequest;
 import anton.davila.selfpotify.user.entity.Admin;
 import anton.davila.selfpotify.user.entity.User;
@@ -32,6 +33,7 @@ public class UserController {
     private PasswordEncoder encoder;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public List<User> getAllUsers() {
         return userService.getAll();
     }
@@ -44,6 +46,7 @@ public class UserController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ResponseEntity<?> createUser(@RequestBody SignupRequest signUpRequest) {
         if (userRepository.findByUsername(signUpRequest.getUsername()).isPresent()) {
             return ResponseEntity
@@ -74,6 +77,17 @@ public class UserController {
                 userDetails.setPassword(encoder.encode(userDetails.getPassword()));
             }
             return ResponseEntity.ok(userService.update(id, userDetails));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PutMapping("/{id}/role")
+    public ResponseEntity<?> changeRole(@PathVariable Long id, @RequestBody ChangeRoleRequest request) {
+        try {
+            return ResponseEntity.ok(userService.changeRole(id, request.isAdmin()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

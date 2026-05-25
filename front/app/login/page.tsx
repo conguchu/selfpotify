@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Disc3 } from "lucide-react";
+import { AppLogo } from "@/components/layout/AppLogo";
 import { Card } from "@/components/ui/Card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { useAuthStore } from "@/lib/auth/store";
+import { useAppName } from "@/lib/query/hooks";
 
 export default function LoginPage() {
   const router = useRouter();
+  const appName = useAppName();
   const hydrated = useAuthStore((s) => s.hydrated);
   const token = useAuthStore((s) => s.token);
   const isAdmin = useAuthStore((s) => s.roles.includes("ROLE_ADMIN"));
@@ -25,10 +27,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-bg via-bg to-accent-soft/30 p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/20 ring-4 ring-accent-soft">
-            <Disc3 className="h-7 w-7 text-accent" />
+          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-accent/20 ring-4 ring-accent-soft">
+            <AppLogo className="h-7 w-7" iconClassName="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">selfpotify</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{appName}</h1>
           <p className="text-sm text-text-muted">
             Tu música, en tu servidor.
           </p>

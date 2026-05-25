@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
         <div className="flex flex-wrap gap-3">
           <Link
             href="/admin/music"
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-text hover:bg-accent-hover"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             <Music2 className="h-4 w-4" />
             Gestionar música
