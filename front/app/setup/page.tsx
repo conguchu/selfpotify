@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Switch } from "@/components/ui/Switch";
 import { Spinner } from "@/components/ui/Spinner";
+import Image from "next/image";
 import { usePublicConfig, useUsers, queryKeys } from "@/lib/query/hooks";
 import { updateBranding, uploadLogo, setupServer } from "@/lib/api/config";
 import { createUser } from "@/lib/api/users";
 import { derivePalette } from "@/lib/palette";
+import { API_BASE } from "@/lib/api/client";
 
 interface NewUser {
   username: string;
@@ -81,6 +83,18 @@ export default function SetupWizard() {
       }
     }
   }, [colors]);
+
+  // Preview del logo: el archivo recién elegido o, si no, el ya guardado.
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(logoFile);
+    setLogoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
 
   // Recalcula la paleta completa desde primario+secundario (modo básico).
   const applySeed = (next: { primary?: string; secondary?: string }) => {
@@ -219,13 +233,35 @@ export default function SetupWizard() {
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="logo">Logo (opcional)</Label>
-              <input
-                id="logo"
-                type="file"
-                accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
-                className="text-sm text-text-muted file:mr-3 file:rounded-md file:border-0 file:bg-bg-hover file:px-3 file:py-1.5 file:text-text"
-              />
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const existing = data.branding.logoUrl
+                    ? data.branding.logoUrl.startsWith("http")
+                      ? data.branding.logoUrl
+                      : `${API_BASE}${data.branding.logoUrl}`
+                    : null;
+                  const shown = logoPreview ?? existing;
+                  return shown ? (
+                    <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-bg">
+                      <Image
+                        src={shown}
+                        alt="Logo"
+                        fill
+                        sizes="56px"
+                        className="object-contain"
+                        unoptimized
+                      />
+                    </span>
+                  ) : null;
+                })()}
+                <input
+                  id="logo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                  className="text-sm text-text-muted file:mr-3 file:rounded-md file:border-0 file:bg-bg-hover file:px-3 file:py-1.5 file:text-text"
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-3">
