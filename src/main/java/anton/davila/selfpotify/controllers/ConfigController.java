@@ -43,7 +43,6 @@ public class ConfigController {
     private static final long MIN_INTERVAL = 30L;
     private static final long MAX_INTERVAL = 86400L;
     private static final int MAX_APP_NAME = 64;
-    private static final long MAX_LOGO_BYTES = 2L * 1024 * 1024;
     private static final Map<String, String> ACCEPTED_LOGO_MIME = Map.of(
             "image/png", "png",
             "image/jpeg", "jpg",
@@ -77,7 +76,8 @@ public class ConfigController {
                 new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
                 cfg.getFeatures().isSetupComplete(),
                 lastfmEnabled,
-                musicLibraryPath
+                musicLibraryPath,
+                appProperties.getLogo().getMaxFileSize().toBytes()
         );
     }
 
@@ -167,9 +167,11 @@ public class ConfigController {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Archivo requerido");
         }
-        if (file.getSize() > MAX_LOGO_BYTES) {
+        long maxBytes = appProperties.getLogo().getMaxFileSize().toBytes();
+        if (file.getSize() > maxBytes) {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
-                    "El archivo excede el tamaño máximo de 2MB");
+                    "El archivo excede el tamaño máximo permitido ("
+                            + appProperties.getLogo().getMaxFileSize().toMegabytes() + " MB)");
         }
         String mime = file.getContentType();
         String ext = ACCEPTED_LOGO_MIME.get(mime);

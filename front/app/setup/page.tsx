@@ -16,6 +16,7 @@ import { updateBranding, uploadLogo, setupServer } from "@/lib/api/config";
 import { createUser } from "@/lib/api/users";
 import { derivePalette } from "@/lib/palette";
 import { API_BASE } from "@/lib/api/client";
+import { resizeImageToFit, formatBytes } from "@/lib/image";
 
 interface NewUser {
   username: string;
@@ -95,6 +96,32 @@ export default function SetupWizard() {
     setLogoPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [logoFile]);
+
+  // Al elegir logo: si excede el máximo del backend, se redimensiona en cliente.
+  const onLogoSelected = async (file: File | null) => {
+    if (!file) {
+      setLogoFile(null);
+      return;
+    }
+    const maxBytes = data?.logoMaxBytes ?? 0;
+    if (maxBytes > 0 && file.size > maxBytes) {
+      const resized = await resizeImageToFit(file, maxBytes);
+      if (resized.size <= maxBytes && resized !== file) {
+        toast.info(
+          `La imagen superaba ${formatBytes(maxBytes)} y se redimensionó a ${formatBytes(resized.size)}.`,
+        );
+        setLogoFile(resized);
+        return;
+      }
+      if (resized.size > maxBytes) {
+        toast.error(
+          `No se pudo reducir la imagen por debajo de ${formatBytes(maxBytes)}. Prueba con otra.`,
+        );
+        return;
+      }
+    }
+    setLogoFile(file);
+  };
 
   // Recalcula la paleta completa desde primario+secundario (modo básico).
   const applySeed = (next: { primary?: string; secondary?: string }) => {
@@ -258,10 +285,14 @@ export default function SetupWizard() {
                   id="logo"
                   type="file"
                   accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                  onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => onLogoSelected(e.target.files?.[0] ?? null)}
                   className="text-sm text-text-muted file:mr-3 file:rounded-md file:border-0 file:bg-bg-hover file:px-3 file:py-1.5 file:text-text"
                 />
               </div>
+              <p className="text-xs text-text-subtle">
+                PNG, JPEG, SVG o WebP. Máximo {formatBytes(data.logoMaxBytes)}. Si
+                lo superas, la imagen se redimensiona automáticamente.
+              </p>
             </div>
 
             <div className="flex flex-col gap-3">

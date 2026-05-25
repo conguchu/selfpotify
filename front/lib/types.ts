@@ -111,6 +111,8 @@ export interface PublicConfig {
   setupComplete: boolean;
   lastfmEnabled: boolean;
   musicLibraryPath: string | null;
+  /** Tamaño máximo en bytes del logo que admite el backend. */
+  logoMaxBytes: number;
 }
 
 export interface SetupPayload {

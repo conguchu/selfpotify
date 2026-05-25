@@ -3,6 +3,7 @@ package anton.davila.selfpotify.config;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.unit.DataSize;
 
 @Getter
 @Setter
@@ -14,6 +15,7 @@ public class AppProperties {
     private Web web = new Web();
     private Lastfm lastfm = new Lastfm();
     private Library library = new Library();
+    private Logo logo = new Logo();
 
     @Getter
     @Setter
@@ -40,6 +42,14 @@ public class AppProperties {
     public static class Lastfm {
         private String apiKey = "";
         private String baseUrl = "https://ws.audioscrobbler.com/2.0/";
+    }
+
+    @Getter
+    @Setter
+    public static class Logo {
+        /** Tamaño máximo del logo subido (LOGO_MAX_FILE_SIZE). Debe coincidir con
+         *  spring.servlet.multipart.max-file-size. */
+        private DataSize maxFileSize = DataSize.ofMegabytes(2);
     }
 
     @Getter

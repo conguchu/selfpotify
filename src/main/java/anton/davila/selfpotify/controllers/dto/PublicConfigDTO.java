@@ -14,4 +14,6 @@ public class PublicConfigDTO {
     private boolean lastfmEnabled;
     /** Ruta de librería musical auto-detectada del .env (o null si no hay ninguna). */
     private String musicLibraryPath;
+    /** Tamaño máximo en bytes del logo que admite POST /api/config/logo. */
+    private long logoMaxBytes;
 }

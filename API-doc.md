@@ -223,12 +223,14 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
     },
     "setupComplete": false,
     "lastfmEnabled": true,
-    "musicLibraryPath": "/music"
+    "musicLibraryPath": "/music",
+    "logoMaxBytes": 2097152
   }
   ```
   - `setupComplete`: `false` mientras no se haya completado el wizard inicial.
   - `lastfmEnabled`: `true` si hay `LASTFM_API_KEY` configurada (habilita autocompletar metadatos).
   - `musicLibraryPath`: ruta de librería musical auto-detectada del `.env` (`/music` en Docker o `MUSIC_LIBRARY_PATH` en host), o `null` si no hay ninguna.
+  - `logoMaxBytes`: tamaño máximo en bytes admitido por `POST /api/config/logo` (configurable vía `LOGO_MAX_FILE_SIZE`). El cliente lo usa para mostrar el límite y redimensionar la imagen antes de subirla.
 
 ### `GET /api/config`
 - **Acceso:** `ROLE_ADMIN`.
@@ -283,9 +285,9 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
 ### `POST /api/config/logo`
 - **Acceso:** `ROLE_ADMIN`.
 - **Body:** `multipart/form-data` con campo `file`.
-- **Validaciones:** tamaño máx **2 MB**; MIME en `{image/png, image/jpeg, image/svg+xml, image/webp}`. La extensión se deriva del MIME, no del nombre del cliente.
+- **Validaciones:** tamaño máx configurable vía `LOGO_MAX_FILE_SIZE` (por defecto **2 MB**); MIME en `{image/png, image/jpeg, image/svg+xml, image/webp}`. La extensión se deriva del MIME, no del nombre del cliente.
 - **Comportamiento:** borra logos previos (cualquier extensión aceptada), guarda como `~/.selfpotify/assets/logo.<ext>` y actualiza `branding.logoUrl` a `/assets/logo.<ext>`.
-- **Errores:** `400` sin archivo; `413` si excede 2 MB; `415` si el MIME no está soportado.
+- **Errores:** `400` sin archivo; `413` si excede el máximo; `415` si el MIME no está soportado. El `413` por exceder el límite multipart lo emite un manejador global con cuerpo JSON `{ "status": 413, "error": "Payload Too Large", "message": "El archivo excede el tamaño máximo permitido (N MB)." }`.
 - **Respuesta:** `BrandingDTO`.
 
 ### `POST /api/config/scan/run`
@@ -465,9 +467,10 @@ spring.jpa.hibernate.ddl-auto=create-drop
 # Clave para registrar admins vía /api/auth/signup-admin
 app.admin.signup-key=changeme-admin-key
 
-# Límites de upload (logo)
-spring.servlet.multipart.max-file-size=2MB
-spring.servlet.multipart.max-request-size=2MB
+# Límites de upload (logo) — controlado por LOGO_MAX_FILE_SIZE (.env)
+spring.servlet.multipart.max-file-size=${LOGO_MAX_FILE_SIZE:2MB}
+spring.servlet.multipart.max-request-size=${LOGO_MAX_FILE_SIZE:2MB}
+app.logo.max-file-size=${LOGO_MAX_FILE_SIZE:2MB}
 
 # Override opcional de la ruta del YAML de configuración
 # app.config.path=~/.selfpotify/config.yml
