@@ -1,6 +1,8 @@
 import {
   TonalPalette,
   Hct,
+  Blend,
+  Contrast,
   hexFromArgb,
   argbFromHex,
 } from "@material/material-color-utilities";
@@ -37,6 +39,18 @@ function tone(palette: TonalPalette, t: number): string {
   return hexFromArgb(palette.tone(clampTone(t)));
 }
 
+/**
+ * Tono mínimo (más claro u oscuro que `bgTone`) que alcanza al menos `ratio` de
+ * contraste WCAG contra el fondo. Si es inalcanzable, satura al extremo (texto
+ * blanco o negro). Así la legibilidad queda garantizada por construcción.
+ */
+function readableTone(bgTone: number, ratio: number, lighter: boolean): number {
+  const t = lighter
+    ? Contrast.lighter(bgTone, ratio)
+    : Contrast.darker(bgTone, ratio);
+  return t < 0 ? (lighter ? 100 : 0) : t;
+}
+
 export function derivePalette(
   primary: string,
   secondary: string,
@@ -60,6 +74,18 @@ export function derivePalette(
   // es claro. En tema claro, todo se invierte.
   const dark = secTone < 50;
 
+  // Texto/iconos: tienen en cuenta AMBAS semillas. El matiz es una mezcla del
+  // secundario armonizado hacia el primario (Blend.hctHue), con croma muy bajo
+  // para que el tinte se note sin sacrificar legibilidad. El tono se calcula por
+  // contraste — la legibilidad es lo primero.
+  const textHue = Hct.fromInt(Blend.hctHue(secArgb, accentArgb, 0.4)).hue;
+  const textPalette = TonalPalette.fromHueAndChroma(textHue, 5);
+  // Fondo de referencia para el contraste: la superficie de contenido más
+  // exigente (la más clara en oscuro / más oscura en claro), para que el texto
+  // siga siendo legible también sobre tarjetas y estados hover.
+  const refBgTone = clampTone(secTone + (dark ? 11 : -8));
+  const readable = (ratio: number) => readableTone(refBgTone, ratio, dark);
+
   return {
     // Fondos — el secundario se respeta como base; el resto son escalones
     // tonales hacia el "frente" (más claros en oscuro, más oscuros en claro).
@@ -69,10 +95,12 @@ export function derivePalette(
     "--color-bg-hover": tone(neutral, secTone + (dark ? 11 : -8)),
     "--color-border": tone(neutral, secTone + (dark ? 16 : -14)),
 
-    // Textos — tonos fijados para contraste legible sobre el fondo.
-    "--color-text": tone(neutral, dark ? 96 : 12),
-    "--color-text-muted": tone(neutral, dark ? 78 : 38),
-    "--color-text-subtle": tone(neutral, dark ? 58 : 52),
+    // Textos/iconos — tinte mezcla de ambas semillas; tono por contraste WCAG:
+    // AAA (>=7:1) para texto principal, AA (>=4.5:1) para secundario, y >=3:1
+    // para sutil/iconos decorativos.
+    "--color-text": tone(textPalette, readable(7)),
+    "--color-text-muted": tone(textPalette, readable(4.5)),
+    "--color-text-subtle": tone(textPalette, readable(3)),
 
     // Acentos — el primario se respeta tal cual; variantes en su paleta tonal.
     "--color-accent": hexFromArgb(accentArgb),
