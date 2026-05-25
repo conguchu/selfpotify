@@ -100,7 +100,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
   ```json
   { "path": "/ruta/absoluta/a/carpeta" }
   ```
-- **Comportamiento:** recorre recursivamente la carpeta, extrae metadatos ID3 de los `.mp3` y `.wav` (`SongService.loadFolder`), persiste cada canción y devuelve la lista importada como `List<SongDTO>`.
+- **Comportamiento:** recorre recursivamente la carpeta, extrae metadatos ID3 de los `.mp3` y `.wav` (`SongService.loadFolder`), persiste cada canción y devuelve la lista importada como `List<SongDTO>`. El álbum se resuelve/crea desde la etiqueta `ALBUM`. Tras persistir, completa de forma idempotente (solo si faltan) el género (Last.fm) y las **carátulas** (`CoverApiService`): `Song.picture_url`, `Album.picture_url` y la foto del artista (`ArtistDTO.photoUrl`) se rellenan con la carátula **embebida** del fichero —volcada a `/assets/covers/<sha256>.<ext>` y servida por `/assets/**`— o, si no hay, con fuentes **keyless** (Cover Art Archive vía MusicBrainz → iTunes → Deezer; foto de artista vía Deezer); si no se encuentra nada, el campo queda `null`. Configurable con `COVER_ART_*` (desactivable con `COVER_ART_ENABLED=false`).
 - **Respuesta `200 OK`:** lista de las canciones recién persistidas.
 - **Errores:** `400 Bad Request` si la ruta está vacía / no existe / no es directorio / no es legible; `500 Internal Server Error` si falla la lectura.
 - **Nota:** importación manual one-shot. La ruta NO queda registrada para re-escaneo. Para escaneo persistente con re-escaneo periódico usar `POST /api/config/scan-paths` (§7.5).
@@ -316,7 +316,7 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
 
 ### `POST /api/config/scan/run`
 - **Acceso:** `ROLE_ADMIN`.
-- **Comportamiento:** dispara un escaneo inmediato de todas las rutas configuradas. Bloqueado con `ReentrantLock`: si ya hay un escaneo en curso (manual o periódico), responde `409`.
+- **Comportamiento:** dispara un escaneo inmediato de todas las rutas configuradas. Bloqueado con `ReentrantLock`: si ya hay un escaneo en curso (manual o periódico), responde `409`. Cada escaneo (este, el periódico y el de `scan-paths`) enriquece género y carátulas igual que `POST /api/songs/import`.
 - **Respuesta `200 OK`:**
   ```json
   { "status": "ok", "lastRunEpochSec": 1714492800 }
