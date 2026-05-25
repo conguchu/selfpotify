@@ -4,6 +4,11 @@ FROM node:22-alpine AS deps
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+ENV PNPM_CONFIG_STRICT_DEP_BUILDS=false \
+    PNPM_CONFIG_FETCH_TIMEOUT=600000 \
+    PNPM_CONFIG_FETCH_RETRIES=5 \
+    PNPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
+    PNPM_CONFIG_NETWORK_CONCURRENCY=4
 RUN pnpm install --frozen-lockfile
 
 FROM node:22-alpine AS build
