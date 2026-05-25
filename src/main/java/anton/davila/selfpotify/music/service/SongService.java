@@ -1,9 +1,12 @@
 package anton.davila.selfpotify.music.service;
 
+import anton.davila.selfpotify.music.entity.Album;
 import anton.davila.selfpotify.music.entity.Artist;
 import anton.davila.selfpotify.music.entity.Song;
+import anton.davila.selfpotify.music.repository.AlbumRepository;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
+import anton.davila.selfpotify.music.service.external.CoverApiService;
 import anton.davila.selfpotify.music.service.external.GenreApiService;
 import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
 import anton.davila.selfpotify.music.service.external.LastFmService;
@@ -44,10 +47,16 @@ public class SongService {
     private GenreApiService genreApiService;
 
     @Autowired
+    private CoverApiService coverApiService;
+
+    @Autowired
     private ArtistRepository artistRepository;
 
     @Autowired
     private LastFmService lastFmService;
+
+    @Autowired
+    private AlbumRepository albumRepository;
 
 
     // =====================================
@@ -57,6 +66,7 @@ public class SongService {
         log.info("Intentando añadir una nueva canción: {}", s.getTitle());
         Song saved = songRepository.save(s);
         genreApiService.applyGenreIfMissing(s);
+        coverApiService.applyCoverIfMissing(s);
         log.debug("Canción guardada con éxito. ID: {}", saved.getId());
         return saved;
     }
@@ -105,9 +115,13 @@ public class SongService {
     public List<Song> saveMany(List<Song> songs) {
         log.warn("Guardando una lista de " + songs.size() + " canciones...");
 
-        songs.forEach(genreApiService::applyGenreIfMissing);
-
         songRepository.saveAll(songs);
+
+        // Autocompletado idempotente "si falta": género (Last.fm) y carátulas
+        // (embebida → fuentes keyless). Se hace tras persistir para tener ids.
+        songs.forEach(genreApiService::applyGenreIfMissing);
+        songs.forEach(coverApiService::applyCoverIfMissing);
+
         log.info("Guardadas " + songs.size() + " canciones correctamente.");
         return songs;
     }
@@ -117,14 +131,15 @@ public class SongService {
 
         List<Song> songsToSave;
 
-        // Cache de artistas para no duplicarlos ni consultar la BBDD por cada canción del lote.
+        // Cachés por lote para no duplicar artistas/álbumes ni consultar la BBDD por cada canción.
         Map<String, Artist> artistCache = new HashMap<>();
+        Map<String, Album> albumCache = new HashMap<>();
 
         try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
             songsToSave = paths
                     .filter(Files::isRegularFile)
                     .filter(this::isAudioFile)
-                    .map(path -> safeExtractMetadata(path, artistCache))
+                    .map(path -> safeExtractMetadata(path, artistCache, albumCache))
                     .filter(Objects::nonNull)
                     .toList();
 
@@ -149,6 +164,7 @@ public class SongService {
 
         int added = 0, recovered = 0, skipped = 0, failed = 0;
         Map<String, Artist> artistCache = new HashMap<>();
+        Map<String, Album> albumCache = new HashMap<>();
 
         try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
             List<Path> audioPaths = paths
@@ -171,7 +187,7 @@ public class SongService {
                     continue;
                 }
 
-                Song song = safeExtractMetadata(path, artistCache);
+                Song song = safeExtractMetadata(path, artistCache, albumCache);
                 if (song == null) {
                     failed++;
                     continue;
@@ -179,6 +195,7 @@ public class SongService {
                 song.setSongPath(absolutePath);
                 songRepository.save(song);
                 genreApiService.applyGenreIfMissing(song);
+                coverApiService.applyCoverIfMissing(song);
                 added++;
             }
         } catch (IOException e) {
@@ -230,9 +247,9 @@ public class SongService {
         return fileName.endsWith(".mp3") || fileName.endsWith(".wav");
     }
 
-    private Song safeExtractMetadata(Path path, Map<String, Artist> artistCache) {
+    private Song safeExtractMetadata(Path path, Map<String, Artist> artistCache, Map<String, Album> albumCache) {
         try {
-            return extractMetadata(path.toFile(), artistCache);
+            return extractMetadata(path.toFile(), artistCache, albumCache);
         } catch (Exception e) {
             log.warn("No se pudieron extraer metadatos de {}: {}", path, e.getMessage());
             return null;
@@ -241,7 +258,7 @@ public class SongService {
     /**
      * Métºdo auxiliar para extraer los metadatos de un archivo físico y mapearlo a la entidad Song.
      */
-    private Song extractMetadata(File file, Map<String, Artist> artistCache) {
+    private Song extractMetadata(File file, Map<String, Artist> artistCache, Map<String, Album> albumCache) {
         Song song = new Song();
         song.setSongPath(file.getAbsolutePath());
 
@@ -250,6 +267,7 @@ public class SongService {
 
         String tagTitle = null;
         String tagArtist = null;
+        String tagAlbum = null;
 
         try {
             AudioFile audioFile = AudioFileIO.read(file);
@@ -266,6 +284,7 @@ public class SongService {
             if (tag != null) {
                 tagTitle = tag.getFirst(FieldKey.TITLE);
                 tagArtist = tag.getFirst(FieldKey.ARTIST);
+                tagAlbum = tag.getFirst(FieldKey.ALBUM);
 
                 // género
                 song.setGenre(tag.getFirst(FieldKey.GENRE));
@@ -290,12 +309,20 @@ public class SongService {
         song.setTitle((tagTitle != null && !tagTitle.isBlank()) ? tagTitle : fromFileName.title());
 
         // Artista: tag ID3 si existe; si no, el deducido del nombre de archivo.
+        Artist artist = null;
         String artistName = (tagArtist != null && !tagArtist.isBlank()) ? tagArtist : fromFileName.artist();
         if (artistName != null && !artistName.isBlank()) {
-            song.setArtists(List.of(resolveArtist(artistName.trim(), artistCache)));
+            artist = resolveArtist(artistName.trim(), artistCache);
+            song.setArtists(List.of(artist));
         } else {
             log.warn("No se pudo determinar el artista del archivo '{}': no tiene tag ARTIST " +
                     "ni sigue la convención 'Artista - Título'.", file.getName());
+        }
+
+        // Álbum: si el tag ID3 ALBUM existe, se resuelve/crea y se enlaza con la
+        // canción y su artista (para poder rellenar luego Album.picture_url).
+        if (tagAlbum != null && !tagAlbum.isBlank()) {
+            song.setAlbum(resolveAlbum(tagAlbum.trim(), artist, albumCache));
         }
 
         return song;
@@ -388,6 +415,27 @@ public class SongService {
             }
         }
         return sb.toString().replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * Busca un álbum por nombre (sin distinguir mayúsculas); si no existe, lo crea
+     * vinculándolo con el artista de la canción. Usa una caché por lote para no
+     * duplicar el mismo álbum entre las pistas de un mismo escaneo. Disponer del
+     * álbum durante el escaneo permite que {@code CoverApiService} pueble
+     * {@code Album.picture_url}.
+     */
+    private Album resolveAlbum(String name, Artist artist, Map<String, Album> albumCache) {
+        return albumCache.computeIfAbsent(name.toLowerCase(), key ->
+                albumRepository.findByNameIgnoreCase(name)
+                        .orElseGet(() -> {
+                            Album album = new Album();
+                            album.setName(name);
+                            if (artist != null) {
+                                album.setArtists(List.of(artist));
+                            }
+                            log.info("Creando nuevo álbum detectado en el escaneo: {}", name);
+                            return albumRepository.save(album);
+                        }));
     }
 
     /**
