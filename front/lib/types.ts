@@ -13,6 +13,8 @@ export interface SongDTO {
   duration_ms: number;
   genre: string | null;
   bpm: number;
+  // Popularidad derivada: número de escuchas contado por el backend sobre la
+  // tabla de eventos user_song_listen (ya no es un campo almacenado).
   listeners: number;
   picture_url: string | null;
   artistIds: number[];
@@ -39,7 +41,6 @@ export interface RawSong {
   title: string;
   duration_ms: number;
   genre: string | null;
-  listeners: number;
   bpm: number;
   available: boolean;
   picture_url: string | null;
