@@ -24,7 +24,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col gap-3 border-r border-border bg-bg-elevated p-4">
       <Link href="/home" className="flex items-center gap-2 px-2 py-1">
-        <AppLogo className="h-7 w-7" iconClassName="h-7 w-7" />
+        <AppLogo className="h-7 w-7" />
         <span className="text-lg font-bold tracking-tight">{appName}</span>
       </Link>
 

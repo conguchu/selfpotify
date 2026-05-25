@@ -28,7 +28,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-accent/20 ring-4 ring-accent-soft">
-            <AppLogo className="h-7 w-7" iconClassName="h-7 w-7" />
+            <AppLogo className="h-7 w-7" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">{appName}</h1>
           <p className="text-sm text-text-muted">
