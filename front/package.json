@@ -8,10 +8,10 @@
     "start": "next start -p 8081"
   },
   "dependencies": {
+    "@material/material-color-utilities": "^0.4.0",
     "@tanstack/react-query": "^5.100.6",
     "@tanstack/react-query-devtools": "^5.100.6",
     "clsx": "^2.1.1",
-    "culori": "^4.0.2",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "react": "19.2.4",
@@ -22,7 +22,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/culori": "^4.0.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

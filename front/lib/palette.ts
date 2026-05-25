@@ -1,37 +1,40 @@
-import { converter, formatHex, type Oklch } from "culori";
+import {
+  TonalPalette,
+  Hct,
+  hexFromArgb,
+  argbFromHex,
+} from "@material/material-color-utilities";
 
 /**
- * Genera la paleta completa de 14 colores del tema a partir de dos semillas:
- * - `primary`   → familia acento (--color-accent y variantes).
- * - `secondary` → fondos (--color-bg y variantes) y, por contraste, los textos.
+ * Genera la paleta completa de 14 colores del tema a partir de dos semillas,
+ * usando el espacio HCT (Hue-Chroma-Tone) de Material — el mismo enfoque que el
+ * generador de paletas de Google (Material Theme Builder). Trabajar en HCT
+ * garantiza que las variaciones combinen y mantengan contraste: cada color se
+ * obtiene fijando el *tono* (luminancia perceptual 0–100) sobre una paleta tonal
+ * que conserva el matiz y el croma de la semilla.
  *
- * Trabaja en OKLCH para que las rampas de luminosidad sean perceptualmente
- * uniformes. `--color-danger` / `--color-success` son semánticos: se toman de
- * `base` si existen, o de los defaults rojo/verde.
+ * - `primary`   → familia acento (--color-accent y variantes). Se respeta el
+ *   color elegido exactamente como `--color-accent`; hover/active/soft son tonos
+ *   derivados de su misma paleta tonal.
+ * - `secondary` → fondos (--color-bg y variantes) y textos por contraste.
+ *
+ * `--color-danger` / `--color-success` son semánticos: se toman de `base` si
+ * existen, o de los defaults rojo/verde.
  *
  * Las claves devueltas coinciden exactamente con las que valida el backend
  * (ServerGlobalConfig.defaultColors()).
  */
 
-const toOklch = converter("oklch");
-
 const DEFAULT_DANGER = "#ef4444";
 const DEFAULT_SUCCESS = "#16a34a";
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
+function clampTone(t: number): number {
+  return Math.min(100, Math.max(0, t));
 }
 
-/** Construye un hex de 6 dígitos desde componentes OKLCH (clampeados a rango válido). */
-function hex(l: number, c: number, h: number | undefined): string {
-  const color: Oklch = {
-    mode: "oklch",
-    l: clamp(l, 0, 1),
-    c: clamp(c, 0, 0.4),
-    h,
-  };
-  // formatHex recorta a la gama sRGB y devuelve "#rrggbb".
-  return formatHex(color);
+/** Hex (#rrggbb) de una paleta tonal a un tono dado. */
+function tone(palette: TonalPalette, t: number): string {
+  return hexFromArgb(palette.tone(clampTone(t)));
 }
 
 export function derivePalette(
@@ -39,46 +42,55 @@ export function derivePalette(
   secondary: string,
   base?: Record<string, string>,
 ): Record<string, string> {
-  const sec = toOklch(secondary) ?? { mode: "oklch", l: 0.04, c: 0, h: undefined };
-  const acc = toOklch(primary) ?? { mode: "oklch", l: 0.45, c: 0.18, h: 25 };
+  const accentArgb = safeArgb(primary, 0xffb91c1c);
+  const secArgb = safeArgb(secondary, 0xff0a0a0a);
 
-  // Tema oscuro si el fondo base es oscuro: los escalones de fondo suben en L
-  // y el texto es claro. En tema claro el signo se invierte.
-  const dark = (sec.l ?? 0) < 0.5;
-  const dir = dark ? 1 : -1;
+  const accent = TonalPalette.fromInt(accentArgb);
+  // Paleta neutra para fondos/textos: conserva el matiz del secundario con un
+  // croma contenido para que los fondos no "vibren" (igual que Material).
+  const secHct = Hct.fromInt(secArgb);
+  const neutral = TonalPalette.fromHueAndChroma(
+    secHct.hue,
+    Math.min(secHct.chroma, 8),
+  );
 
-  const sL = sec.l ?? 0.04;
-  const sC = sec.c ?? 0;
-  const sH = sec.h;
-
-  // Croma muy bajo para neutros (fondos/textos teñidos con el hue del secundario).
-  const neutralC = Math.min(sC, 0.02);
-
-  const aL = acc.l ?? 0.45;
-  const aC = acc.c ?? 0.18;
-  const aH = acc.h;
+  const accentTone = Hct.fromInt(accentArgb).tone;
+  const secTone = secHct.tone;
+  // Tema oscuro si el fondo base es oscuro: los fondos suben de tono y el texto
+  // es claro. En tema claro, todo se invierte.
+  const dark = secTone < 50;
 
   return {
-    // Fondos — desde el secundario, subiendo (o bajando) la luminosidad.
-    "--color-bg": hex(sL, neutralC, sH),
-    "--color-bg-elevated": hex(sL + dir * 0.025, neutralC, sH),
-    "--color-bg-card": hex(sL + dir * 0.04, neutralC, sH),
-    "--color-bg-hover": hex(sL + dir * 0.065, neutralC, sH),
-    "--color-border": hex(sL + dir * 0.09, neutralC, sH),
+    // Fondos — el secundario se respeta como base; el resto son escalones
+    // tonales hacia el "frente" (más claros en oscuro, más oscuros en claro).
+    "--color-bg": hexFromArgb(secArgb),
+    "--color-bg-elevated": tone(neutral, secTone + (dark ? 4 : -3)),
+    "--color-bg-card": tone(neutral, secTone + (dark ? 7 : -5)),
+    "--color-bg-hover": tone(neutral, secTone + (dark ? 11 : -8)),
+    "--color-border": tone(neutral, secTone + (dark ? 16 : -14)),
 
-    // Textos — por contraste sobre el fondo (claros en tema oscuro y viceversa).
-    "--color-text": dark ? hex(0.96, neutralC, sH) : hex(0.18, neutralC, sH),
-    "--color-text-muted": dark ? hex(0.7, neutralC, sH) : hex(0.42, neutralC, sH),
-    "--color-text-subtle": dark ? hex(0.48, neutralC, sH) : hex(0.6, neutralC, sH),
+    // Textos — tonos fijados para contraste legible sobre el fondo.
+    "--color-text": tone(neutral, dark ? 96 : 12),
+    "--color-text-muted": tone(neutral, dark ? 78 : 38),
+    "--color-text-subtle": tone(neutral, dark ? 58 : 52),
 
-    // Acentos — desde el primario.
-    "--color-accent": hex(aL, aC, aH),
-    "--color-accent-hover": hex(aL + 0.06, aC, aH),
-    "--color-accent-active": hex(aL - 0.06, aC, aH),
-    "--color-accent-soft": hex(0.18, Math.min(aC, 0.08), aH),
+    // Acentos — el primario se respeta tal cual; variantes en su paleta tonal.
+    "--color-accent": hexFromArgb(accentArgb),
+    "--color-accent-hover": tone(accent, accentTone + 8),
+    "--color-accent-active": tone(accent, accentTone - 8),
+    "--color-accent-soft": tone(accent, dark ? 25 : 90),
 
     // Semánticos — fijos (no se derivan), respetando lo que ya hubiera.
     "--color-danger": base?.["--color-danger"] ?? DEFAULT_DANGER,
     "--color-success": base?.["--color-success"] ?? DEFAULT_SUCCESS,
   };
+}
+
+/** Convierte un hex a ARGB; si el valor no es válido devuelve `fallback`. */
+function safeArgb(hex: string, fallback: number): number {
+  try {
+    return argbFromHex(hex);
+  } catch {
+    return fallback;
+  }
 }
