@@ -1,5 +1,7 @@
 package anton.davila.selfpotify.user.entity;
 
+
+import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.profile.entity.Profile;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -24,6 +26,19 @@ public class User {
 
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
+
+    // todo usuario tiene obligatoriamente un único feed, creado junto al usuario
+    @OneToOne(cascade = CascadeType.ALL, optional = false, orphanRemoval = true)
+    @JoinColumn(name = "feed_id", nullable = false)
+    private UserFeed userFeed;
+
+    /** Garantiza que todo usuario se persista con un UserFeed asociado. */
+    @PrePersist
+    private void ensureUserFeed() {
+        if (this.userFeed == null) {
+            this.userFeed = new UserFeed();
+        }
+    }
 
     public void copy(User u) {
         this.setUsername(u.getUsername());

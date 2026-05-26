@@ -12,8 +12,15 @@ import {
   updatePlaylist,
   getPlaylist,
 } from "@/lib/api/playlists";
-import { listSongs, importFolder, createSong, deleteSong } from "@/lib/api/songs";
-import { listArtists } from "@/lib/api/artists";
+import {
+  listSongs,
+  importFolder,
+  createSong,
+  deleteSong,
+  getGenreTopSongs,
+} from "@/lib/api/songs";
+import { listArtists, getArtist, getArtistTopTracks } from "@/lib/api/artists";
+import { getHomeFeed, getRecentGenres } from "@/lib/api/feed";
 import { listAlbums } from "@/lib/api/albums";
 import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
 import {
@@ -32,7 +39,12 @@ import type {
 export const queryKeys = {
   songs: ["songs"] as const,
   artists: ["artists"] as const,
+  artist: (id: number) => ["artists", id] as const,
+  artistTopTracks: (id: number) => ["artists", id, "top-tracks"] as const,
   albums: ["albums"] as const,
+  homeFeed: ["feed", "home"] as const,
+  recentGenres: ["feed", "genres"] as const,
+  genreTopSongs: (genre: string) => ["songs", "genre", genre, "top"] as const,
   playlists: ["playlists", "my"] as const,
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
@@ -52,6 +64,60 @@ export function usePublicConfig() {
 export function useAppName(): string {
   const { data } = usePublicConfig();
   return data?.branding.appName?.trim() || "selfpotify";
+}
+
+/**
+ * Feed del home. El backend regenera el feed en cada petición, así que
+ * forzamos un refetch en cada montaje y no conservamos la respuesta en caché.
+ */
+export function useHomeFeed(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.homeFeed,
+    queryFn: getHomeFeed,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+/**
+ * Géneros escuchados recientemente. Como el feed, refleja el estado de
+ * escucha del usuario, así que se refresca en cada montaje y no se cachea.
+ */
+export function useRecentGenres(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.recentGenres,
+    queryFn: getRecentGenres,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useGenreTopSongs(genre: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.genreTopSongs(genre),
+    queryFn: () => getGenreTopSongs(genre),
+    enabled: enabled && genre.length > 0,
+  });
+}
+
+export function useArtist(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.artist(id),
+    queryFn: () => getArtist(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+export function useArtistTopTracks(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.artistTopTracks(id),
+    queryFn: () => getArtistTopTracks(id),
+    enabled: enabled && Number.isFinite(id),
+  });
 }
 
 export function useSongs(enabled = true) {

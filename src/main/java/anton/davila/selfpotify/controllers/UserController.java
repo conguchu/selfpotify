@@ -45,6 +45,15 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/{id}/genres/recent")
+    public ResponseEntity<List<String>> getRecentGenres(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(userService.getLast10GenresListened(id));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
     public ResponseEntity<?> createUser(@RequestBody SignupRequest signUpRequest) {

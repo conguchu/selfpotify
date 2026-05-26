@@ -85,14 +85,14 @@ public class LastFmServiceTest {
 
         Optional<String> genre = lastFmService.fetchGenre("Queen", "Bohemian Rhapsody");
 
-        assertEquals(Optional.of("rock"), genre);
+        assertEquals(Optional.of("Rock"), genre);
         verify(restTemplate, never()).getForObject(contains("artist.getTopTags"), any());
     }
 
     @Test
     void fetchGenre_noTrack_fallsBackToArtistTags() {
         Optional<String> genre = runWithNoTrackThenArtist(artistResponse("pop"));
-        assertEquals(Optional.of("pop"), genre);
+        assertEquals(Optional.of("Pop"), genre);
     }
 
     @Test
@@ -102,7 +102,7 @@ public class LastFmServiceTest {
 
         Optional<String> genre = lastFmService.fetchGenre("Queen", "  ");
 
-        assertEquals(Optional.of("jazz"), genre);
+        assertEquals(Optional.of("Jazz"), genre);
         verify(restTemplate, never()).getForObject(contains("track.getInfo"), any());
     }
 
@@ -113,7 +113,7 @@ public class LastFmServiceTest {
 
         Optional<String> genre = lastFmService.fetchGenre("Queen", null);
 
-        assertEquals(Optional.of("metal"), genre);
+        assertEquals(Optional.of("Metal"), genre);
         verify(restTemplate, never()).getForObject(contains("track.getInfo"), any());
     }
 
@@ -124,7 +124,7 @@ public class LastFmServiceTest {
         when(restTemplate.getForObject(contains("artist.getTopTags"), eq(Map.class)))
                 .thenReturn(artistResponse("indie"));
 
-        assertEquals(Optional.of("indie"),
+        assertEquals(Optional.of("Indie"),
                 lastFmService.fetchGenre("Queen", "Bohemian Rhapsody"));
     }
 
@@ -135,7 +135,7 @@ public class LastFmServiceTest {
         when(restTemplate.getForObject(contains("artist.getTopTags"), eq(Map.class)))
                 .thenReturn(artistResponse("folk"));
 
-        assertEquals(Optional.of("folk"),
+        assertEquals(Optional.of("Folk"),
                 lastFmService.fetchGenre("Queen", "Bohemian Rhapsody"));
     }
 
@@ -146,7 +146,7 @@ public class LastFmServiceTest {
         when(restTemplate.getForObject(contains("artist.getTopTags"), eq(Map.class)))
                 .thenReturn(artistResponse("blues"));
 
-        assertEquals(Optional.of("blues"),
+        assertEquals(Optional.of("Blues"),
                 lastFmService.fetchGenre("Queen", "Bohemian Rhapsody"));
     }
 
@@ -155,8 +155,19 @@ public class LastFmServiceTest {
         when(restTemplate.getForObject(contains("track.getInfo"), eq(Map.class)))
                 .thenReturn(trackResponse("   ", "punk"));
 
-        assertEquals(Optional.of("punk"),
+        assertEquals(Optional.of("Punk"),
                 lastFmService.fetchGenre("Queen", "Bohemian Rhapsody"));
+    }
+
+    @Test
+    void fetchGenre_capitalizesMultiWordTag() {
+        // Last.fm devuelve los tags en minúscula; el servicio los capitaliza
+        // (ver "(feat) capitalizar el nombre de los generos").
+        when(restTemplate.getForObject(contains("track.getInfo"), eq(Map.class)))
+                .thenReturn(trackResponse("latin pop"));
+
+        assertEquals(Optional.of("Latin Pop"),
+                lastFmService.fetchGenre("Shakira", "Hips Don't Lie"));
     }
 
     @Test

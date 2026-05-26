@@ -3,6 +3,7 @@ package anton.davila.selfpotify.user.service;
 import anton.davila.selfpotify.user.entity.Admin;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.AdminRepository;
+import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -10,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +41,60 @@ public class UserService {
     public Optional<User> getById(long id) {
         log.info("Buscando usuario por ID: {}", id);
         return userRepository.findById(id);
+    }
+
+    public Optional<User> getByUsername(String username) {
+        log.info("Buscando usuario por nombre: {}", username);
+        return userRepository.findByUsername(username);
+    }
+
+    /**
+     * Obtiene el feed del usuario indicado por su ID.
+     *
+     * @param id identificador del usuario
+     * @return el feed asociado al usuario
+     */
+    public UserFeed getUserFeedById(long id) {
+        log.info("Buscando feed del usuario con ID: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
+        return user.getUserFeed();
+    }
+
+    /**
+     * Apila el género de una canción recién escuchada en el feed del usuario.
+     * Se ejecuta dentro de una transacción para que el dirty checking de
+     * Hibernate persista la pila {@code last20GenresListened}. Los géneros
+     * nulos o en blanco se ignoran.
+     *
+     * @param userId identificador del usuario que escucha
+     * @param genre  género de la canción reproducida
+     */
+    @Transactional
+    public void registerGenreListen(long userId, String genre) {
+        if (genre == null || genre.isBlank()) {
+            return;
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + userId));
+        user.getUserFeed().pushGenero(genre);
+    }
+
+    /**
+     * Obtiene los 10 géneros escuchados más recientemente por el usuario.
+     * La pila de géneros del feed mantiene el índice 0 como el más reciente,
+     * por lo que basta con tomar la cabecera de la lista.
+     *
+     * @param id identificador del usuario
+     * @return como máximo los 10 últimos géneros, del más reciente al más antiguo
+     */
+    @Transactional
+    public List<String> getLast10GenresListened(long id) {
+        log.info("Recuperando los 10 últimos géneros escuchados por el usuario con ID: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
+        List<String> genres = user.getUserFeed().getLast20GenresListened();
+        return new ArrayList<>(genres.subList(0, Math.min(10, genres.size())));
     }
 
     @Transactional

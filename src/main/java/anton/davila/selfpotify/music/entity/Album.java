@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.music.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -17,6 +18,8 @@ public class Album {
     private String picture_url;
 
     // un album puede tener varios artistas
+    // @JsonIgnore: evita la recursión infinita al serializar Song -> album -> artists -> ...
+    @JsonIgnore
     @ManyToMany
     @JoinTable(
         name = "album_artist",
@@ -25,6 +28,8 @@ public class Album {
     )
     private List<Artist> artists;
     // un album puede tener varias canciones
+    // @JsonIgnore: evita la recursión infinita al serializar Song -> album -> songs -> ...
+    @JsonIgnore
     @OneToMany(mappedBy = "album")
     private List<Song> songs;
 

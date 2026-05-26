@@ -3,6 +3,7 @@ import type {
   CreateSongPayload,
   ImportFolderPayload,
   SongDTO,
+  Top10GenreSongs,
 } from "@/lib/types";
 
 export function listSongs() {
@@ -11,6 +12,13 @@ export function listSongs() {
 
 export function getSong(id: number) {
   return apiFetch<SongDTO>(`/api/songs/${id}`);
+}
+
+/** Top 10 canciones del género, ordenadas por número de escuchas. */
+export function getGenreTopSongs(genre: string) {
+  return apiFetch<Top10GenreSongs>(
+    `/api/songs/${encodeURIComponent(genre)}/top`,
+  );
 }
 
 export function createSong(payload: CreateSongPayload) {

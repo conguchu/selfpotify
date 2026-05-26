@@ -158,6 +158,142 @@ flowchart TD
     Reschedule --> Tick
 ```
 
+#### Resolución de identidad de artistas
+
+El artista de cada canción se deduce del tag ID3 `ARTIST` (o del nombre de archivo), un valor que escribe quien etiquetó el MP3 y que es inconsistente entre archivos del mismo artista: emojis, espacios sobrantes, mayúsculas, alias o abreviaciones. Emparejar por comparación exacta del nombre hacía que el mismo artista real acabara en varias filas `Artist` distintas (caso observado: `El Alfa`, `✅EL ALFA EL JEFE` y `Alfa` como tres artistas separados; `Mala  fe` y `Mala Fe` como dos).
+
+La decisión es **no fiarse del string del tag y resolver cada artista contra una fuente de verdad externa**. Se descartaron la normalización pura del nombre (no resuelve alias ni abreviaciones), la tabla de alias manual (requiere mantenimiento) y el *fuzzy matching* (riesgo de fusionar artistas reales distintos). Se eligió Last.fm porque el proyecto ya lo integra para clasificar géneros, así que no añade ni dependencias ni variables de entorno nuevas.
+
+Durante el escaneo, `SongService.resolveArtist` limpia el nombre de adornos, lo consulta en Last.fm (`artist.getInfo` con `autocorrect=1`) y obtiene el **nombre canónico** y el **MBID** (MusicBrainz ID, identificador estable). El emparejamiento pasa a hacerse por MBID —no por nombre—, persistido en la columna `Artist.mbid`. Si una fila ya existía sin MBID, se le rellena. Si Last.fm no está configurado o no reconoce al artista, se cae al emparejamiento por nombre limpio, que ya unifica los casos triviales (espacios, mayúsculas). Una caché por lote evita repetir llamadas HTTP dentro del mismo escaneo.
+
+Esta estrategia previene **nuevos** duplicados; los ya existentes en BD requieren una limpieza puntual (o un futuro endpoint de merge para admin).
+
+```mermaid
+flowchart TD
+    Raw([Nombre del tag ID3]) --> Clean[Limpiar nombre:<br/>quitar emojis/símbolos,<br/>colapsar espacios]
+    Clean --> LastFm[Last.fm artist.getInfo<br/>autocorrect=1]
+    LastFm --> HasId{¿Devuelve MBID?}
+    HasId -- sí --> ByMbid{findByMbid}
+    ByMbid -- existe --> Reuse[Reusar artista]
+    ByMbid -- no --> ByName1{findByNameIgnoreCase<br/>nombre canónico}
+    ByName1 -- existe --> Backfill[Rellenar MBID<br/>en la fila existente]
+    ByName1 -- no --> Create[Crear artista<br/>con nombre canónico + MBID]
+    HasId -- no / sin API key --> ByName2{findByNameIgnoreCase<br/>nombre limpio}
+    ByName2 -- existe --> Reuse
+    ByName2 -- no --> CreatePlain[Crear artista<br/>solo con nombre]
+    Backfill --> Reuse
+```
+
+### Conteo de escuchas derivado de la base de datos
+
+No existe ningún contador numérico de escuchas en las entidades. Los campos
+`Song.listeners`, `Album.listeners` y `Artist.listeners` se eliminaron: toda la
+popularidad (de canciones, álbumes, artistas **y** géneros) se **deriva por
+consulta** a partir de la tabla de eventos `user_song_listen`, la misma fuente
+que ya alimentaba las recomendaciones por usuario.
+
+**Decisión de diseño: derivar en vez de duplicar tablas de evento.** Una
+escucha de canción ya implica una escucha de su álbum, de cada uno de sus
+artistas y de su género. En lugar de mantener contadores incrementales
+(propensos a desincronizarse) o tablas de evento separadas por entidad
+(redundantes, porque toda la información está en el evento de canción), se
+cuenta sobre `user_song_listen` con consultas JPA agrupadas:
+
+| Conteo | Consulta (en `UserSongListenRepository`) |
+|---|---|
+| Por canción | `countBySong_Id` / `countListensGroupedBySong` (mapa id→escuchas) |
+| Por álbum | `countByAlbumId` (`where e.song.album.id = :albumId`) |
+| Por artista | `countByArtistId` (`join e.song s join s.artists a`) |
+| Por género | `countByGenre` (`where e.song.genre = :genre`) |
+| Top artistas global | `findArtistsByGlobalListensDesc` (`group by a order by count(e) desc`) |
+| Top canciones de un género/artista | `findSongsByGenreOrderByGlobalListensDesc` / `findSongsByArtistOrderByGlobalListensDesc` |
+
+Ventajas: no hay que mantener nada al hacer streaming (basta registrar el
+evento), no hay riesgo de contadores desincronizados, el límite FIFO de 1000
+escuchas por usuario acota el coste de las consultas, y el mismo modelo sirve
+para popularidad global y para historial por usuario. El precio es contar en
+lectura; para los listados (`GET /api/songs`) se usa una única consulta
+agrupada (`countListensGroupedBySong`) y un mapa id→escuchas, evitando el N+1.
+
+#### Registro de escuchas por usuario
+
+La tabla cruzada `user_song_listen` (entidad `UserSongListen`, con `@ManyToOne`
+a `User` y a `Song`) registra, fila a fila, qué usuario escuchó qué canción y
+cuándo. Es la **única fuente** de los conteos.
+
+El registro se dispara en `StreamingController` junto al `registerGenreListen`,
+llamando a `UserSongListenService.recordListen(userId, songId)`. Al hacer
+streaming **ya no se incrementa ningún contador numérico** (esos métodos y sus
+`@Query`/`@Modifying` desaparecieron): el único efecto sobre el conteo es
+insertar la fila del evento. La decisión es **crear un registro por cada
+petición HTTP** de `/api/listen/{id}`: como el reproductor sirve una
+reproducción en varias peticiones de rango, una sola escucha real genera varias
+filas. Se asume a propósito por simplicidad, y el límite por usuario (ver abajo)
+absorbe esa multiplicidad.
+
+Para que la tabla no crezca sin control, se acota a **1000 registros por
+usuario** con descarte **FIFO**: tras insertar, `recordListen` cuenta las filas
+del usuario y, si superan 1000, borra las más antiguas hasta volver al límite
+(constante `MAX_ESCUCHAS`, fija en el servicio igual que `MAX_GENEROS` en
+`UserFeed` — es un límite de diseño, no configuración por instalación). 1000
+escuchas recientes son suficientes para alimentar las recomendaciones y evitan
+que el histórico se dispare con muchos usuarios o reproducciones largas. La FK
+`song_id` obliga además a vaciar esta tabla antes de borrar canciones, tanto en
+el borrado individual (`SongService.delete`) como en el reset
+(`ResetService.resetAll`).
+
+```mermaid
+flowchart TD
+    Listen([Usuario escucha<br/>GET /api/listen/id]) --> Record[UserSongListenService<br/>.recordListen]
+    Record --> Resolve[Resolver usuario<br/>y canción por id]
+    Resolve --> Save[Guardar fila en<br/>user_song_listen]
+    Save --> Count{¿más de 1000<br/>escuchas del usuario?}
+    Count -- no --> End([Fin])
+    Count -- sí --> Evict[Borrar las N más<br/>antiguas FIFO]
+    Evict --> End
+```
+
+### Feed de recomendaciones del home
+
+Cada usuario tiene asociado obligatoriamente un `UserFeed` (relación `@OneToOne` con `cascade = ALL` y `orphanRemoval`, garantizada por un `@PrePersist` que lo crea si falta). El feed almacena la lista de artistas recomendados que el usuario ve al abrir el home.
+
+El endpoint `GET /api/feed` regenera el feed **en cada acceso al home** con
+recomendaciones **personalizadas por usuario** (`UserFeedService.regenerateFeedForUser`
+→ `recommendArtistsForUser`):
+
+1. **Historial propio.** Se toman primero los artistas que *ese* usuario más ha
+   escuchado, derivados de sus filas en `user_song_listen`
+   (`findTopArtistsByUserListens`), de más a menos escuchado.
+2. **Relleno por popularidad global.** Si el historial no llega a 10 artistas,
+   se completa con la popularidad global (`findArtistsByGlobalListensDesc`)
+   descartando los que ya estaban, para aportar descubrimiento sin dejar huecos.
+3. **Cold-start.** Un usuario sin escuchas no tiene historial, así que recibe
+   directamente la popularidad global (también derivada de los eventos, ya que
+   el contador numérico desapareció).
+
+La lista resultante (máx. 10, sin repetidos) sobrescribe los artistas
+recomendados del feed. La pila de géneros escuchados (`last20GenresListened`) es
+historial del usuario y **no** se vacía al regenerar.
+
+#### Flujo de regeneración del feed
+
+```mermaid
+flowchart TD
+    Home([Usuario abre el home]) --> Get[GET /api/feed]
+    Get --> Auth[Resolver usuario autenticado<br/>desde el SecurityContext]
+    Auth --> Regen[regenerateFeedForUser]
+    Regen --> Own[recommendArtistsForUser:<br/>top artistas del HISTORIAL<br/>del usuario]
+    Own --> Enough{¿llega a 10<br/>artistas?}
+    Enough -- no --> Pad[Completar con popularidad<br/>global sin repetir<br/>cold-start si historial vacío]
+    Enough -- sí --> Has
+    Pad --> Has{¿El usuario<br/>ya tiene feed?}
+    Has -- no --> Save[Guardar feed nuevo<br/>y asociarlo al usuario]
+    Has -- sí --> Over[Sobrescribir artistas<br/>recomendados]
+    Save --> DTO[Mapear artistas a ArtistDTO]
+    Over --> DTO
+    DTO --> Render([Cliente renderiza<br/>los artistas recomendados])
+```
+
 ---
 
 ## Gestión de recursos
@@ -179,7 +315,6 @@ classDiagram
         - String title
         - int duration_ms
         - String genre
-        - int listeners
         - int bpm
         - String songPath
         - List~Artist~ artists
@@ -201,7 +336,6 @@ classDiagram
     class Artist {
         - Long id
         - String name
-        - int listeners
         - String picture_path
         - List~Album~ albums
         - List~Song~ songs
@@ -222,6 +356,7 @@ classDiagram
         - Profile profile
         - String username
         - String password
+        - UserFeed userFeed
         + copy(User)
     }
 
@@ -236,12 +371,33 @@ classDiagram
         + copy(Profile)
     }
 
+    class UserFeed {
+        - Long id
+        - List~Artist~ recommendedArtists
+        + copy(UserFeed)
+    }
+
+    class UserSongListen {
+        - Long id
+        - User user
+        - Song song
+        - Instant listenedAt
+    }
+
     %% Herencia
     Admin --|> User : es un
 
     %% Relaciones User
     User "1" --> "1" Profile : tiene
+    User "1" --> "1" UserFeed : tiene
     User "1" --> "N" Playlist : crea
+
+    %% Relaciones UserFeed
+    UserFeed "N" o--o "N" Artist : recomienda
+
+    %% Tabla cruzada de escuchas (máx. 1000 por usuario, FIFO)
+    UserSongListen "N" --> "1" User : la registra
+    UserSongListen "N" --> "1" Song : referencia
 
     %% Relaciones Profile
     Profile "N" --> "1" Song : tiene como favorita
@@ -407,6 +563,42 @@ graph LR
     UC8 -.->|include| UC8a
     UC8 -.->|include| UC8b
     UC8b -.->|include| UC8c
+```
+
+### UC9 — Ver el feed de recomendaciones del home
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC9("Abrir el home")
+        UC9a("Regenerar feed del usuario")
+        UC9b("Recomendar top 10 artistas<br/>según su historial<br/>(popularidad global si no tiene)")
+        UC9c("Mostrar artistas recomendados")
+    end
+
+    User --> UC9
+    UC9 -.->|include| UC9a
+    UC9a -.->|include| UC9b
+    UC9 -.->|include| UC9c
+```
+
+### UC10 — Ver la página de un artista
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC10("Abrir página de artista")
+        UC10a("Consultar datos del artista")
+        UC10b("Listar top 10 canciones<br/>del artista por oyentes")
+    end
+
+    User --> UC10
+    UC10 -.->|include| UC10a
+    UC10 -.->|include| UC10b
 ```
 
 ## Diagrama de arquitectura

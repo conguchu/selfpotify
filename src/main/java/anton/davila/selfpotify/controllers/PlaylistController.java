@@ -7,6 +7,7 @@ import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.PlaylistService;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.UserRepository;
+import anton.davila.selfpotify.user.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,10 +31,9 @@ public class PlaylistController {
     private PlaylistService playlistService;
 
     @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
     private SongRepository songRepository;
+    @Autowired
+    private UserService userService;
 
     @GetMapping("/my")
     public List<PlaylistDTO> getMyPlaylists() {
@@ -45,7 +45,7 @@ public class PlaylistController {
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<PlaylistDTO>> getUserPublicPlaylists(@PathVariable Long userId) {
-        return userRepository.findById(userId)
+        return userService.getById(userId)
                 .map(user -> ResponseEntity.ok(
                         playlistService.getPublicByUser(user).stream()
                                 .map(this::convertToDTO)
@@ -131,7 +131,7 @@ public class PlaylistController {
         } else {
             username = principal.toString();
         }
-        return userRepository.findByUsername(username)
+        return userService.getByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
     }
 

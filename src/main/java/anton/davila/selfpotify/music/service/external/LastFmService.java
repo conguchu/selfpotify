@@ -106,6 +106,58 @@ public class LastFmService {
         }
     }
 
+    /** Identidad canónica de un artista resuelta contra Last.fm. */
+    public record ArtistIdentity(String name, String mbid) {}
+
+    /**
+     * Resuelve el nombre canónico y el MBID (MusicBrainz ID) de un artista
+     * usando {@code artist.getInfo} con autocorrección de Last.fm.
+     * <p>
+     * Sirve para unificar variantes de escritura del mismo artista durante el
+     * escaneo: mayúsculas, acentos, espacios y erratas conocidas se normalizan,
+     * y el MBID devuelto es un identificador estable con el que emparejar.
+     *
+     * @param name nombre del artista tal como aparece en los metadatos (ya limpiado)
+     * @return identidad canónica si Last.fm reconoce al artista; vacío en caso contrario
+     */
+    @SuppressWarnings("unchecked")
+    public Optional<ArtistIdentity> resolveArtist(String name) {
+        String apiKey = appProperties.getLastfm().getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            log.debug("Last.fm API key no configurada; no se resuelve la identidad del artista.");
+            return Optional.empty();
+        }
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String url = UriComponentsBuilder.fromUriString(appProperties.getLastfm().getBaseUrl())
+                    .queryParam("method", "artist.getInfo")
+                    .queryParam("api_key", apiKey)
+                    .queryParam("artist", name)
+                    .queryParam("autocorrect", 1)
+                    .queryParam("format", "json")
+                    .build()
+                    .toUriString();
+
+            Map<String, Object> body = restTemplate.getForObject(url, Map.class);
+            if (body == null || !(body.get("artist") instanceof Map)) {
+                log.debug("Last.fm no reconoció al artista '{}'.", name);
+                return Optional.empty();
+            }
+            Map<String, Object> artistNode = (Map<String, Object>) body.get("artist");
+            if (!(artistNode.get("name") instanceof String canonical) || canonical.isBlank()) {
+                return Optional.empty();
+            }
+            String mbid = (artistNode.get("mbid") instanceof String m && !m.isBlank()) ? m : null;
+            log.debug("Last.fm resolvió '{}' -> '{}' (mbid={}).", name, canonical, mbid);
+            return Optional.of(new ArtistIdentity(canonical.trim(), mbid));
+        } catch (RestClientException | ClassCastException e) {
+            log.warn("Fallo resolviendo el artista '{}' en Last.fm: {}", name, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private Optional<String> firstTagName(List<Map<String, Object>> tags) {
         if (tags == null || tags.isEmpty()) return Optional.empty();
         for (Map<String, Object> tag : tags) {

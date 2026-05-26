@@ -44,6 +44,11 @@ if [[ ! -d "front" ]]; then
   exit 1
 fi
 
+if [[ -d "front/.next" ]]; then
+  echo "[selfpotify] borrando caché de Next: front/.next"
+  rm -rf "front/.next"
+fi
+
 echo "[selfpotify] arrancando backend en :8080..."
 ./mvnw -q spring-boot:run &
 BACK_PID=$!

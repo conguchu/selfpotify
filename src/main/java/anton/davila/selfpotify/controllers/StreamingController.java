@@ -1,14 +1,19 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.music.entity.Song;
-import anton.davila.selfpotify.music.service.ArtistService;
 import anton.davila.selfpotify.music.service.SongService;
+import anton.davila.selfpotify.user.entity.User;
+import anton.davila.selfpotify.user.listen.service.UserSongListenService;
+import anton.davila.selfpotify.user.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -32,11 +37,16 @@ import java.util.Optional;
 public class StreamingController {
 
     @Autowired
-    private SongService songService;
+    private UserService userService;
+
     @Autowired
-    private ArtistService artistService;
+    private UserSongListenService userSongListenService;
+
+    @Autowired
+    private SongService songService;
 
     @GetMapping("{songId}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<StreamingResponseBody> stream(
             @PathVariable String songId,
             @RequestHeader(value = "Range", required = false) String rangeHeader
@@ -55,13 +65,16 @@ public class StreamingController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encuentra el archivo de la canción");
         }
 
-        // añadimos la escucha a la canción y al artista
-        songService.incrementListeners(song.getId());
-        song.getArtists().forEach(
-                artist -> {
-                    artistService.incrementListeners(artist.getId());
-                }
-        );
+        // añadimos el genero de la canción a los gustos del usuario
+        User currentUser = getCurrentUser();
+        userService.registerGenreListen(currentUser.getId(), song.getGenre());
+
+        // registramos la escucha en la tabla cruzada usuario-canción. Es la
+        // única fuente de los recuentos: la popularidad de canciones, álbumes,
+        // artistas y géneros se deriva por consulta de user_song_listen, así
+        // que ya no se tocan contadores numéricos al hacer streaming.
+        userSongListenService.recordListen(currentUser.getId(), song.getId());
+
 
         Path filePath = Paths.get(song.getSongPath());
 
@@ -143,6 +156,18 @@ public class StreamingController {
             case ".aac" -> "audio/aac";
             default -> "application/octet-stream";
         };
+    }
+
+    private User getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username;
+        if (principal instanceof UserDetails) {
+            username = ((UserDetails) principal).getUsername();
+        } else {
+            username = principal.toString();
+        }
+        return userService.getByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
     }
 
 }

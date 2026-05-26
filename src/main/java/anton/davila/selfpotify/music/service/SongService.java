@@ -5,6 +5,8 @@ import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.external.GenreApiService;
+import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
+import anton.davila.selfpotify.music.service.external.LastFmService;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
@@ -13,6 +15,7 @@ import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -35,10 +38,16 @@ public class SongService {
     private SongRepository songRepository;
 
     @Autowired
+    private UserSongListenRepository userSongListenRepository;
+
+    @Autowired
     private GenreApiService genreApiService;
 
     @Autowired
     private ArtistRepository artistRepository;
+
+    @Autowired
+    private LastFmService lastFmService;
 
 
     // =====================================
@@ -76,6 +85,7 @@ public class SongService {
 
         // (metodo para copiar los atributos del objeto sin tener que hacerlo a mano siempre)
     }
+    @Transactional
     public Song delete(long id) {
         log.warn("Intentando eliminar la canción con ID: {}", id);
         Optional<Song> s = getById(id);
@@ -84,6 +94,8 @@ public class SongService {
             throw new RuntimeException("No se ha encontrado la cancion con ID " + id);
         }
         Song song = s.get();
+        // liberamos primero la FK de la tabla cruzada de escuchas
+        userSongListenRepository.deleteBySongId(id);
         songRepository.delete(song);
         log.info("Canción con ID {} eliminada correctamente", id);
         return song;
@@ -232,7 +244,6 @@ public class SongService {
     private Song extractMetadata(File file, Map<String, Artist> artistCache) {
         Song song = new Song();
         song.setSongPath(file.getAbsolutePath());
-        song.setListeners(0); // Valor por defecto para canciones nuevas
 
         // Respaldo a partir del nombre de archivo (convención "Artista - Título.ext").
         NameParts fromFileName = parseFileName(file.getName());
@@ -291,18 +302,92 @@ public class SongService {
     }
 
     /**
-     * Busca un artista por nombre (sin distinguir mayúsculas); si no existe, lo crea.
-     * Usa una caché por lote para evitar duplicados dentro del mismo escaneo.
+     * Resuelve la entidad {@link Artist} de un nombre detectado en los metadatos.
+     * <p>
+     * El nombre crudo del tag ID3 es inconsistente entre archivos (emojis,
+     * espacios sobrantes, alias, mayúsculas...), de modo que el mismo artista
+     * acaba en varias filas. Para evitarlo:
+     * <ol>
+     *   <li>Se limpia el nombre de adornos ({@link #cleanArtistName}).</li>
+     *   <li>Se consulta Last.fm para obtener el nombre canónico y el MBID
+     *       (identificador estable de MusicBrainz).</li>
+     *   <li>Se empareja primero por MBID y, en su defecto, por nombre. Si una
+     *       fila existente no tenía MBID, se le rellena (backfill).</li>
+     * </ol>
+     * Si Last.fm no está configurado o no reconoce al artista, se cae a la
+     * búsqueda por nombre limpio, que ya unifica los casos triviales (espacios,
+     * mayúsculas). Usa una caché por lote para no repetir consultas.
      */
-    private Artist resolveArtist(String name, Map<String, Artist> artistCache) {
-        return artistCache.computeIfAbsent(name.toLowerCase(), key ->
-                artistRepository.findByNameIgnoreCase(name)
-                        .orElseGet(() -> {
-                            Artist artist = new Artist();
-                            artist.setName(name);
-                            log.info("Creando nuevo artista detectado en el escaneo: {}", name);
-                            return artistRepository.save(artist);
-                        }));
+    private Artist resolveArtist(String rawName, Map<String, Artist> artistCache) {
+        String cleaned = cleanArtistName(rawName);
+        if (cleaned.isBlank()) {
+            cleaned = rawName.trim();
+        }
+        String cacheKey = cleaned.toLowerCase();
+        Artist cached = artistCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        Optional<LastFmService.ArtistIdentity> identity = lastFmService.resolveArtist(cleaned);
+        Artist artist;
+
+        if (identity.isPresent() && identity.get().mbid() != null) {
+            String mbid = identity.get().mbid();
+            String canonicalName = identity.get().name();
+            artist = artistRepository.findByMbid(mbid)
+                    .orElseGet(() -> artistRepository.findByNameIgnoreCase(canonicalName)
+                            .map(existing -> backfillMbid(existing, mbid))
+                            .orElseGet(() -> createArtist(canonicalName, mbid)));
+        } else {
+            String name = identity.map(LastFmService.ArtistIdentity::name).orElse(cleaned);
+            artist = artistRepository.findByNameIgnoreCase(name)
+                    .orElseGet(() -> createArtist(name, null));
+        }
+
+        artistCache.put(cacheKey, artist);
+        // También por nombre canónico: otras variantes del mismo lote que
+        // resuelvan a este nombre reusan la entrada sin re-consultar Last.fm.
+        artistCache.putIfAbsent(artist.getName().toLowerCase(), artist);
+        return artist;
+    }
+
+    /** Rellena el MBID de un artista existente que aún no lo tenía. */
+    private Artist backfillMbid(Artist artist, String mbid) {
+        if (artist.getMbid() == null || artist.getMbid().isBlank()) {
+            artist.setMbid(mbid);
+            log.info("Asignado MBID '{}' al artista existente '{}' (id={}).",
+                    mbid, artist.getName(), artist.getId());
+            return artistRepository.save(artist);
+        }
+        return artist;
+    }
+
+    private Artist createArtist(String name, String mbid) {
+        Artist artist = new Artist();
+        artist.setName(name);
+        artist.setMbid(mbid);
+        log.info("Creando nuevo artista detectado en el escaneo: '{}' (mbid={}).", name, mbid);
+        return artistRepository.save(artist);
+    }
+
+    /**
+     * Limpia el nombre del artista de adornos que impiden emparejar variantes:
+     * emojis, símbolos y espacios redundantes. Conserva letras, dígitos,
+     * espacios y la puntuación habitual en nombres ('&', '-', '.', '\'', '()').
+     */
+    private String cleanArtistName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (Character.isLetterOrDigit(c) || Character.isWhitespace(c) || "&-.'()/".indexOf(c) >= 0) {
+                sb.append(c);
+            }
+        }
+        return sb.toString().replaceAll("\\s+", " ").trim();
     }
 
     /**
@@ -330,12 +415,41 @@ public class SongService {
     private record NameParts(String artist, String title) {}
 
     /**
-     * Incrementa una escucha a una canción
-     * @param id id de la cancion
+     * Devuelve las 10 canciones más escuchadas de un género, ordenadas por su
+     * recuento de escuchas derivado de la tabla {@code user_song_listen}.
+     * @param genre nombre del género
+     * @return lista (máx. 10) de canciones del género ordenadas por escuchas desc
      */
-    @Transactional
-    public void incrementListeners(long id) {
-        songRepository.incrementListeners(id);
+    public List<Song> getTop10ByGenre(String genre) {
+        log.info("Recuperando las 10 canciones más escuchadas del género: {}", genre);
+        return userSongListenRepository.findSongsByGenreOrderByGlobalListensDesc(genre, PageRequest.of(0, 10));
+    }
+
+    /**
+     * Recuento global de escuchas por canción, derivado de los eventos de
+     * {@code user_song_listen}. Devuelve un mapa id→escuchas que incluye sólo
+     * las canciones con al menos una escucha; el resto se asume 0 en quien lo
+     * consuma. Una única consulta agrupada evita el N+1 al exponer la
+     * popularidad en los listados.
+     *
+     * @return mapa de id de canción a número de escuchas
+     */
+    public Map<Long, Long> getListenCountsBySong() {
+        Map<Long, Long> counts = new HashMap<>();
+        for (Object[] row : userSongListenRepository.countListensGroupedBySong()) {
+            counts.put((Long) row[0], (Long) row[1]);
+        }
+        return counts;
+    }
+
+    /**
+     * Recuento global de escuchas de una única canción, derivado de los eventos.
+     *
+     * @param songId id de la canción
+     * @return número de escuchas registradas de esa canción
+     */
+    public long getListenCount(long songId) {
+        return userSongListenRepository.countBySong_Id(songId);
     }
 
 }
