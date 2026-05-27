@@ -40,13 +40,17 @@ export function Coverflow<T>({
 }: CoverflowProps<T>) {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "center",
-    containScroll: false,
+    // "trimSnaps" evita el hueco vacío en los extremos: el primer slide se
+    // alinea a la izquierda y el último a la derecha, sin espacio en negro.
+    containScroll: "trimSnaps",
     loop: false,
     skipSnaps: false,
   });
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const reducedMotion = useReducedMotion();
   const slideRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+  // Posición del puntero al pulsar, para distinguir un click de un arrastre.
+  const pointerDownRef = React.useRef<{ x: number; y: number } | null>(null);
 
   // Aplica las transformaciones 3D a cada slide según su distancia al snap activo.
   const applyStyles = React.useCallback(() => {
@@ -96,10 +100,14 @@ export function Coverflow<T>({
     if (emblaApi) emblaApi.reInit();
   }, [emblaApi, items.length]);
 
-  const handleSlideClick = (index: number) => {
+  // Click en cualquier carátula: la centra (si no lo estaba) y la activa
+  // —reproduce o navega, según el consumidor—. Si hubo arrastre, no activa.
+  const handleSlideClick = (e: React.MouseEvent, index: number) => {
     if (!emblaApi) return;
-    if (index === selectedIndex) onActivateCenter?.(items[index], index);
-    else emblaApi.scrollTo(index, reducedMotion);
+    const down = pointerDownRef.current;
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+    if (index !== selectedIndex) emblaApi.scrollTo(index, reducedMotion);
+    onActivateCenter?.(items[index], index);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -125,6 +133,9 @@ export function Coverflow<T>({
       aria-label={ariaLabel}
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onPointerDownCapture={(e) => {
+        pointerDownRef.current = { x: e.clientX, y: e.clientY };
+      }}
     >
       <div
         className="flex h-full items-center"
@@ -143,8 +154,8 @@ export function Coverflow<T>({
                 ref={(el) => {
                   slideRefs.current[i] = el;
                 }}
-                onClick={() => handleSlideClick(i)}
-                className="transform-gpu cursor-pointer select-none [backface-visibility:hidden] [will-change:transform]"
+                onClick={(e) => handleSlideClick(e, i)}
+                className="w-full transform-gpu cursor-pointer select-none [backface-visibility:hidden] [will-change:transform]"
               >
                 {renderItem(item, { isCenter, index: i })}
               </div>

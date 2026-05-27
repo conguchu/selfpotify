@@ -1,21 +1,24 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Disc3 } from "lucide-react";
 import { Coverflow } from "@/components/ui/Coverflow";
 import { SongSlide } from "@/components/home/SongSlide";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useGenreTopSongs } from "@/lib/query/hooks";
-import { usePlayerStore } from "@/lib/player/store";
 
 /**
  * Sección a pantalla completa con un coverflow de las canciones más escuchadas
  * de un género. Cada género es su propio componente para poder usar su propio
  * hook `useGenreTopSongs` (no se pueden llamar hooks en un bucle).
+ *
+ * Al pulsar una carátula se navega al listado del género ordenado por visitas
+ * (`/genre/{genre}`), en vez de reproducir la canción.
  */
 export function GenreCoverflowSection({ genre }: { genre: string }) {
   const { data, isLoading, isError, error } = useGenreTopSongs(genre);
-  const playSong = usePlayerStore((s) => s.playSong);
+  const router = useRouter();
   const songs = data?.top ?? [];
 
   return (
@@ -38,9 +41,11 @@ export function GenreCoverflowSection({ genre }: { genre: string }) {
             items={songs}
             getKey={(s) => s.id}
             ariaLabel={`Canciones del género ${genre}`}
-            onActivateCenter={(song) => playSong(song, songs)}
+            onActivateCenter={() =>
+              router.push(`/genre/${encodeURIComponent(genre)}`)
+            }
             renderItem={(song, { isCenter }) => (
-              <SongSlide song={song} isCenter={isCenter} />
+              <SongSlide song={song} isCenter={isCenter} showPlayIndicator={false} />
             )}
           />
         ) : (
