@@ -21,5 +21,6 @@ public class PlaylistDTO {
     private boolean isPublic;
 
     private Long creatorId;
+    private String pictureUrl;
     private List<Long> songIds;
 }

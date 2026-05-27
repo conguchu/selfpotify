@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
-import { ListMusic, Lock, Trash2 } from "lucide-react";
+import { ListMusic, Lock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { SongRow } from "@/components/music/SongRow";
+import { EditPlaylistModal } from "@/components/music/EditPlaylistModal";
 import { usePlaylist, useSongs, useDeletePlaylist } from "@/lib/query/hooks";
 import { usePlayerStore } from "@/lib/player/store";
 import { useAuthStore } from "@/lib/auth/store";
+import { resolveImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 
 export default function PlaylistPage({
@@ -28,6 +30,7 @@ export default function PlaylistPage({
   const username = useAuthStore((s) => s.username);
   const deletePlaylist = useDeletePlaylist();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const songsInPlaylist = useMemo(() => {
     if (!playlistQuery.data || !songsQuery.data) return [];
@@ -69,9 +72,18 @@ export default function PlaylistPage({
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-end gap-6">
-        <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-active text-on-accent shadow-2xl">
-          <ListMusic className="h-16 w-16" />
-        </div>
+        {playlist.pictureUrl && (
+          <img
+            src={resolveImageUrl(playlist.pictureUrl)!}
+            alt={playlist.name}
+            className="h-40 w-40 shrink-0 rounded-lg object-cover shadow-2xl"
+          />
+        )}
+        {!playlist.pictureUrl && (
+          <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-active text-on-accent shadow-2xl">
+            <ListMusic className="h-16 w-16" />
+          </div>
+        )}
         <div className="flex flex-1 flex-col gap-2">
           <span className="text-xs uppercase tracking-wide text-text-muted">
             Playlist
@@ -95,14 +107,24 @@ export default function PlaylistPage({
             </span>
           </div>
         </div>
-        <Button
-          variant="outline"
-          leftIcon={<Trash2 className="h-4 w-4" />}
-          onClick={() => setConfirmOpen(true)}
-          disabled={username === null}
-        >
-          Eliminar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            leftIcon={<Pencil className="h-4 w-4" />}
+            onClick={() => setEditOpen(true)}
+            disabled={username === null}
+          >
+            Editar
+          </Button>
+          <Button
+            variant="outline"
+            leftIcon={<Trash2 className="h-4 w-4" />}
+            onClick={() => setConfirmOpen(true)}
+            disabled={username === null}
+          >
+            Eliminar
+          </Button>
+        </div>
       </header>
 
       {songsInPlaylist.length > 0 ? (
@@ -129,6 +151,12 @@ export default function PlaylistPage({
           description="Aún no se ha implementado el flujo para añadir canciones desde la UI. Puedes editarla con la API mientras tanto."
         />
       )}
+
+      <EditPlaylistModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        playlist={playlist}
+      />
 
       <Modal
         open={confirmOpen}

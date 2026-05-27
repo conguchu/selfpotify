@@ -29,3 +29,12 @@ export function deletePlaylist(id: number) {
     parse: "none",
   });
 }
+
+export function uploadPlaylistCover(id: number, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<PlaylistDTO>(`/api/playlists/${id}/cover`, {
+    method: "POST",
+    body: form,
+  });
+}

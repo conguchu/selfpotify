@@ -57,6 +57,7 @@ export interface PlaylistDTO {
   description: string | null;
   isPublic: boolean;
   creatorId: number;
+  pictureUrl: string | null;
   songIds: number[];
 }
 

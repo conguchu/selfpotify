@@ -11,6 +11,7 @@ import {
   listMyPlaylists,
   updatePlaylist,
   getPlaylist,
+  uploadPlaylistCover,
 } from "@/lib/api/playlists";
 import {
   listSongs,
@@ -215,6 +216,18 @@ export function useDeletePlaylist() {
   return useMutation({
     mutationFn: (id: number) => deletePlaylist(id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.playlists });
+    },
+  });
+}
+
+export function useUploadPlaylistCover() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      uploadPlaylistCover(id, file),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.playlist(vars.id) });
       qc.invalidateQueries({ queryKey: queryKeys.playlists });
     },
   });

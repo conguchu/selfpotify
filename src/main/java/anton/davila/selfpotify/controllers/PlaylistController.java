@@ -5,6 +5,7 @@ import anton.davila.selfpotify.music.entity.Playlist;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.PlaylistService;
+import anton.davila.selfpotify.config.ConfigService;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import anton.davila.selfpotify.user.service.UserService;
@@ -16,7 +17,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +43,9 @@ public class PlaylistController {
     private SongRepository songRepository;
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private ConfigService configService;
 
     @GetMapping("/my")
     public List<PlaylistDTO> getMyPlaylists() {
@@ -116,6 +128,74 @@ public class PlaylistController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/{id}/cover")
+    public ResponseEntity<?> uploadCover(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return playlistService.getById(id)
+                .map(playlist -> {
+                    User currentUser = getCurrentUser();
+                    if (!playlist.getCreator().getId().equals(currentUser.getId())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+
+                    if (file.isEmpty()) {
+                        return ResponseEntity.badRequest().body("El archivo no puede estar vacío");
+                    }
+
+                    String contentType = file.getContentType();
+                    if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/webp"))) {
+                        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body("Solo se aceptan JPEG, PNG o WebP");
+                    }
+
+                    long maxFileSize = 5 * 1024 * 1024;
+                    if (file.getSize() > maxFileSize) {
+                        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body("Archivo demasiado grande (máx 5 MB)");
+                    }
+
+                    try {
+                        byte[] fileBytes = file.getBytes();
+                        String sha256 = calculateSHA256(fileBytes);
+
+                        BufferedImage originalImage = ImageIO.read(file.getInputStream());
+                        if (originalImage == null) {
+                            return ResponseEntity.badRequest().body("No se pudo leer la imagen");
+                        }
+
+                        int size = Math.min(originalImage.getWidth(), originalImage.getHeight());
+                        int x = (originalImage.getWidth() - size) / 2;
+                        int y = (originalImage.getHeight() - size) / 2;
+                        BufferedImage croppedImage = originalImage.getSubimage(x, y, size, size);
+
+                        Path assetsDir = configService.assetsDir();
+                        Path playlistCoversDir = assetsDir.resolve("playlist-covers");
+                        Files.createDirectories(playlistCoversDir);
+
+                        Path targetFile = playlistCoversDir.resolve(sha256 + ".jpg");
+                        ImageIO.write(croppedImage, "jpg", targetFile.toFile());
+
+                        String pictureUrl = "/assets/playlist-covers/" + sha256 + ".jpg";
+                        playlist.setPictureUrl(pictureUrl);
+                        playlistService.update(id, playlist);
+
+                        return ResponseEntity.ok(convertToDTO(playlist));
+                    } catch (IOException | NoSuchAlgorithmException e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la imagen: " + e.getMessage());
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    private String calculateSHA256(byte[] data) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(data);
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
+
     private List<Song> resolveSongs(List<Long> songIds) {
         if (songIds == null || songIds.isEmpty()) {
             return new ArrayList<>();
@@ -141,6 +221,7 @@ public class PlaylistController {
         dto.setName(playlist.getName());
         dto.setDescription(playlist.getDescription());
         dto.setPublic(playlist.isPublic());
+        dto.setPictureUrl(playlist.getPictureUrl());
         if (playlist.getCreator() != null) {
             dto.setCreatorId(playlist.getCreator().getId());
         }

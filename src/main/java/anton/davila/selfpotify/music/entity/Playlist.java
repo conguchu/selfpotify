@@ -35,6 +35,9 @@ public class Playlist {
     @JsonProperty("isPublic")
     private boolean isPublic = false;
 
+    @Column(name = "picture_url")
+    private String pictureUrl;
+
     @ManyToOne
     @JoinColumn(name = "creator_id")
     private User creator;
@@ -53,6 +56,7 @@ public class Playlist {
         this.setSongs(p.getSongs());
         this.setDuration_ms(p.getDuration_ms());
         this.setPublic(p.isPublic());
+        this.setPictureUrl(p.getPictureUrl());
     }
 
 }

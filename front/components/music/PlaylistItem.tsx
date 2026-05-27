@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ListMusic, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveImageUrl } from "@/lib/image";
 import type { PlaylistDTO } from "@/lib/types";
 
 export function PlaylistItem({
@@ -26,9 +27,18 @@ export function PlaylistItem({
         className,
       )}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-bg-elevated text-accent-hover">
-        <ListMusic className="h-5 w-5" />
-      </div>
+      {playlist.pictureUrl && (
+        <img
+          src={resolveImageUrl(playlist.pictureUrl)!}
+          alt={playlist.name}
+          className="h-10 w-10 shrink-0 rounded object-cover"
+        />
+      )}
+      {!playlist.pictureUrl && (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-bg-elevated text-accent-hover">
+          <ListMusic className="h-5 w-5" />
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium" title={playlist.name}>
           {playlist.name}
