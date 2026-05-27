@@ -112,25 +112,6 @@ public class SongController {
     }
 
     private SongDTO convertToDTO(Song song, long listeners) {
-        SongDTO dto = new SongDTO();
-        dto.setId(song.getId());
-        dto.setTitle(song.getTitle());
-        dto.setDuration_ms(song.getDuration_ms());
-        dto.setGenre(song.getGenre());
-        dto.setBpm(song.getBpm());
-        dto.setListeners(listeners);
-        dto.setPicture_url(song.getPicture_url());
-        if (song.getAlbum() != null) {
-            dto.setAlbumId(song.getAlbum().getId());
-        }
-        if (song.getArtists() != null) {
-            dto.setArtistIds(song.getArtists().stream()
-                    .map(artist -> artist.getId())
-                    .collect(Collectors.toList()));
-            dto.setArtistNames(song.getArtists().stream()
-                    .map(artist -> artist.getName())
-                    .collect(Collectors.toList()));
-        }
-        return dto;
+        return SongDTO.fromEntity(song, listeners);
     }
 }

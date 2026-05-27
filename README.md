@@ -294,6 +294,55 @@ flowchart TD
     DTO --> Render([Cliente renderiza<br/>los artistas recomendados])
 ```
 
+### Descubrimientos diarios
+
+Junto al feed de artistas, el home ofrece una sección de **descubrimientos
+diarios**: el endpoint `GET /api/feed/daily-discoveries` devuelve **9 canciones**
+(`SongDTO`) pensadas para que el cliente las muestre en un deslizable horizontal.
+La lista se compone de tres bloques de tres canciones cada uno
+(`DailyDiscoveryService`):
+
+1. **3 aleatorias** del catálogo disponible.
+2. **3 no escuchadas** del **último género** que el usuario ha estado escuchando
+   (la cabeza de su pila `last20GenresListened`). Si ese género no tiene
+   suficientes canciones nuevas, se recorre la pila hacia atrás (al siguiente
+   género más reciente) hasta reunir tres.
+3. **3 de un género que el usuario no escucha**: un género presente en el
+   catálogo pero ausente de su historial de escuchas, elegido al azar entre los
+   candidatos. Si el usuario ya escucha todos los géneros disponibles, se cae al
+   **género más antiguo de su pila** (último elemento de `last20GenresListened`).
+
+**Decisión de diseño: estable por día, sin persistencia.** Aunque el bloque 1 es
+"aleatorio", la sección se llama *diaria* porque toda la aleatoriedad (el muestreo
+de cada bloque, la elección del género desconocido y el barajado final) usa un
+único generador sembrado con `userId + fecha`, y las consultas devuelven IDs
+ordenados por id como base determinista. Así, todas las llamadas del mismo usuario
+durante el mismo día devuelven **exactamente la misma lista**, que cambia a
+medianoche (estilo "Daily Mix"). No se introduce ninguna entidad ni columna nueva:
+el resultado se **recalcula** en cada petición de forma determinista, igual que el
+feed de artistas se regenera en cada acceso. Las 9 canciones se devuelven
+**mezcladas**, de modo que los tres bloques no se distinguen en el orden final. Si
+el catálogo es demasiado pequeño para llenar los tres bloques sin repetir, se
+completa con canciones aleatorias hasta llegar a 9 (o menos, si no hay más).
+
+```mermaid
+flowchart TD
+    Get([GET /api/feed/daily-discoveries]) --> Seed[Sembrar Random<br/>con userId + fecha]
+    Seed --> B1[Bloque 1: 3 aleatorias<br/>del catálogo]
+    B1 --> B2{Bloque 2: 3 no escuchadas<br/>del último género de la pila}
+    B2 -- pocas --> B2b[Caer al siguiente<br/>género de la pila]
+    B2b --> B2
+    B2 -- 3 reunidas --> B3{Bloque 3: 3 de un género<br/>que el usuario NO escucha}
+    B3 -- no hay candidato --> B3b[Fallback: género más<br/>antiguo de la pila]
+    B3b --> Fill
+    B3 -- elegido --> Fill{¿llega a 9?}
+    Fill -- no --> Pad[Completar con<br/>aleatorias sin repetir]
+    Fill -- sí --> Shuffle[Barajar las 9<br/>con el Random sembrado]
+    Pad --> Shuffle
+    Shuffle --> Map[Mapear a SongDTO<br/>con escuchas derivadas]
+    Map --> Render([Cliente renderiza<br/>el deslizable de descubrimientos])
+```
+
 ---
 
 ## Gestión de recursos
@@ -599,6 +648,29 @@ graph LR
     User --> UC10
     UC10 -.->|include| UC10a
     UC10 -.->|include| UC10b
+```
+
+### UC11 — Ver los descubrimientos diarios
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UC11("Abrir el home")
+        UC11a("Calcular descubrimientos diarios<br/>(estables por día)")
+        UC11b("Tomar 3 canciones aleatorias")
+        UC11c("Tomar 3 no escuchadas<br/>del último género")
+        UC11d("Tomar 3 de un género<br/>que no escucha")
+        UC11e("Mostrar 9 canciones<br/>mezcladas en el deslizable")
+    end
+
+    User --> UC11
+    UC11 -.->|include| UC11a
+    UC11a -.->|include| UC11b
+    UC11a -.->|include| UC11c
+    UC11a -.->|include| UC11d
+    UC11 -.->|include| UC11e
 ```
 
 ## Diagrama de arquitectura

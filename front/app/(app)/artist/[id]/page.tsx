@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo } from "react";
+import { use } from "react";
 import Link from "next/link";
 import { ArrowLeft, Music, Play } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SongRow } from "@/components/music/SongRow";
 import { useArtist, useArtistTopTracks } from "@/lib/query/hooks";
 import { usePlayerStore } from "@/lib/player/store";
-import { cn, pluralize, rawSongToDTO } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 
 export default function ArtistPage({
   params,
@@ -24,11 +24,8 @@ export default function ArtistPage({
   const playSong = usePlayerStore((s) => s.playSong);
   const current = usePlayerStore((s) => s.current);
 
-  // Las top tracks llegan como entidad `Song`; las pasamos a `SongDTO`.
-  const tracks = useMemo(
-    () => (tracksQuery.data?.tracks ?? []).map(rawSongToDTO),
-    [tracksQuery.data],
-  );
+  // Las top tracks ya llegan aplanadas a `SongDTO` (con escuchas derivadas).
+  const tracks = tracksQuery.data?.tracks ?? [];
 
   if (artistQuery.isLoading) {
     return (

@@ -1,15 +1,18 @@
 package anton.davila.selfpotify.controllers;
 
+import anton.davila.selfpotify.controllers.dto.SongDTO;
 import anton.davila.selfpotify.controllers.dto.Top10ArtistTracksDTO;
 import anton.davila.selfpotify.controllers.dto.ArtistDTO;
 import anton.davila.selfpotify.music.entity.Artist;
 import anton.davila.selfpotify.music.service.ArtistService;
+import anton.davila.selfpotify.music.service.SongService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -18,6 +21,9 @@ public class ArtistController {
 
     @Autowired
     private ArtistService artistService;
+
+    @Autowired
+    private SongService songService;
 
     // todo: getAllByListeners con paginación (los 10 más escuchados) para añadirlos a la pantalla en una sección
 
@@ -41,7 +47,13 @@ public class ArtistController {
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<Top10ArtistTracksDTO> getTopTracks(@PathVariable Long id) {
         try {
-            return ResponseEntity.ok(new Top10ArtistTracksDTO(artistService.getTop10SongsById(id)));
+            // Una única consulta agrupada para la popularidad de todas las
+            // canciones (evita el N+1 de contar escuchas por cada fila).
+            Map<Long, Long> listenCounts = songService.getListenCountsBySong();
+            List<SongDTO> tracks = artistService.getTop10SongsById(id).stream()
+                    .map(song -> SongDTO.fromEntity(song, listenCounts.getOrDefault(song.getId(), 0L)))
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(new Top10ArtistTracksDTO(tracks));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
