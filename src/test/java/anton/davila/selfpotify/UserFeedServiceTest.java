@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import anton.davila.selfpotify.music.entity.Artist;
+import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.feed.repository.UserFeedRepository;
@@ -24,10 +25,16 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 /**
- * Verifica que el feed del home se personaliza con el historial propio del
- * usuario y que un usuario sin historial recae en la popularidad global
- * (cold-start). Los repositorios de escuchas/usuarios están mockeados, así que
- * no hay BBDD ni red.
+ * Verifica las reglas del feed del home:
+ * <ul>
+ *   <li>si no hay ninguna escucha en el servidor, se recomiendan todos los
+ *       artistas a todos los usuarios;</li>
+ *   <li>lo mismo si el usuario no tiene escuchas propias;</li>
+ *   <li>con historial, se priorizan los artistas más escuchados (global) de los
+ *       géneros que el usuario ha estado escuchando, rellenando con popularidad
+ *       global.</li>
+ * </ul>
+ * Los repositorios están mockeados, así que no hay BBDD ni red.
  */
 @SpringBootTest
 public class UserFeedServiceTest {
@@ -44,6 +51,9 @@ public class UserFeedServiceTest {
     @MockitoBean
     private UserFeedRepository userFeedRepository;
 
+    @MockitoBean
+    private ArtistRepository artistRepository;
+
     private User user;
 
     @BeforeEach
@@ -53,9 +63,8 @@ public class UserFeedServiceTest {
         user.setUsername("alice");
         user.setUserFeed(new UserFeed());
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        // por defecto, el usuario no tiene historial ni hay popularidad global;
-        // cada test configura lo que necesita.
-        when(listenRepository.findTopArtistsByUserListens(anyLong(), any(Pageable.class)))
+        // por defecto: no hay escuchas ni popularidad; cada test configura lo suyo.
+        when(listenRepository.findArtistsByGenreOrderByGlobalListensDesc(anyString(), any(Pageable.class)))
                 .thenReturn(new ArrayList<>());
         when(listenRepository.findArtistsByGlobalListensDesc(any(Pageable.class)))
                 .thenReturn(new ArrayList<>());
@@ -75,41 +84,73 @@ public class UserFeedServiceTest {
     }
 
     @Test
-    void coldStart_userWithoutHistory_getsGlobalPopularity() {
-        // sin historial propio; popularidad global con 10 artistas
-        when(listenRepository.findArtistsByGlobalListensDesc(any(Pageable.class)))
-                .thenReturn(new ArrayList<>(artists(100, 10)));
+    void noListensInServer_recommendsAllArtists() {
+        // ninguna escucha en todo el servidor (count() == 0 por defecto)
+        List<Artist> all = new ArrayList<>(artists(1, 25));
+        when(artistRepository.findAll()).thenReturn(all);
 
         List<Artist> rec = service.recommendArtistsForUser(1L);
 
-        assertEquals(10, rec.size());
-        assertEquals(100L, rec.get(0).getId());
-        // no debía mirar nada que no fuese el ranking global como fallback
-        verify(listenRepository).findArtistsByGlobalListensDesc(any(Pageable.class));
-    }
-
-    @Test
-    void personalized_usesUserOwnTopArtistsFirst() {
-        // el usuario tiene 10 artistas propios: el feed es exactamente ese, en orden
-        List<Artist> own = new ArrayList<>(artists(1, 10));
-        when(listenRepository.findTopArtistsByUserListens(eq(1L), any(Pageable.class)))
-                .thenReturn(own);
-
-        List<Artist> rec = service.recommendArtistsForUser(1L);
-
-        assertEquals(10, rec.size());
-        assertEquals(own.stream().map(Artist::getId).toList(),
+        // se devuelven TODOS los artistas, sin el límite de FEED_SIZE
+        assertEquals(25, rec.size());
+        assertEquals(all.stream().map(Artist::getId).toList(),
                 rec.stream().map(Artist::getId).toList());
-        // con el feed ya lleno por historial, no hace falta el ranking global
-        verify(listenRepository, never()).findArtistsByGlobalListensDesc(any(Pageable.class));
+        verify(artistRepository).findAll();
     }
 
     @Test
-    void partialHistory_isPaddedWithGlobalPopularityWithoutDuplicates() {
-        // 3 artistas propios (ids 1,2,3) + global (incluye 2 y 3, que no deben repetirse)
-        when(listenRepository.findTopArtistsByUserListens(eq(1L), any(Pageable.class)))
+    void userWithoutListens_recommendsAllArtists() {
+        // hay escuchas en el servidor, pero el usuario no tiene ninguna propia
+        when(listenRepository.count()).thenReturn(42L);
+        when(listenRepository.countByUser_Id(1L)).thenReturn(0L);
+        List<Artist> all = new ArrayList<>(artists(1, 15));
+        when(artistRepository.findAll()).thenReturn(all);
+
+        List<Artist> rec = service.recommendArtistsForUser(1L);
+
+        assertEquals(15, rec.size());
+        verify(artistRepository).findAll();
+        // no se mira la popularidad por género ni global en este caso
+        verify(listenRepository, never())
+                .findArtistsByGenreOrderByGlobalListensDesc(anyString(), any(Pageable.class));
+    }
+
+    @Test
+    void withHistory_prioritizesTopArtistsOfRecentGenres() {
+        when(listenRepository.count()).thenReturn(100L);
+        when(listenRepository.countByUser_Id(1L)).thenReturn(20L);
+        // géneros recientes (cabeza = más reciente): Reggaeton, Pop
+        user.getUserFeed().pushGenero("Pop");
+        user.getUserFeed().pushGenero("Reggaeton");
+        // artistas más escuchados de cada género
+        when(listenRepository.findArtistsByGenreOrderByGlobalListensDesc(eq("Reggaeton"), any(Pageable.class)))
+                .thenReturn(new ArrayList<>(artists(1, 4)));
+        when(listenRepository.findArtistsByGenreOrderByGlobalListensDesc(eq("Pop"), any(Pageable.class)))
+                .thenReturn(new ArrayList<>(artists(5, 4)));
+        // catálogo del que salen los 3 artistas aleatorios reservados (ids altos)
+        when(artistRepository.findAll()).thenReturn(new ArrayList<>(artists(1, 60)));
+
+        List<Artist> rec = service.recommendArtistsForUser(1L);
+
+        // se reservan 3 huecos aleatorios, así que la parte personalizada llena
+        // 7 (FEED_SIZE - 3): primero el género más reciente (Reggaeton 1..4),
+        // luego Pop (5..7); el 8 ya no entra.
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L),
+                rec.subList(0, 7).stream().map(Artist::getId).toList());
+        // y 3 artistas aleatorios adicionales del catálogo hasta FEED_SIZE, sin repetir
+        assertEquals(10, rec.size());
+        assertEquals(rec.size(), rec.stream().map(Artist::getId).distinct().count());
+    }
+
+    @Test
+    void withHistory_padsWithGlobalPopularityWithoutDuplicates() {
+        when(listenRepository.count()).thenReturn(100L);
+        when(listenRepository.countByUser_Id(1L)).thenReturn(20L);
+        user.getUserFeed().pushGenero("Pop");
+        // género aporta 3 artistas (1,2,3)
+        when(listenRepository.findArtistsByGenreOrderByGlobalListensDesc(eq("Pop"), any(Pageable.class)))
                 .thenReturn(new ArrayList<>(artists(1, 3)));
-        // global: 1..3 solapan con el historial, 50..58 son nuevos
+        // global: 1..3 solapan, 50..58 son nuevos
         List<Artist> global = new ArrayList<>(artists(1, 3));
         global.addAll(artists(50, 9));
         when(listenRepository.findArtistsByGlobalListensDesc(any(Pageable.class)))
@@ -118,7 +159,7 @@ public class UserFeedServiceTest {
         List<Artist> rec = service.recommendArtistsForUser(1L);
 
         assertEquals(10, rec.size());
-        // los 3 primeros son los del historial, en su orden
+        // los 3 primeros son los del género, en su orden
         assertEquals(List.of(1L, 2L, 3L),
                 rec.subList(0, 3).stream().map(Artist::getId).toList());
         // sin ids repetidos
@@ -128,9 +169,12 @@ public class UserFeedServiceTest {
 
     @Test
     void regenerateFeed_existingFeed_overwritesArtistsAndKeepsGenreStack() {
+        when(listenRepository.count()).thenReturn(100L);
+        when(listenRepository.countByUser_Id(1L)).thenReturn(20L);
         UserFeed feed = user.getUserFeed();
         feed.pushGenero("Pop");
         feed.pushGenero("Reggaeton");
+        // sin artistas por género, el feed se rellena con popularidad global
         when(listenRepository.findArtistsByGlobalListensDesc(any(Pageable.class)))
                 .thenReturn(new ArrayList<>(artists(100, 5)));
 
@@ -145,10 +189,10 @@ public class UserFeedServiceTest {
 
     @Test
     void regenerateFeed_noFeedYet_createsAndAssignsOne() {
+        // sin feed y sin escuchas: recae en "todos los artistas"
         user.setUserFeed(null);
         when(userFeedRepository.save(any(UserFeed.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(listenRepository.findArtistsByGlobalListensDesc(any(Pageable.class)))
-                .thenReturn(new ArrayList<>(artists(100, 4)));
+        when(artistRepository.findAll()).thenReturn(new ArrayList<>(artists(100, 4)));
 
         UserFeed result = service.regenerateFeedForUser(1L);
 

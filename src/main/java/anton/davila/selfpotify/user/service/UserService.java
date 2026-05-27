@@ -5,6 +5,7 @@ import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.AdminRepository;
 import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.repository.UserRepository;
+import anton.davila.selfpotify.music.repository.SongRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -12,12 +13,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 @Slf4j
 @Service
 public class UserService {
+
+    /** Géneros aleatorios del catálogo que se añaden siempre a la lista del home. */
+    private static final int RANDOM_GENRES = 3;
 
     @Autowired
     private UserRepository userRepository;
@@ -27,6 +32,9 @@ public class UserService {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private SongRepository songRepository;
 
     public User add(User u) {
         log.info("Añadiendo nuevo usuario: {}", u.getUsername());
@@ -85,8 +93,13 @@ public class UserService {
      * La pila de géneros del feed mantiene el índice 0 como el más reciente,
      * por lo que basta con tomar la cabecera de la lista.
      *
+     * <p>Además de los géneros recientes, se añaden siempre hasta
+     * {@link #RANDOM_GENRES} géneros aleatorios del catálogo (no repetidos) como
+     * descubrimiento, igual que el feed de artistas reserva huecos aleatorios.
+     *
      * @param id identificador del usuario
-     * @return como máximo los 10 últimos géneros, del más reciente al más antiguo
+     * @return los géneros recientes (máx. 10) seguidos de hasta
+     *         {@link #RANDOM_GENRES} géneros aleatorios adicionales
      */
     @Transactional
     public List<String> getLast10GenresListened(long id) {
@@ -94,7 +107,15 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
         List<String> genres = user.getUserFeed().getLast20GenresListened();
-        return new ArrayList<>(genres.subList(0, Math.min(10, genres.size())));
+        List<String> result = new ArrayList<>(genres.subList(0, Math.min(10, genres.size())));
+
+        // Siempre se añaden algunos géneros aleatorios del catálogo, excluyendo
+        // los ya presentes, como descubrimiento.
+        List<String> pool = new ArrayList<>(songRepository.findDistinctGenres());
+        pool.removeAll(result);
+        Collections.shuffle(pool);
+        result.addAll(pool.subList(0, Math.min(RANDOM_GENRES, pool.size())));
+        return result;
     }
 
     @Transactional

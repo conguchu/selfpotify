@@ -40,4 +40,8 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     @Query("select distinct s.genre from Song s where s.available = true "
             + "and s.genre is not null and s.genre <> '' order by s.genre")
     List<String> findDistinctAvailableGenres();
+
+    /** Géneros distintos presentes en el catálogo (ignora nulos y vacíos). */
+    @Query("select distinct s.genre from Song s where s.genre is not null and s.genre <> ''")
+    List<String> findDistinctGenres();
 }
