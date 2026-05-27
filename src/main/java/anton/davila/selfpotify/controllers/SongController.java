@@ -49,9 +49,12 @@ public class SongController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/{genre}/top")
+    // El género llega como query param (no path) porque algunos géneros contienen
+    // '/' (p.ej. "Rap/Hip Hop") y la barra codificada en la ruta hace que Tomcat
+    // rechace la petición con 400.
+    @GetMapping("/top")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<Top10GenreSongsDTO> getTopGenreSongs(@PathVariable("genre") String genre) {
+    public ResponseEntity<Top10GenreSongsDTO> getTopGenreSongs(@RequestParam("genre") String genre) {
         List<Song> topSongs = songService.getTop10ByGenre(genre);
         if (topSongs.isEmpty()) {
             return ResponseEntity.notFound().build();

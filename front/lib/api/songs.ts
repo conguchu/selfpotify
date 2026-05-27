@@ -14,10 +14,14 @@ export function getSong(id: number) {
   return apiFetch<SongDTO>(`/api/songs/${id}`);
 }
 
-/** Top 10 canciones del género, ordenadas por número de escuchas. */
+/**
+ * Top 10 canciones del género, ordenadas por número de escuchas.
+ * El género va como query param porque algunos contienen '/' (p.ej.
+ * "Rap/Hip Hop"), que codificado en la ruta provoca un 400 en Tomcat.
+ */
 export function getGenreTopSongs(genre: string) {
   return apiFetch<Top10GenreSongs>(
-    `/api/songs/${encodeURIComponent(genre)}/top`,
+    `/api/songs/top?genre=${encodeURIComponent(genre)}`,
   );
 }
 
