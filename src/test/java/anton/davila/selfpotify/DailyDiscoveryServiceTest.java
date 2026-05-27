@@ -13,10 +13,13 @@ import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,22 +28,24 @@ import java.util.stream.StreamSupport;
 
 /**
  * Verifica la composición 3+3+3 de los descubrimientos diarios, su estabilidad
- * dentro del mismo día y los fallbacks de los bloques de género. Los
- * repositorios están mockeados, así que no hay BBDD ni red.
+ * dentro del mismo día y los fallbacks de los bloques de género. Es un test
+ * unitario puro (sin contexto Spring): el servicio es un POJO y sus
+ * repositorios están mockeados con Mockito, así que no hay BBDD ni red.
  */
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class DailyDiscoveryServiceTest {
 
-    @Autowired
+    @InjectMocks
     private DailyDiscoveryService service;
 
-    @MockitoBean
+    @Mock
     private SongRepository songRepository;
 
-    @MockitoBean
+    @Mock
     private UserSongListenRepository listenRepository;
 
-    @MockitoBean
+    @Mock
     private UserRepository userRepository;
 
     private User user;
@@ -65,8 +70,8 @@ public class DailyDiscoveryServiceTest {
 
         // findAllById construye una canción por cada id solicitado.
         when(songRepository.findAllById(anyIterable())).thenAnswer(inv -> {
-            Iterable<Long> ids = inv.getArgument(0);
-            return StreamSupport.stream(ids.spliterator(), false)
+            Iterable<Long> requested = inv.getArgument(0);
+            return StreamSupport.stream(requested.spliterator(), false)
                     .map(DailyDiscoveryServiceTest::song)
                     .toList();
         });
