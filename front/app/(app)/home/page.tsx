@@ -72,9 +72,12 @@ export default function HomePage() {
               items={daily}
               getKey={(s) => s.id}
               ariaLabel="Descubrimientos diarios"
-              onActivateCenter={(song) => playSong(song, daily)}
               renderItem={(song, { isCenter }) => (
-                <SongSlide song={song} isCenter={isCenter} />
+                <SongSlide
+                  song={song}
+                  isCenter={isCenter}
+                  onPlay={() => playSong(song, daily)}
+                />
               )}
             />
           ) : (
