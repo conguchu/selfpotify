@@ -125,6 +125,7 @@ export interface PublicConfig {
   branding: BrandingDTO;
   setupComplete: boolean;
   lastfmEnabled: boolean;
+  coverArtEnabled: boolean;
   musicLibraryPath: string | null;
   /** Tamaño máximo en bytes del logo que admite el backend. */
   logoMaxBytes: number;
@@ -134,5 +135,6 @@ export interface SetupPayload {
   appName?: string;
   scanPaths?: string[];
   autoCompleteMetadata?: boolean;
+  autoCompleteCoverArt?: boolean;
   scanIntervalSeconds?: number;
 }

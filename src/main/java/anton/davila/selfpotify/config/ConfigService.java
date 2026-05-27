@@ -95,11 +95,12 @@ public class ConfigService {
         }
     }
 
-    /** Activa o desactiva el autocompletado de metadatos y persiste el cambio. */
-    public void updateFeatures(Boolean autoCompleteMetadata) {
+    /** Activa o desactiva el autocompletado de metadatos/carátulas y persiste el cambio. */
+    public void updateFeatures(Boolean autoCompleteMetadata, Boolean autoCompleteCoverArt) {
         synchronized (writeLock) {
             ServerGlobalConfig cfg = copy(current);
             if (autoCompleteMetadata != null) cfg.getFeatures().setAutoCompleteMetadata(autoCompleteMetadata);
+            if (autoCompleteCoverArt != null) cfg.getFeatures().setAutoCompleteCoverArt(autoCompleteCoverArt);
             persistInternal(cfg);
             current = cfg;
         }

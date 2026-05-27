@@ -37,6 +37,7 @@ export default function SetupWizard() {
   const existingUsers = useUsers();
 
   const lastfmEnabled = data?.lastfmEnabled ?? false;
+  const coverArtEnabled = data?.coverArtEnabled ?? false;
   const autoLibraryPath = data?.musicLibraryPath ?? null;
 
   const [step, setStep] = useState(0);
@@ -56,6 +57,7 @@ export default function SetupWizard() {
   const [pathInput, setPathInput] = useState("");
   const [intervalSeconds, setIntervalSeconds] = useState(3600);
   const [autoCompleteMetadata, setAutoCompleteMetadata] = useState(false);
+  const [autoCompleteCoverArt, setAutoCompleteCoverArt] = useState(false);
 
   // Paso 3 — usuarios
   const [users, setUsers] = useState<NewUser[]>([]);
@@ -197,6 +199,7 @@ export default function SetupWizard() {
         scanPaths,
         scanIntervalSeconds: intervalSeconds,
         autoCompleteMetadata: lastfmEnabled && autoCompleteMetadata,
+        autoCompleteCoverArt: coverArtEnabled && autoCompleteCoverArt,
       });
 
       await qc.invalidateQueries({ queryKey: queryKeys.publicConfig });
@@ -502,6 +505,30 @@ export default function SetupWizard() {
                 disabled={!lastfmEnabled}
               />
             </div>
+
+            <div className="flex items-center justify-between rounded-md border border-border bg-bg px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-text">
+                  Autocompletar carátulas
+                </p>
+                <p className="text-xs text-text-muted">
+                  Descarga carátulas de álbumes y fotos de artistas
+                  automáticamente durante el escaneo.
+                </p>
+                {!coverArtEnabled && (
+                  <p className="mt-1 text-xs text-text-subtle">
+                    Desactivado en el servidor. Actívalo en{" "}
+                    <code>COVER_ART_ENABLED</code> (.env). No requiere API key.
+                  </p>
+                )}
+              </div>
+              <Switch
+                ariaLabel="Autocompletar carátulas"
+                checked={coverArtEnabled && autoCompleteCoverArt}
+                onChange={setAutoCompleteCoverArt}
+                disabled={!coverArtEnabled}
+              />
+            </div>
           </div>
         )}
 
@@ -608,8 +635,12 @@ export default function SetupWizard() {
                 <dd className="text-text">{intervalSeconds}s</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-text-muted">Autocompletar</dt>
+                <dt className="text-text-muted">Autocompletar metadatos</dt>
                 <dd className="text-text">{autoCompleteMetadata ? "sí" : "no"}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-text-muted">Autocompletar carátulas</dt>
+                <dd className="text-text">{autoCompleteCoverArt ? "sí" : "no"}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-text-muted">Usuarios nuevos</dt>

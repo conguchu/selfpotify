@@ -71,11 +71,13 @@ public class ConfigController {
         ServerGlobalConfig.Branding b = cfg.getBranding();
         boolean lastfmEnabled = appProperties.getLastfm().getApiKey() != null
                 && !appProperties.getLastfm().getApiKey().isBlank();
+        boolean coverArtEnabled = appProperties.getCoverArt().isEnabled();
         String musicLibraryPath = musicLibraryResolver.resolvePath().orElse(null);
         return new PublicConfigDTO(
                 new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
                 cfg.getFeatures().isSetupComplete(),
                 lastfmEnabled,
+                coverArtEnabled,
                 musicLibraryPath,
                 appProperties.getLogo().getMaxFileSize().toBytes()
         );
@@ -113,8 +115,8 @@ public class ConfigController {
             }
             configService.updateBranding(appName, colors);
         }
-        if (req.getAutoCompleteMetadata() != null) {
-            configService.updateFeatures(req.getAutoCompleteMetadata());
+        if (req.getAutoCompleteMetadata() != null || req.getAutoCompleteCoverArt() != null) {
+            configService.updateFeatures(req.getAutoCompleteMetadata(), req.getAutoCompleteCoverArt());
         }
         if (req.getScanIntervalSeconds() != null) {
             long s = req.getScanIntervalSeconds();
@@ -244,8 +246,8 @@ public class ConfigController {
             }
             configService.updateBranding(name, null);
         }
-        if (req.getAutoCompleteMetadata() != null) {
-            configService.updateFeatures(req.getAutoCompleteMetadata());
+        if (req.getAutoCompleteMetadata() != null || req.getAutoCompleteCoverArt() != null) {
+            configService.updateFeatures(req.getAutoCompleteMetadata(), req.getAutoCompleteCoverArt());
         }
         if (req.getScanIntervalSeconds() != null) {
             long s = req.getScanIntervalSeconds();
@@ -295,6 +297,7 @@ public class ConfigController {
         return new ServerConfigDTO(
                 new BrandingDTO(b.getAppName(), b.getLogoUrl(), b.getColors()),
                 cfg.getFeatures().isAutoCompleteMetadata(),
+                cfg.getFeatures().isAutoCompleteCoverArt(),
                 cfg.getFeatures().isSetupComplete(),
                 cfg.getScan().getPaths(),
                 cfg.getScan().getIntervalSeconds(),

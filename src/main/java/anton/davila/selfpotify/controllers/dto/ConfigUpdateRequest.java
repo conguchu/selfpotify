@@ -10,5 +10,6 @@ import lombok.NoArgsConstructor;
 public class ConfigUpdateRequest {
     private BrandingDTO branding;
     private Boolean autoCompleteMetadata;
+    private Boolean autoCompleteCoverArt;
     private Long scanIntervalSeconds;
 }

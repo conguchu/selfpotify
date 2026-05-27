@@ -13,5 +13,6 @@ public class SetupRequest {
     private String appName;
     private List<String> scanPaths;
     private Boolean autoCompleteMetadata;
+    private Boolean autoCompleteCoverArt;
     private Long scanIntervalSeconds;
 }

@@ -12,6 +12,7 @@ import java.util.List;
 public class ServerConfigDTO {
     private BrandingDTO branding;
     private boolean autoCompleteMetadata;
+    private boolean autoCompleteCoverArt;
     private boolean setupComplete;
     private List<String> scanPaths;
     private long scanIntervalSeconds;

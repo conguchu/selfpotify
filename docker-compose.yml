@@ -4,6 +4,15 @@ services:
       context: .
       dockerfile: Dockerfile.api
     env_file: .env
+    environment:
+      # Valores fijos para Docker. Tienen prioridad sobre el .env, cuyos valores
+      # (SERVER_PORT, WEB_ORIGIN, APP_CONFIG_PATH) son para ejecución local.
+      # Ruta de config DENTRO del contenedor (volumen persistente).
+      APP_CONFIG_PATH: /data/selfpotify/config.yml
+      # Puerto que espera nginx (web) y el mapeo 8080:8080.
+      SERVER_PORT: 8080
+      # El navegador habla siempre con nginx en :80 (mismo origen).
+      WEB_ORIGIN: http://localhost
     volumes:
       - selfpotify-data:/data/selfpotify
       - ${MUSIC_LIBRARY_PATH:?Define MUSIC_LIBRARY_PATH en .env apuntando a la carpeta del host con tu música}:/music:ro
