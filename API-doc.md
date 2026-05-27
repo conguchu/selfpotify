@@ -212,6 +212,11 @@ Acceso `ROLE_USER` o `ROLE_ADMIN`. El feed se calcula a partir del historial de 
 - **Comportamiento:** devuelve los géneros escuchados más recientemente por el usuario autenticado, del más reciente al más antiguo (pila acotada a 20, índice 0 = más reciente).
 - **Respuesta `200 OK`:** `List<String>` con como máximo los 10 géneros más recientes.
 
+### `GET /api/feed/daily-discoveries`
+
+- **Comportamiento:** devuelve los **descubrimientos diarios** del usuario autenticado: 9 canciones compuestas por 3 aleatorias del catálogo, 3 no escuchadas de su **último género** escuchado (cabeza de la pila; cae al siguiente género de la pila si no hay suficientes) y 3 de un **género que el usuario no escucha** (presente en el catálogo pero ausente de su historial; cae al género más antiguo de la pila si no hay candidato). La lista es **estable durante el día** (aleatoriedad sembrada con `userId + fecha`, cambia a medianoche) y se devuelve **mezclada**. Si el catálogo no da para 9 sin repetir, se completa con aleatorias hasta donde alcance. No persiste nada: se recalcula de forma determinista en cada petición (`DailyDiscoveryService`).
+- **Respuesta `200 OK`:** `List<SongDTO>` (ver §8) con hasta 9 canciones; `listeners` viene derivado de `user_song_listen`.
+
 ---
 
 ## 7. Administración de usuarios (`/api/users`)
