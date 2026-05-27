@@ -148,14 +148,20 @@ export function Coverflow<T>({
               key={getKey(item, i)}
               role="option"
               aria-selected={isCenter}
-              className="relative flex min-w-0 shrink-0 grow-0 basis-[78%] items-center justify-center px-3 sm:basis-[58%] md:basis-[46%] lg:basis-[36%] xl:basis-[30%]"
+              onClick={(e) => handleSlideClick(e, i)}
+              // El click vive en este contenedor (sin transformar): cada columna
+              // ocupa su carril sin solaparse, así cualquier carátula visible es
+              // pulsable. El contenido interno lleva las transformaciones 3D y se
+              // marca `pointer-events-none` para que no robe los clicks por su
+              // escala/zIndex; los controles internos (botón +) reactivan los
+              // eventos con `pointer-events-auto`.
+              className="relative flex min-w-0 shrink-0 grow-0 basis-[78%] cursor-pointer select-none items-center justify-center px-3 sm:basis-[58%] md:basis-[46%] lg:basis-[36%] xl:basis-[30%]"
             >
               <div
                 ref={(el) => {
                   slideRefs.current[i] = el;
                 }}
-                onClick={(e) => handleSlideClick(e, i)}
-                className="w-full transform-gpu cursor-pointer select-none [backface-visibility:hidden] [will-change:transform]"
+                className="w-full transform-gpu [backface-visibility:hidden] [pointer-events:none] [will-change:transform]"
               >
                 {renderItem(item, { isCenter, index: i })}
               </div>

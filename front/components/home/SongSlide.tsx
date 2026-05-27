@@ -49,7 +49,7 @@ export function SongSlide({
           <AddToPlaylistButton
             songId={song.id}
             size="md"
-            className="absolute left-3 top-3 bg-black/50 text-white backdrop-blur hover:bg-black/70 hover:text-white"
+            className="absolute left-3 top-3 [pointer-events:auto] bg-black/50 text-white backdrop-blur hover:bg-black/70 hover:text-white"
           />
         )}
         {showPlayIndicator && (isCenter || isCurrent) && (
