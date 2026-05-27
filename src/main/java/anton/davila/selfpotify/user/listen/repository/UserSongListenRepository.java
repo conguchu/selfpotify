@@ -68,19 +68,27 @@ public interface UserSongListenRepository extends JpaRepository<UserSongListen, 
      * Canciones de un género ordenadas por escuchas globales (desc). Sólo
      * incluye canciones disponibles. Sustituye a
      * {@code findTop10ByGenreOrderByListenersDesc}.
+     *
+     * <p>Arranca desde {@link Song} (no desde los eventos) para que las canciones
+     * sin ninguna escucha registrada también aparezcan —al final del orden— en
+     * lugar de quedar fuera por el {@code INNER JOIN} contra {@code user_song_listen}.
      */
-    @Query("select s from UserSongListen e join e.song s "
+    @Query("select s from Song s "
             + "where s.genre = :genre and s.available = true "
-            + "group by s order by count(e) desc")
+            + "order by (select count(e) from UserSongListen e where e.song = s) desc")
     List<Song> findSongsByGenreOrderByGlobalListensDesc(@Param("genre") String genre, Pageable pageable);
 
     /**
      * Canciones de un artista ordenadas por escuchas globales (desc). Sustituye
      * a {@code findTop10ByArtistIdOrderByListenersDesc}.
+     *
+     * <p>Arranca desde {@link Song} (no desde los eventos) para que las canciones
+     * sin ninguna escucha registrada también aparezcan —al final del orden— en
+     * lugar de quedar fuera por el {@code INNER JOIN} contra {@code user_song_listen}.
      */
-    @Query("select s from UserSongListen e join e.song s join s.artists a "
+    @Query("select s from Song s join s.artists a "
             + "where a.id = :artistId "
-            + "group by s order by count(e) desc")
+            + "order by (select count(e) from UserSongListen e where e.song = s) desc")
     List<Song> findSongsByArtistOrderByGlobalListensDesc(@Param("artistId") Long artistId, Pageable pageable);
 
     // =====================================================================
@@ -104,4 +112,15 @@ public interface UserSongListenRepository extends JpaRepository<UserSongListen, 
             + "where e.user.id = :userId and s.genre is not null and s.genre <> '' "
             + "group by s.genre order by count(e) desc")
     List<String> findTopGenresByUserListens(@Param("userId") Long userId, Pageable pageable);
+
+    /**
+     * Artistas con más escuchas GLOBALES dentro de un género concreto, ordenados
+     * de más a menos. Base del feed personalizado por género: se recomiendan
+     * primero los artistas más populares de los géneros que el usuario ha estado
+     * escuchando últimamente.
+     */
+    @Query("select a from UserSongListen e join e.song s join s.artists a "
+            + "where s.genre = :genre "
+            + "group by a order by count(e) desc")
+    List<Artist> findArtistsByGenreOrderByGlobalListensDesc(@Param("genre") String genre, Pageable pageable);
 }
