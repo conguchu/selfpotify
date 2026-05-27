@@ -133,13 +133,28 @@ public class CoverApiService {
                 continue;
             }
             if (isBlank(artist.getName())) continue;
-            Optional<String> image = coverArtService.fetchArtistImage(artist.getName());
+            // Algunos nombres agrupan a varios artistas ("Mora / Jaycob"): se
+            // busca la foto solo del primero, que no existe como entidad propia
+            // bajo ese nombre combinado en fuentes como Deezer.
+            String query = primaryArtistName(artist.getName());
+            Optional<String> image = coverArtService.fetchArtistImage(query);
             if (image.isPresent()) {
                 artist.setPicture_path(image.get());
                 artistRepository.save(artist);
-                log.info("Foto asignada al artista '{}' (id={}).", artist.getName(), artist.getId());
+                log.info("Foto asignada al artista '{}' (id={}, búsqueda='{}').",
+                        artist.getName(), artist.getId(), query);
             }
         }
+    }
+
+    /**
+     * Nombre del artista principal cuando varios vienen agrupados en una sola
+     * cadena separados por '/'. Devuelve la primera parte sin espacios sobrantes;
+     * si no hay separador, el nombre tal cual.
+     */
+    private String primaryArtistName(String name) {
+        int sep = name.indexOf('/');
+        return (sep >= 0 ? name.substring(0, sep) : name).trim();
     }
 
     private boolean albumNeedsCover(Song song) {
