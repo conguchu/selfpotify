@@ -84,7 +84,14 @@ export function PlayerBar() {
                 {current.title}
               </p>
               <p className="truncate text-xs text-text-muted">
-                {current.genre || "—"}
+                {[
+                  current.artistNames?.length
+                    ? current.artistNames.join(", ")
+                    : null,
+                  current.genre,
+                ]
+                  .filter(Boolean)
+                  .join(" - ") || "—"}
               </p>
             </div>
           </>

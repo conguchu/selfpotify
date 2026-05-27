@@ -2,6 +2,7 @@
 
 import { Pause, Play } from "lucide-react";
 import { CoverArt } from "@/components/music/CoverArt";
+import { AddToPlaylistButton } from "@/components/music/AddToPlaylistButton";
 import { usePlayerStore } from "@/lib/player/store";
 import type { SongDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -10,18 +11,26 @@ import { cn } from "@/lib/utils";
  * Slide de canción para el coverflow del home. Presentacional: la reproducción
  * la dispara el `onActivateCenter` del Coverflow. Muestra el indicador de play
  * cuando es el slide central o cuando es la canción que suena ahora.
+ *
+ * `showPlayIndicator` se desactiva cuando el coverflow navega en vez de
+ * reproducir (p. ej. el carrusel de un género), para no sugerir reproducción.
  */
 export function SongSlide({
   song,
   isCenter,
+  showPlayIndicator = true,
 }: {
   song: SongDTO;
   isCenter: boolean;
+  showPlayIndicator?: boolean;
 }) {
   const current = usePlayerStore((s) => s.current);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const isCurrent = current?.id === song.id;
   const showPause = isCurrent && isPlaying;
+  const artistLabel = song.artistNames?.length
+    ? song.artistNames.join(", ")
+    : "Artista desconocido";
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -36,7 +45,14 @@ export function SongSlide({
             isCenter && "ring-2 ring-accent",
           )}
         />
-        {(isCenter || isCurrent) && (
+        {isCenter && (
+          <AddToPlaylistButton
+            songId={song.id}
+            size="md"
+            className="absolute left-3 top-3 bg-black/50 text-white backdrop-blur hover:bg-black/70 hover:text-white"
+          />
+        )}
+        {showPlayIndicator && (isCenter || isCurrent) && (
           <span
             className={cn(
               "absolute bottom-3 right-3 flex h-14 w-14 items-center justify-center rounded-full",
@@ -66,8 +82,8 @@ export function SongSlide({
         >
           {song.title}
         </p>
-        <p className="truncate text-xs text-text-muted">
-          {song.genre || "Sin género"}
+        <p className="truncate text-xs text-text-muted" title={artistLabel}>
+          {artistLabel}
         </p>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { Pause, Play } from "lucide-react";
 import { CoverArt } from "./CoverArt";
+import { AddToPlaylistButton } from "./AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
 import { usePlayerStore } from "@/lib/player/store";
 import type { SongDTO } from "@/lib/types";
@@ -34,7 +35,7 @@ export function SongRow({
   return (
     <div
       className={cn(
-        "group grid grid-cols-[2.5rem_1fr_5rem_8rem_3rem] items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-bg-hover",
+        "group grid grid-cols-[2.5rem_1fr_5rem_8rem_2.5rem_3rem] items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-bg-hover",
         className,
       )}
     >
@@ -76,6 +77,12 @@ export function SongRow({
       </div>
       <div className="text-xs text-text-muted">
         {song.bpm > 0 ? `${song.bpm} BPM` : ""}
+      </div>
+      <div className="flex justify-center">
+        <AddToPlaylistButton
+          songId={song.id}
+          className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        />
       </div>
       <div className="text-right text-xs text-text-muted tabular-nums">
         {formatDuration(song.duration_ms)}
