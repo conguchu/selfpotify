@@ -40,10 +40,11 @@ export function Coverflow<T>({
 }: CoverflowProps<T>) {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "center",
-    // "trimSnaps" evita el hueco vacío en los extremos: el primer slide se
-    // alinea a la izquierda y el último a la derecha, sin espacio en negro.
-    containScroll: "trimSnaps",
-    loop: false,
+    // `loop: true` resuelve a la vez los dos extremos: como no hay principio ni
+    // fin, TODAS las carátulas pueden centrarse (sus controles play/+ solo
+    // aparecen en la central) y siempre hay una carátula vecina a cada lado,
+    // sin el hueco negro que dejaban los extremos sin bucle.
+    loop: true,
     skipSnaps: false,
   });
   const [selectedIndex, setSelectedIndex] = React.useState(0);
@@ -60,8 +61,20 @@ export function Coverflow<T>({
     snaps.forEach((snap, i) => {
       const node = slideRefs.current[i];
       if (!node) return;
-      const diff = snap - progress;
+      // Con `loop`, el progreso envuelve en [0,1): la distancia al snap se
+      // normaliza al rango [-0.5, 0.5] para que la carátula que da la vuelta se
+      // trate como vecina inmediata y no como la más lejana.
+      let diff = snap - progress;
+      if (diff > 0.5) diff -= 1;
+      else if (diff < -0.5) diff += 1;
       const abs = Math.min(Math.abs(diff), 1);
+      // El contenedor de slides usa `preserve-3d`, donde el `z-index` se ignora:
+      // el apilado lo decide la posición Z. Las columnas (hijas directas) están
+      // todas en Z=0, así que una columna posterior en el DOM tapa los controles
+      // (play, +) de la columna central, que dejan de recibir clicks tras
+      // desplazar. Elevamos la columna activa en Z para que gane el sorteo 3D.
+      const column = node.parentElement;
+      if (column) column.style.transform = `translateZ(${(1 - abs) * 2}px)`;
       if (reducedMotion) {
         node.style.transform = "none";
         node.style.opacity = abs > 0.5 ? "0.55" : "1";
@@ -149,6 +162,13 @@ export function Coverflow<T>({
               role="option"
               aria-selected={isCenter}
               onClick={(e) => handleSlideClick(e, i)}
+              // Al pasar el ratón por encima, la carátula se centra sola para
+              // una navegación más fluida. Solo con ratón (no en táctil) y sin
+              // ningún botón pulsado, para no interferir con un arrastre.
+              onPointerEnter={(e) => {
+                if (e.pointerType !== "mouse" || e.buttons !== 0) return;
+                if (i !== selectedIndex) emblaApi?.scrollTo(i, reducedMotion);
+              }}
               // El click vive en este contenedor (sin transformar): cada columna
               // ocupa su carril sin solaparse, así cualquier carátula visible es
               // pulsable. El contenido interno lleva las transformaciones 3D y se

@@ -29,6 +29,14 @@ export function Modal({
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => setMounted(true), []);
 
+  // Guardamos onClose en una ref para que el efecto del focus-trap no dependa de
+  // su identidad: si dependiera, un onClose inline (que cambia en cada render) lo
+  // re-ejecutaría con cada pulsación de tecla y el foco saltaría a la X.
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   React.useEffect(() => {
     if (!open) return;
 
@@ -52,7 +60,7 @@ export function Modal({
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !dialog) return;
@@ -83,7 +91,7 @@ export function Modal({
       document.body.style.overflow = "";
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!mounted || !open) return null;
 

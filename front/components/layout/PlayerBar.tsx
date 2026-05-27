@@ -117,9 +117,13 @@ export function PlayerBar() {
             size="md"
             disabled={!current}
             onClick={togglePlay}
-            className="bg-text text-bg hover:bg-text/90"
+            className="bg-white !text-black hover:bg-white/90 [&>svg]:fill-black [&>svg]:text-black"
           >
-            {isPlaying ? <Pause /> : <Play />}
+            {isPlaying ? (
+              <Pause fill="black" stroke="black" />
+            ) : (
+              <Play fill="black" stroke="black" />
+            )}
           </IconButton>
           <IconButton
             label="Siguiente"

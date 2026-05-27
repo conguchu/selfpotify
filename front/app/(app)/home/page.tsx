@@ -15,9 +15,12 @@ import {
 } from "@/lib/query/hooks";
 import { usePlayerStore } from "@/lib/player/store";
 import { useAuthStore } from "@/lib/auth/store";
+import { useScrollRestoration } from "@/lib/use-scroll-restoration";
 
 export default function HomePage() {
   const router = useRouter();
+  // Conserva la posición de scroll al navegar a un artista/género y volver.
+  const scrollRef = useScrollRestoration<HTMLDivElement>("home");
   const username = useAuthStore((s) => s.username);
   const playSong = usePlayerStore((s) => s.playSong);
   // Descubrimientos diarios: 9 canciones estables durante el día.
@@ -38,9 +41,15 @@ export default function HomePage() {
   // `+3rem` recupera la altura que restaría ese `py-6` (1.5rem × 2). Depende de
   // que el padding de <main> siga siendo `6`.
   return (
-    <div className="home-snap -mx-6 -my-6 h-[calc(100%+3rem)] overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className="home-snap -mx-6 -my-6 h-[calc(100%+3rem)] overflow-y-auto"
+    >
       {/* Descubrimientos diarios + saludo */}
-      <section className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6">
+      <section
+        data-scroll-key="daily"
+        className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6"
+      >
         <header>
           <h1 className="text-3xl font-bold tracking-tight">
             {username ? `Hola, ${username}` : "Hola"}
@@ -91,7 +100,10 @@ export default function HomePage() {
       </section>
 
       {/* Artistas recomendados */}
-      <section className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6">
+      <section
+        data-scroll-key="artists"
+        className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6"
+      >
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-accent" />
           <h2 className="text-xl font-bold tracking-tight">

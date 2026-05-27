@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Pause, Play } from "lucide-react";
 import { CoverArt } from "@/components/music/CoverArt";
 import { AddToPlaylistButton } from "@/components/music/AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
 import { usePlayerStore } from "@/lib/player/store";
+import { useTapAction } from "@/lib/use-tap";
 import type { SongDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -34,19 +36,22 @@ export function SongSlide({
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const isCurrent = current?.id === song.id;
   const showPause = isCurrent && isPlaying;
-  const artistLabel = song.artistNames?.length
-    ? song.artistNames.join(", ")
-    : "Artista desconocido";
+  // Empareja cada nombre con su id para poder enlazar a la página del artista
+  // (sus canciones más escuchadas). Si faltan ids o nombres, no hay enlaces.
+  const artists = (song.artistNames ?? []).map((name, i) => ({
+    name,
+    id: song.artistIds?.[i],
+  }));
 
   // El botón de play/pause aparece en la carátula central y en la que suena.
   const showPlayButton = showPlayIndicator && (isCenter || isCurrent);
 
-  const handlePlay = (e: React.MouseEvent) => {
-    // No dejamos que el click llegue a la columna del Coverflow (que centra).
-    e.stopPropagation();
+  // El toque se resuelve en `pointerup` —no en `click`— porque Embla devora el
+  // primer click tras arrastrar el carrusel. Ver useTapAction.
+  const playTap = useTapAction(() => {
     if (isCurrent) togglePlay();
     else onPlay?.();
-  };
+  });
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -73,7 +78,7 @@ export function SongSlide({
             label={showPause ? "Pausar" : "Reproducir"}
             variant="accent"
             size="lg"
-            onClick={handlePlay}
+            {...playTap}
             className="absolute bottom-3 right-3 h-14 w-14 [pointer-events:auto] shadow-xl [&>svg]:h-6 [&>svg]:w-6"
           >
             {showPause ? (
@@ -98,8 +103,31 @@ export function SongSlide({
         >
           {song.title}
         </p>
-        <p className="truncate text-xs text-text-muted" title={artistLabel}>
-          {artistLabel}
+        <p
+          className="truncate text-xs text-text-muted"
+          title={artists.map((a) => a.name).join(", ") || "Artista desconocido"}
+        >
+          {artists.length > 0
+            ? artists.map((a, i) => (
+                <span key={`${a.id}-${i}`}>
+                  {i > 0 && ", "}
+                  {a.id != null ? (
+                    <Link
+                      href={`/artist/${a.id}`}
+                      // pointer-events:auto vence al carrusel; stopPropagation
+                      // evita que el tap de la carátula dispare reproducción.
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerUp={(e) => e.stopPropagation()}
+                      className="[pointer-events:auto] hover:text-text hover:underline"
+                    >
+                      {a.name}
+                    </Link>
+                  ) : (
+                    a.name
+                  )}
+                </span>
+              ))
+            : "Artista desconocido"}
         </p>
       </div>
     </div>

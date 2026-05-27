@@ -8,6 +8,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useMyPlaylists, useUpdatePlaylist } from "@/lib/query/hooks";
+import { useTapAction } from "@/lib/use-tap";
 import type { PlaylistDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,9 @@ export function AddToPlaylistButton({
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  // El toque se resuelve en `pointerup` —no en `click`— porque Embla devora el
+  // primer click tras arrastrar el carrusel. Ver useTapAction.
+  const tap = useTapAction(() => setOpen(true));
 
   return (
     <>
@@ -34,11 +38,7 @@ export function AddToPlaylistButton({
         variant="ghost"
         size={size}
         className={className}
-        onClick={(e) => {
-          // Evita que el click se propague al slide (reproducir/navegar).
-          e.stopPropagation();
-          setOpen(true);
-        }}
+        {...tap}
       >
         <Plus />
       </IconButton>
