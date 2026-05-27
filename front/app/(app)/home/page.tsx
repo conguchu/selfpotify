@@ -1,15 +1,27 @@
 "use client";
 
-import { Disc3, Sparkles, Users } from "lucide-react";
-import { ArtistCard } from "@/components/music/ArtistCard";
-import { GenreCard } from "@/components/music/GenreCard";
+import { useRouter } from "next/navigation";
+import { Sparkles, Users } from "lucide-react";
+import { Coverflow } from "@/components/ui/Coverflow";
+import { ArtistSlide } from "@/components/home/ArtistSlide";
+import { SongSlide } from "@/components/home/SongSlide";
+import { GenreCoverflowSection } from "@/components/home/GenreCoverflowSection";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { useHomeFeed, useRecentGenres } from "@/lib/query/hooks";
+import {
+  useHomeFeed,
+  useRecentGenres,
+  useDailyDiscoveries,
+} from "@/lib/query/hooks";
+import { usePlayerStore } from "@/lib/player/store";
 import { useAuthStore } from "@/lib/auth/store";
 
 export default function HomePage() {
+  const router = useRouter();
   const username = useAuthStore((s) => s.username);
+  const playSong = usePlayerStore((s) => s.playSong);
+  // Descubrimientos diarios: 9 canciones estables durante el día.
+  const dailyQuery = useDailyDiscoveries();
   // Cada visita a /home dispara GET /api/feed, que regenera el feed
   // del usuario en el backend antes de devolver los artistas recomendados.
   const feedQuery = useHomeFeed();
@@ -17,86 +29,119 @@ export default function HomePage() {
   const genresQuery = useRecentGenres();
   // El backend puede repetir un género si se escuchó varias veces;
   // mostramos cada uno una sola vez conservando el orden de recencia.
-  const recentGenres = genresQuery.data
-    ? [...new Set(genresQuery.data)]
-    : [];
+  const recentGenres = genresQuery.data ? [...new Set(genresQuery.data)] : [];
+  const artists = feedQuery.data ?? [];
+  const daily = dailyQuery.data ?? [];
 
+  // Contenedor a pantalla completa con scroll-snap vertical. Los márgenes
+  // negativos cancelan el `px-6 py-6` del <main> de AppShell (full-bleed) y el
+  // `+3rem` recupera la altura que restaría ese `py-6` (1.5rem × 2). Depende de
+  // que el padding de <main> siga siendo `6`.
   return (
-    <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {username ? `Hola, ${username}` : "Hola"}
-        </h1>
-        <p className="text-sm text-text-muted">
-          Tu feed se renueva en cada visita con los artistas del momento.
-        </p>
-      </header>
+    <div className="home-snap -mx-6 -my-6 h-[calc(100%+3rem)] overflow-y-auto">
+      {/* Descubrimientos diarios + saludo */}
+      <section className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6">
+        <header>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {username ? `Hola, ${username}` : "Hola"}
+          </h1>
+          <p className="text-sm text-text-muted">
+            Hecho para ti hoy — 9 descubrimientos que cambian cada día.
+          </p>
+        </header>
 
-      <section className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-accent" />
+          <h2 className="text-xl font-bold tracking-tight">
+            Tus descubrimientos diarios
+          </h2>
+        </div>
+
+        <div className="flex flex-1 items-center justify-center">
+          {dailyQuery.isLoading ? (
+            <Spinner size="lg" />
+          ) : dailyQuery.isError ? (
+            <p className="text-sm text-danger">
+              Error al cargar tus descubrimientos:{" "}
+              {dailyQuery.error instanceof Error
+                ? dailyQuery.error.message
+                : "?"}
+            </p>
+          ) : daily.length > 0 ? (
+            <Coverflow
+              items={daily}
+              getKey={(s) => s.id}
+              ariaLabel="Descubrimientos diarios"
+              onActivateCenter={(song) => playSong(song, daily)}
+              renderItem={(song, { isCenter }) => (
+                <SongSlide song={song} isCenter={isCenter} />
+              )}
+            />
+          ) : (
+            <EmptyState
+              icon={<Sparkles />}
+              title="Aún no hay descubrimientos"
+              description="Cuando el servidor tenga música, aquí aparecerán 9 canciones nuevas cada día."
+            />
+          )}
+        </div>
+      </section>
+
+      {/* Artistas recomendados */}
+      <section className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6">
+        <div className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-accent" />
           <h2 className="text-xl font-bold tracking-tight">
             Artistas recomendados para ti
           </h2>
         </div>
 
-        {feedQuery.isLoading ? (
-          <div className="flex items-center justify-center py-20">
+        <div className="flex flex-1 items-center justify-center">
+          {feedQuery.isLoading ? (
             <Spinner size="lg" />
-          </div>
-        ) : feedQuery.isError ? (
-          <p className="text-sm text-danger">
-            Error al cargar tu feed:{" "}
-            {feedQuery.error instanceof Error ? feedQuery.error.message : "?"}
-          </p>
-        ) : feedQuery.data && feedQuery.data.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {feedQuery.data.map((artist) => (
-              <ArtistCard key={artist.id} artist={artist} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<Users />}
-            title="Aún no hay artistas que recomendar"
-            description="Cuando el servidor tenga música con escuchas, aquí aparecerán los artistas más populares."
-          />
-        )}
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Disc3 className="h-5 w-5 text-accent" />
-          <h2 className="text-xl font-bold tracking-tight">
-            Tus géneros más recientes
-          </h2>
+          ) : feedQuery.isError ? (
+            <p className="text-sm text-danger">
+              Error al cargar tu feed:{" "}
+              {feedQuery.error instanceof Error ? feedQuery.error.message : "?"}
+            </p>
+          ) : artists.length > 0 ? (
+            <Coverflow
+              items={artists}
+              getKey={(a) => a.id}
+              ariaLabel="Artistas recomendados"
+              onActivateCenter={(artist) => router.push(`/artist/${artist.id}`)}
+              renderItem={(artist, { isCenter }) => (
+                <ArtistSlide artist={artist} isCenter={isCenter} />
+              )}
+            />
+          ) : (
+            <EmptyState
+              icon={<Users />}
+              title="Aún no hay artistas que recomendar"
+              description="Cuando el servidor tenga música con escuchas, aquí aparecerán los artistas más populares."
+            />
+          )}
         </div>
-
-        {genresQuery.isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Spinner size="lg" />
-          </div>
-        ) : genresQuery.isError ? (
-          <p className="text-sm text-danger">
-            Error al cargar tus géneros:{" "}
-            {genresQuery.error instanceof Error
-              ? genresQuery.error.message
-              : "?"}
-          </p>
-        ) : recentGenres.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {recentGenres.map((genre) => (
-              <GenreCard key={genre} genre={genre} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<Disc3 />}
-            title="Aún no has escuchado nada"
-            description="Cuando escuches canciones, aquí aparecerán los géneros que más has reproducido."
-          />
-        )}
       </section>
+
+      {/* Una sección por género reciente */}
+      {genresQuery.isLoading ? (
+        <section className="flex h-full w-full snap-start snap-always items-center justify-center">
+          <Spinner size="lg" />
+        </section>
+      ) : recentGenres.length === 0 && !genresQuery.isError ? (
+        <section className="flex h-full w-full snap-start snap-always items-center justify-center px-6">
+          <EmptyState
+            icon={<Sparkles />}
+            title="Aún no has escuchado nada"
+            description="Cuando escuches canciones, aquí aparecerán secciones con los géneros que más reproduces."
+          />
+        </section>
+      ) : (
+        recentGenres.map((genre) => (
+          <GenreCoverflowSection key={genre} genre={genre} />
+        ))
+      )}
     </div>
   );
 }

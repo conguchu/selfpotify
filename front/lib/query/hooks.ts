@@ -20,7 +20,11 @@ import {
   getGenreTopSongs,
 } from "@/lib/api/songs";
 import { listArtists, getArtist, getArtistTopTracks } from "@/lib/api/artists";
-import { getHomeFeed, getRecentGenres } from "@/lib/api/feed";
+import {
+  getHomeFeed,
+  getRecentGenres,
+  getDailyDiscoveries,
+} from "@/lib/api/feed";
 import { listAlbums } from "@/lib/api/albums";
 import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
 import {
@@ -44,6 +48,7 @@ export const queryKeys = {
   albums: ["albums"] as const,
   homeFeed: ["feed", "home"] as const,
   recentGenres: ["feed", "genres"] as const,
+  dailyDiscoveries: ["feed", "daily-discoveries"] as const,
   genreTopSongs: (genre: string) => ["songs", "genre", genre, "top"] as const,
   playlists: ["playlists", "my"] as const,
   playlist: (id: number) => ["playlists", id] as const,
@@ -92,6 +97,21 @@ export function useRecentGenres(enabled = true) {
     enabled,
     staleTime: 0,
     gcTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+/**
+ * Descubrimientos diarios. La respuesta es estable durante el día (el backend
+ * la recalcula de forma determinista por usuario+fecha), así que la cacheamos
+ * y la refrescamos al volver a montar por si cambió el día.
+ */
+export function useDailyDiscoveries(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.dailyDiscoveries,
+    queryFn: getDailyDiscoveries,
+    enabled,
+    staleTime: 30 * 60 * 1000,
     refetchOnMount: "always",
   });
 }

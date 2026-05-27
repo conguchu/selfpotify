@@ -82,3 +82,19 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+
+/*
+ * Home inmersiva: contenedor de secciones a pantalla completa con scroll-snap
+ * vertical. Cada <section> hija usa `snap-start`. El snap y el desplazamiento
+ * suave se desactivan si el usuario pide reducir el movimiento.
+ */
+.home-snap {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-snap {
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+  }
+}

@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { ArtistDTO } from "@/lib/types";
+import type { ArtistDTO, SongDTO } from "@/lib/types";
 
 /**
  * Carga el feed del home (`GET /api/feed`).
@@ -21,4 +21,14 @@ export function getHomeFeed() {
  */
 export function getRecentGenres() {
   return apiFetch<string[]>("/api/feed/genres");
+}
+
+/**
+ * Descubrimientos diarios del usuario (`GET /api/feed/daily-discoveries`):
+ * 9 canciones (3 aleatorias + 3 no escuchadas de su último género + 3 de un
+ * género que no escucha). La lista es estable durante el día y cambia a
+ * medianoche, así que se puede cachear durante la sesión.
+ */
+export function getDailyDiscoveries() {
+  return apiFetch<SongDTO[]>("/api/feed/daily-discoveries");
 }
