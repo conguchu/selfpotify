@@ -120,7 +120,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 
 Nota: `ArtistDTO.biography` está declarado pero el `convertToDTO` actual no lo rellena; siempre será `null`.
 
-Nota: `GET /api/artists/{id}/top-10-tracks` devuelve `{ "tracks": List<Song> }` (la entidad `Song` cruda, sin aplanar a DTO) con las 10 canciones del artista más escuchadas, **derivadas** de `user_song_listen`. Esa forma cruda no incluye campo de escuchas.
+Nota: `GET /api/artists/{id}/top-10-tracks` devuelve `{ "tracks": List<SongDTO> }` con las 10 canciones del artista más escuchadas, **derivadas** de `user_song_listen`. Cada track es un `SongDTO` con su campo `listeners` (popularidad derivada) resuelto mediante una única consulta agrupada, igual que el resto de listados.
 
 ---
 
@@ -373,7 +373,7 @@ Además, en el primer arranque y solo mientras `setupComplete=false`, la librer�
 ```
 > Nótese el snake_case en `duration_ms` y `picture_url` (heredado de la entidad).
 >
-> `listeners` es **popularidad derivada**: el número de escuchas de la canción contado por el backend sobre la tabla de eventos `user_song_listen`, no un campo almacenado en `Song`. En los listados se calcula con una única consulta agrupada (evita el N+1). En respuestas que no son `SongDTO` (p. ej. la entidad `Song` cruda de `GET /api/artists/{id}/top-10-tracks`) el campo no existe.
+> `listeners` es **popularidad derivada**: el número de escuchas de la canción contado por el backend sobre la tabla de eventos `user_song_listen`, no un campo almacenado en `Song`. En los listados se calcula con una única consulta agrupada (evita el N+1). Todas las respuestas que exponen canciones lo hacen como `SongDTO`, así que el campo siempre está presente (incluidos los tracks de `GET /api/artists/{id}/top-10-tracks`).
 
 ### `ArtistDTO`
 ```json

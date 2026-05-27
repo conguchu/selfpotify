@@ -31,26 +31,9 @@ export interface ArtistDTO {
   songIds: number[];
 }
 
-/**
- * Canción tal cual la serializa el backend (entidad `Song`).
- * Es la forma que devuelve `GET /api/artists/{id}/top-10-tracks`,
- * distinta de `SongDTO` (que aplana artistas y álbum a ids).
- */
-export interface RawSong {
-  id: number;
-  title: string;
-  duration_ms: number;
-  genre: string | null;
-  bpm: number;
-  available: boolean;
-  picture_url: string | null;
-  artists: { id: number; name: string }[] | null;
-  album: { id: number } | null;
-}
-
 /** Respuesta de `GET /api/artists/{id}/top-10-tracks`. */
 export interface Top10ArtistTracks {
-  tracks: RawSong[];
+  tracks: SongDTO[];
 }
 
 /** Respuesta de `GET /api/songs/{genre}/top`. */

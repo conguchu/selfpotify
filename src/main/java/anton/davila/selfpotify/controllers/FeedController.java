@@ -1,9 +1,13 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.controllers.dto.ArtistDTO;
+import anton.davila.selfpotify.controllers.dto.SongDTO;
 import anton.davila.selfpotify.music.entity.Artist;
+import anton.davila.selfpotify.music.entity.Song;
+import anton.davila.selfpotify.music.service.SongService;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.feed.entity.UserFeed;
+import anton.davila.selfpotify.user.feed.service.DailyDiscoveryService;
 import anton.davila.selfpotify.user.feed.service.UserFeedService;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import anton.davila.selfpotify.user.service.UserService;
@@ -14,6 +18,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -23,6 +28,12 @@ public class FeedController {
 
     @Autowired
     private UserFeedService userFeedService;
+
+    @Autowired
+    private DailyDiscoveryService dailyDiscoveryService;
+
+    @Autowired
+    private SongService songService;
 
     @Autowired
     private UserRepository userRepository;
@@ -52,6 +63,24 @@ public class FeedController {
     public List<String> getRecentGenres() {
         User currentUser = getCurrentUser();
         return userService.getLast10GenresListened(currentUser.getId());
+    }
+
+    /**
+     * Descubrimientos diarios del usuario autenticado: 9 canciones compuestas
+     * por 3 aleatorias, 3 no escuchadas de su último género escuchado y 3 de un
+     * género que no escucha (con los fallbacks descritos en
+     * {@link DailyDiscoveryService}). La lista es estable durante el día y se
+     * devuelve mezclada.
+     */
+    @GetMapping("/daily-discoveries")
+    public List<SongDTO> getDailyDiscoveries() {
+        User currentUser = getCurrentUser();
+        List<Song> songs = dailyDiscoveryService.getDailyDiscoveries(currentUser.getId());
+        // Una única consulta agrupada para la popularidad (evita el N+1).
+        Map<Long, Long> listenCounts = songService.getListenCountsBySong();
+        return songs.stream()
+                .map(song -> SongDTO.fromEntity(song, listenCounts.getOrDefault(song.getId(), 0L)))
+                .collect(Collectors.toList());
     }
 
     private User getCurrentUser() {
