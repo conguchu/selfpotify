@@ -30,7 +30,7 @@ export function AdminShell({
         <header className="flex h-16 items-center justify-between border-b border-border bg-bg-elevated px-6">
           <div className="flex items-center gap-6">
             <Link href="/admin" className="flex items-center gap-2">
-              <AppLogo className="h-6 w-6" />
+              <AppLogo className="h-9 w-9" />
               <span className="text-base font-bold tracking-tight">
                 {appName} <span className="text-accent">admin</span>
               </span>
