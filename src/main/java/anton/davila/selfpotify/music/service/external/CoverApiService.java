@@ -138,9 +138,11 @@ public class CoverApiService {
             // bajo ese nombre combinado en fuentes como Deezer.
             String query = primaryArtistName(artist.getName());
             Optional<String> image = coverArtService.fetchArtistImage(query);
+
             if (image.isPresent()) {
                 artist.setPicture_path(image.get());
                 artistRepository.save(artist);
+                log.info("Foto asignada al artista '{}' (id={}).", artist.getName(), artist.getId());
                 log.info("Foto asignada al artista '{}' (id={}, búsqueda='{}').",
                         artist.getName(), artist.getId(), query);
             }
