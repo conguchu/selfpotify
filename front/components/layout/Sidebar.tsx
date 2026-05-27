@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Plus, Shield } from "lucide-react";
+import { Home, Plus } from "lucide-react";
 import { AppLogo } from "./AppLogo";
 import { IconButton } from "@/components/ui/IconButton";
 import { Spinner } from "@/components/ui/Spinner";
@@ -11,12 +11,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { CreatePlaylistModal } from "@/components/music/CreatePlaylistModal";
 import { PlaylistItem } from "@/components/music/PlaylistItem";
 import { useMyPlaylists, useAppName } from "@/lib/query/hooks";
-import { useAuthStore } from "@/lib/auth/store";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const isAdmin = useAuthStore((s) => s.roles.includes("ROLE_ADMIN"));
   const [createOpen, setCreateOpen] = useState(false);
   const playlistsQuery = useMyPlaylists();
   const appName = useAppName();
@@ -32,11 +30,6 @@ export function Sidebar() {
         <NavLink href="/home" icon={<Home className="h-5 w-5" />} active={pathname === "/home"}>
           Inicio
         </NavLink>
-        {isAdmin ? (
-          <NavLink href="/admin" icon={<Shield className="h-5 w-5" />} active={pathname?.startsWith("/admin")}>
-            Panel admin
-          </NavLink>
-        ) : null}
       </nav>
 
       <div className="mt-2 flex items-center justify-between px-2">
