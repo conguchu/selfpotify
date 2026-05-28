@@ -45,6 +45,11 @@ export function Coverflow<T>({
     // aparecen en la central) y siempre hay una carátula vecina a cada lado,
     // sin el hueco negro que dejaban los extremos sin bucle.
     loop: true,
+    // Con pocas carátulas Embla desactiva el bucle automáticamente; sin esto
+    // caería en su default `"trimSnaps"`, que alinea la primera a la izquierda.
+    // Forzamos `false` para que el respaldo también la centre y todos los
+    // carruseles arranquen igual.
+    containScroll: false,
     skipSnaps: false,
   });
   const [selectedIndex, setSelectedIndex] = React.useState(0);
