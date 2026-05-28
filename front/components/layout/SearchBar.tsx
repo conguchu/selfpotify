@@ -112,6 +112,9 @@ export function SearchBar() {
             "h-10 w-full rounded-full border border-border bg-bg-card pl-9 pr-9 text-sm text-text",
             "placeholder:text-text-subtle",
             "focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40",
+            // Oculta la X nativa del input[type=search] (la "azul" de WebKit/Chromium)
+            // para que solo quede el botón blanco propio.
+            "[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none",
           )}
         />
         {value ? (
