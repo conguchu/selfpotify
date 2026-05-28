@@ -139,3 +139,57 @@ export interface SetupPayload {
   autoCompleteCoverArt?: boolean;
   scanIntervalSeconds?: number;
 }
+
+// =====================================
+// ----- Búsqueda (`GET /api/search`)
+// =====================================
+
+/** Vista pública mínima de un usuario, devuelta por la búsqueda. */
+export interface UserSummaryDTO {
+  id: number;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  type: "USER" | "ADMIN";
+}
+
+/** Entrada de género en la búsqueda: nombre + canciones del catálogo. */
+export interface GenreResultDTO {
+  name: string;
+  songCount: number;
+}
+
+/** Categoría paginada de la respuesta de búsqueda. */
+export interface SearchCategoryPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+}
+
+/** Modos soportados por el endpoint `GET /api/search`. */
+export type SearchType =
+  | "all"
+  | "songs"
+  | "artists"
+  | "albums"
+  | "playlists"
+  | "users"
+  | "genres";
+
+/**
+ * Respuesta del endpoint `GET /api/search`. En modo `all` se rellenan todas
+ * las categorías; en modo específico solo se rellena la pedida (el resto
+ * llega como `undefined` porque el backend las omite del JSON).
+ */
+export interface SearchResponseDTO {
+  query: string;
+  type: SearchType;
+  page: number;
+  size: number;
+  songs?: SearchCategoryPage<SongDTO>;
+  artists?: SearchCategoryPage<ArtistDTO>;
+  albums?: SearchCategoryPage<AlbumDTO>;
+  playlists?: SearchCategoryPage<PlaylistDTO>;
+  users?: SearchCategoryPage<UserSummaryDTO>;
+  genres?: SearchCategoryPage<GenreResultDTO>;
+}

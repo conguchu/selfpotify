@@ -219,6 +219,57 @@ Acceso `ROLE_USER` o `ROLE_ADMIN`. El feed se calcula a partir del historial de 
 
 ---
 
+## 6.6 Búsqueda global (`/api/search`)
+
+Barra de búsqueda transversal sobre el catálogo (canciones, artistas, álbumes, géneros) y la comunidad (playlists públicas, usuarios). Insensible a mayúsculas y diacríticos: la consulta y los textos del catálogo se normalizan con `Normalizer.Form.NFD` + strip de `\p{InCombiningDiacriticalMarks}+` + lowercase `Locale.ROOT` antes de comparar. Tokeniza la consulta por espacios y exige que **todas** las palabras estén presentes en el haystack del documento (estilo barra de YouTube/Spotify: `stairway heaven` empareja con `Stairway to Heaven`).
+
+### `GET /api/search`
+
+- **Acceso:** `ROLE_USER` o `ROLE_ADMIN`.
+- **Query params:**
+
+| Parámetro | Default | Descripción |
+|---|---|---|
+| `q` | `""` | Consulta libre. Si está vacía, se devuelve la forma de respuesta con todas las categorías a 0. |
+| `type` | `all` | Modo. `all` rellena todas las categorías recortadas a 5 cada una (vista previa para dropdown). `songs`, `artists`, `albums`, `playlists`, `users`, `genres` rellenan solo esa categoría, paginada. |
+| `page` | `0` | Índice 0-based de la página (solo aplica al modo específico). |
+| `size` | `20` | Tamaño de página, acotado a `100`. En modo `all` actúa como tope superior y se recorta a `5` por categoría. |
+
+- **Campos buscables por categoría:**
+
+| Categoría | Haystack | Tiebreaker tras el score |
+|---|---|---|
+| `songs` | título + nombres de artistas + nombre del álbum + género | escuchas desc, luego título asc |
+| `artists` | nombre del artista | nº de canciones desc, luego nombre asc |
+| `albums` | nombre del álbum + nombres de artistas | nº de canciones desc, luego nombre asc |
+| `playlists` | nombre + descripción + username del creador | nº de canciones desc, luego nombre asc |
+| `users` | username + nombre del perfil | username asc |
+| `genres` | nombre del género (distintos del catálogo) | nº de canciones desc, luego nombre asc |
+
+- **Visibilidad de playlists:** se incluyen las **públicas** y las **propias** (públicas o privadas) del usuario autenticado. Las privadas de otros usuarios nunca aparecen.
+
+- **Scoring:** menor es mejor. `0` = el campo principal es exactamente la consulta; `1` = empieza por la consulta; `2` = alguna palabra empieza por el primer token; `3` = subcadena (caso por defecto, ya garantizado por el filtro).
+
+- **Errores:** `400 Bad Request` si `type` no está en el conjunto válido.
+
+- **Respuesta `200 OK SearchResponseDTO`:** misma forma en ambos modos; las categorías no usadas vienen como `null` y se omiten del JSON.
+  ```json
+  {
+    "query": "rosalia",
+    "type": "all",
+    "page": 0,
+    "size": 5,
+    "songs":     { "content": [/* SongDTO */],        "totalElements": 12, "totalPages": 3 },
+    "artists":   { "content": [/* ArtistDTO */],      "totalElements": 1,  "totalPages": 1 },
+    "albums":    { "content": [/* AlbumDTO */],       "totalElements": 1,  "totalPages": 1 },
+    "playlists": { "content": [/* PlaylistDTO */],    "totalElements": 0,  "totalPages": 1 },
+    "users":     { "content": [/* UserSummaryDTO */], "totalElements": 0,  "totalPages": 1 },
+    "genres":    { "content": [/* GenreResultDTO */], "totalElements": 0,  "totalPages": 1 }
+  }
+  ```
+
+---
+
 ## 7. Administración de usuarios (`/api/users`)
 
 Acceso exclusivo `ROLE_ADMIN`.
@@ -464,6 +515,41 @@ Todos los campos son opcionales; los nulos se dejan sin tocar.
 ```json
 { "path": "/ruta/absoluta/a/carpeta" }
 ```
+
+### `UserSummaryDTO` (devuelto por `/api/search?type=users` y modo `all`)
+```json
+{
+  "id": 1,
+  "username": "anton",
+  "displayName": "Anton Davila",
+  "avatarUrl": "/assets/avatars/anton.jpg",
+  "type": "USER"
+}
+```
+Vista pública mínima de un usuario: no incluye contraseña, feed ni perfil completo. `displayName` y `avatarUrl` provienen del `Profile` asociado y pueden venir `null` si el usuario aún no tiene perfil.
+
+### `GenreResultDTO` (devuelto por `/api/search?type=genres` y modo `all`)
+```json
+{ "name": "Rock", "songCount": 42 }
+```
+`songCount` es el número de canciones del catálogo que tienen ese género.
+
+### `SearchResponseDTO` (devuelto por `/api/search`)
+```json
+{
+  "query": "rosalia",
+  "type": "all",
+  "page": 0,
+  "size": 5,
+  "songs":     { "content": [], "totalElements": 0, "totalPages": 1 },
+  "artists":   { "content": [], "totalElements": 0, "totalPages": 1 },
+  "albums":    { "content": [], "totalElements": 0, "totalPages": 1 },
+  "playlists": { "content": [], "totalElements": 0, "totalPages": 1 },
+  "users":     { "content": [], "totalElements": 0, "totalPages": 1 },
+  "genres":    { "content": [], "totalElements": 0, "totalPages": 1 }
+}
+```
+Cada `content` lista DTOs de su categoría (`SongDTO`, `ArtistDTO`, `AlbumDTO`, `PlaylistDTO`, `UserSummaryDTO`, `GenreResultDTO`). En modo específico, las categorías no pedidas se omiten del JSON (vienen como `null`). `query` ya viene normalizada (lowercased + sin diacríticos), útil para que el cliente la pueda echar como eco sobre la URL.
 
 ### `User` (devuelto por `/api/users`)
 ```json

@@ -388,6 +388,87 @@ flowchart TD
     Map --> Render([Cliente renderiza<br/>el deslizable de descubrimientos])
 ```
 
+### Búsqueda global
+
+Un único endpoint, `GET /api/search`, cubre canciones, artistas, álbumes,
+playlists, usuarios y géneros con la misma forma de respuesta. Es el cimiento
+de cualquier barra de búsqueda que monten los clientes.
+
+**Decisión de diseño: un solo endpoint, dos modos.** En lugar de exponer una
+ruta por entidad (`/api/songs/search`, `/api/artists/search`…) el backend
+ofrece un único endpoint con un parámetro `type`. En modo `all` (default)
+devuelve hasta 5 elementos por categoría, pensado para una vista previa
+multi-categoría. En modo específico (`type=songs|artists|albums|playlists|users|genres`)
+devuelve solo esa categoría paginada (`page`/`size`). La forma de la respuesta
+es la misma en ambos casos (`SearchResponseDTO` con un slice por categoría);
+las categorías no usadas se omiten del JSON.
+
+**Decisión de diseño: normalización en aplicación, no en SQL.** Para que la
+búsqueda sea insensible a mayúsculas, acentos y signos diacríticos —
+`"rosalia"` debe encontrar `"Rosalía"` y viceversa — tanto la consulta como el
+texto buscable se pasan por la misma rutina: `Normalizer.Form.NFD` + strip de
+`\p{InCombiningDiacriticalMarks}+` + `toLowerCase(Locale.ROOT)` + colapso de
+espacios. Esto se hace en Java, no en SQL, porque H2 (desarrollo) y MariaDB
+(producción) no comparten sintaxis para desdiacritizar y mantener una única
+rutina compartida garantiza que la query y los haystacks acaben exactamente en
+la misma forma canónica. La query normalizada se tokeniza por espacios y se
+exige que **todos** los tokens estén presentes en el haystack (estilo barra de
+YouTube/Spotify: `"stairway heaven"` empareja con `"Stairway to Heaven"`
+aunque `"to"` no esté en la consulta).
+
+**Decisión de diseño: filtrado en memoria, no índice invertido.** El servicio
+carga la lista completa de cada repositorio (`findAll`) y filtra en memoria.
+Es una elección consciente para esta versión: selfpotify está pensado como
+servidor personal con catálogos acotados, así que cargar las pocas miles de
+filas que cualquier instalación realista va a tener cuesta menos que mantener
+un índice o atarse a particularidades del motor SQL. El contrato del endpoint
+no expone esta decisión, así que se puede sustituir por Lucene/PostgreSQL
+full-text en el futuro sin tocar a los clientes si llegado el caso hace falta.
+Para evitar el N+1 al exponer el conteo de escuchas de las canciones se
+reutiliza la consulta agrupada de `SongService.getListenCountsBySong()` (la
+misma que ya usan los listados generales).
+
+**Decisión de diseño: scoring de relevancia simple, predecible.** El orden de
+los resultados sigue una jerarquía explícita sobre el campo principal de cada
+categoría (título de canción, nombre de artista/álbum/playlist/género,
+username): `0` = exacto · `1` = empieza por la consulta · `2` = alguna palabra
+empieza por el primer token · `3` = subcadena. Los empates se rompen con una
+métrica natural por categoría (escuchas desc para canciones, nº de canciones
+desc para artistas/álbumes/playlists/géneros, orden alfabético para usuarios).
+No hay tf-idf ni boosting cruzado: el comportamiento debe poder explicarse en
+una frase para que un usuario que escribe `"rock"` entienda por qué la canción
+titulada exactamente "Rock" aparece antes que "Bohemian Rhapsody (Rock)".
+
+**Decisión de diseño: visibilidad de playlists igual que en el resto de la
+app.** La búsqueda nunca devuelve playlists privadas ajenas. Solo aparecen las
+**públicas** y las **propias** del usuario autenticado, replicando exactamente
+la regla que ya aplican `GET /api/playlists/{id}` y `GET /api/playlists/user/{userId}`,
+para que la búsqueda no sea un canal lateral de fuga. Para el resto de
+entidades no hay nada que ocultar: canciones, artistas, álbumes, géneros y
+usuarios son visibles para cualquier sesión autenticada.
+
+#### Flujo de una búsqueda
+
+```mermaid
+flowchart TD
+    Call([GET /api/search?q=...&type=...]) --> Norm[SearchService.normalize:<br/>NFD + strip diacríticos<br/>+ lowercase + colapsar espacios]
+    Norm --> Tokens[Tokenizar por espacios]
+    Tokens --> Mode{¿type?}
+    Mode -- all --> LoadAll[Cargar findAll de las 6<br/>categorías + listen counts]
+    Mode -- categoría única --> LoadOne[Cargar findAll de esa<br/>categoría + listen counts si aplica]
+    LoadAll --> Filter[Para cada entidad:<br/>matchesAll tokens vs haystack]
+    LoadOne --> Filter
+    Filter --> Vis{¿playlist privada<br/>ajena?}
+    Vis -- sí --> Drop[Descartar]
+    Vis -- no --> Score[Score 0/1/2/3 sobre<br/>el campo principal]
+    Score --> Sort[Ordenar por score asc<br/>+ tiebreaker por categoría]
+    Sort --> Slice{¿type?}
+    Slice -- all --> Top5[Recortar a 5/categoría]
+    Slice -- categoría única --> Page[Recortar a page/size]
+    Top5 --> Resp([SearchResponseDTO con<br/>6 CategoryPage rellenas])
+    Page --> Resp2([SearchResponseDTO con<br/>1 CategoryPage rellena])
+```
+
 #### Carátulas y fotos automáticas
 
 Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta) la carátula de cada canción y álbum y la foto de cada artista, gemelo de cómo `GenreApiService` rellena el género. El orden de prioridad es:
