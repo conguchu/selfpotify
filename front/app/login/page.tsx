@@ -27,9 +27,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-bg via-bg to-accent-soft/30 p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-accent/20 ring-4 ring-accent-soft">
-            <AppLogo className="h-7 w-7" />
-          </div>
+          <AppLogo className="h-16 w-16" />
           <h1 className="text-3xl font-bold tracking-tight">{appName}</h1>
           <p className="text-sm text-text-muted">
             Tu música, en tu servidor.
