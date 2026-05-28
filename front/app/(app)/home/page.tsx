@@ -54,9 +54,6 @@ export default function HomePage() {
           <h1 className="text-3xl font-bold tracking-tight">
             {username ? `Hola, ${username}` : "Hola"}
           </h1>
-          <p className="text-sm text-text-muted">
-            Hecho para ti hoy — 9 descubrimientos que cambian cada día.
-          </p>
         </header>
 
         <div className="flex items-center gap-2">
