@@ -400,6 +400,7 @@ classDiagram
         - String genre
         - int bpm
         - String songPath
+        - boolean available
         - List~Artist~ artists
         - Album album
         - String picture_url
@@ -420,6 +421,7 @@ classDiagram
         - Long id
         - String name
         - String picture_path
+        - String mbid
         - List~Album~ albums
         - List~Song~ songs
         + copy(Artist)
@@ -460,6 +462,7 @@ classDiagram
     class UserFeed {
         - Long id
         - List~Artist~ recommendedArtists
+        - List~String~ last20GenresListened
         + copy(UserFeed)
     }
 
@@ -579,13 +582,15 @@ graph LR
 
     subgraph Sistema Self-Potify
         UC5("Escuchar canción")
-        UC5a("Hacer streaming de audio")
-        UC5b("Incrementar contador de reproducciones")
+        UC5a("Hacer streaming de audio<br/>(HTTP Range)")
+        UC5b("Registrar género escuchado<br/>en la pila del usuario")
+        UC5c("Registrar evento en<br/>user_song_listen (FIFO 1000)")
     end
 
     User --> UC5
     UC5 -.->|include| UC5a
     UC5 -.->|include| UC5b
+    UC5 -.->|include| UC5c
 ```
 
 ### UC6 — Setup inicial del servidor
