@@ -27,6 +27,7 @@ import {
   getDailyDiscoveries,
 } from "@/lib/api/feed";
 import { listAlbums } from "@/lib/api/albums";
+import { search as searchApi } from "@/lib/api/search";
 import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
 import {
   createUser,
@@ -39,6 +40,7 @@ import type {
   CreateUserPayload,
   ImportFolderPayload,
   PlaylistInput,
+  SearchType,
 } from "@/lib/types";
 
 export const queryKeys = {
@@ -55,6 +57,8 @@ export const queryKeys = {
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
   publicConfig: ["config", "public"] as const,
+  search: (q: string, type: SearchType, page: number, size: number) =>
+    ["search", q, type, page, size] as const,
 };
 
 export function usePublicConfig() {
@@ -294,6 +298,34 @@ export function useDeleteUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.users });
     },
+  });
+}
+
+/**
+ * Búsqueda global (`GET /api/search`).
+ *
+ * Una sola firma para los dos modos del backend:
+ * - `type="all"` → preview multi-categoría para el dropdown.
+ * - `type="songs"|"artists"|...` → categoría única paginada para la página
+ *   dedicada de resultados.
+ *
+ * La query se considera vacía si tras hacer `trim()` no queda nada y, en ese
+ * caso, no se dispara la llamada (la búsqueda está deshabilitada). Se cachea
+ * 30s por (q, type, page, size) para que volver atrás desde un resultado no
+ * vuelva a pegar al servidor.
+ */
+export function useSearch(
+  q: string,
+  type: SearchType = "all",
+  page = 0,
+  size = 20,
+) {
+  const trimmed = q.trim();
+  return useQuery({
+    queryKey: queryKeys.search(trimmed, type, page, size),
+    queryFn: () => searchApi({ q: trimmed, type, page, size }),
+    enabled: trimmed.length > 0,
+    staleTime: 30_000,
   });
 }
 
