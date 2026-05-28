@@ -104,6 +104,8 @@ public class PlaylistController {
                     details.setDescription(body.getDescription());
                     details.setPublic(body.isPublic());
                     details.setSongs(resolveSongs(body.getSongIds()));
+                    // conserva la portada existente si el cliente no envía una nueva
+                    details.setPictureUrl(body.getPictureUrl() != null ? body.getPictureUrl() : playlist.getPictureUrl());
                     return ResponseEntity.ok(convertToDTO(playlistService.update(id, details)));
                 })
                 .orElse(ResponseEntity.notFound().build());
