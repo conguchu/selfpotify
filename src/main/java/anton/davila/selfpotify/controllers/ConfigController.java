@@ -288,7 +288,7 @@ public class ConfigController {
         }
         Map<String, Object> body = new HashMap<>();
         body.put("status", "ok");
-        body.put("message", "Servidor reseteado. Vuelve a iniciar sesión con admin/admin");
+        body.put("message", "Servidor reseteado. Vuelve a iniciar sesión con el admin definido en el .env");
         return ResponseEntity.ok(body);
     }
 

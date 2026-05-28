@@ -4,15 +4,12 @@ import anton.davila.selfpotify.music.repository.AlbumRepository;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.repository.PlaylistRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
-import anton.davila.selfpotify.user.entity.Admin;
-import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
 import anton.davila.selfpotify.user.profile.repository.ProfileRepository;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -46,9 +43,19 @@ public class ResetService {
     private UserSongListenRepository userSongListenRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private AdminBootstrapRunner adminBootstrapRunner;
 
-    /** Vacía toda la base de datos, recrea los usuarios por defecto y resetea la configuración. */
+    @Autowired
+    private LibraryBootstrap libraryBootstrap;
+
+    /**
+     * Vacía toda la base de datos, resetea la configuración y deja el servidor
+     * en el mismo estado en que arrancaría tras un primer despliegue: ejecuta
+     * los mismos bootstraps que corren en el arranque para reseedear el admin
+     * desde el .env (si {@code ADMIN_USERNAME}/{@code ADMIN_PASSWORD} están
+     * definidos) y reañadir la librería musical del .env a las rutas de
+     * escaneo (si está configurada y accesible).
+     */
     @Transactional
     public void resetAll() throws IOException {
         log.warn("RESET: borrando toda la base de datos y la configuración");
@@ -61,21 +68,14 @@ public class ResetService {
         profileRepository.deleteAll();
         userRepository.deleteAll();
 
-        seedDefaultUsers();
         configService.resetToDefaults();
 
-        log.info("RESET completado: usuarios por defecto y config en blanco");
-    }
+        // Reproducir los bootstraps de arranque para dejar el servidor en el
+        // mismo estado que un primer despliegue: admin del .env y ruta de
+        // librería del .env reañadida a scan.paths.
+        adminBootstrapRunner.run(null);
+        libraryBootstrap.run(null);
 
-    private void seedDefaultUsers() {
-        User user = new User();
-        user.setUsername("user");
-        user.setPassword(passwordEncoder.encode("password"));
-        userRepository.save(user);
-
-        Admin admin = new Admin();
-        admin.setUsername("admin");
-        admin.setPassword(passwordEncoder.encode("admin"));
-        userRepository.save(admin);
+        log.info("RESET completado: bootstraps de admin y librería re-ejecutados, config en blanco");
     }
 }

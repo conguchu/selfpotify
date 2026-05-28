@@ -53,7 +53,7 @@ Como se comentó antes, Selfpotify es un monorepo y ofrece la posibilidad de **d
 Por esto, en el **primer arranque** el servidor entra en **modo setup** y la web sirve un **wizard de configuración inicial al que se accede sin login**: mientras la instalación no esté completada, cualquier acceso al cliente web redirige siempre a este wizard. En él, el administrador deja el servidor operativo de una pasada — **branding** (nombre, colores y logo de la app), **biblioteca musical** (directorios a escanear e intervalo de escaneo) y **usuarios** (cuentas iniciales). El wizard funciona sin autenticación porque, en modo setup, el backend reabre temporalmente los endpoints que necesita (`POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, `POST /api/users`); el control real lo ejerce un guard dinámico (`@setupGuard.inSetupMode()`) ligado al flag `features.setupComplete`.
 
 
-El estado del wizard se persiste en un fichero YAML externo gestionado por `ConfigService`, con el flag `features.setupComplete` como interruptor entre "primer arranque" y "servidor ya operativo". Al confirmar el wizard, `POST /api/config/setup` marca `setupComplete=true`: el wizard queda **inaccesible** (el cliente deja de redirigir a él) y esos endpoints vuelven a exigir rol `ADMIN`. El endpoint `POST /api/config/reset` permite al admin devolver el servidor a su estado de fábrica (vaciado de BBDD, usuarios por defecto `admin/admin` y `user/password`, y config en blanco), volviendo a forzar el wizard en el siguiente acceso.
+El estado del wizard se persiste en un fichero YAML externo gestionado por `ConfigService`, con el flag `features.setupComplete` como interruptor entre "primer arranque" y "servidor ya operativo". Al confirmar el wizard, `POST /api/config/setup` marca `setupComplete=true`: el wizard queda **inaccesible** (el cliente deja de redirigir a él) y esos endpoints vuelven a exigir rol `ADMIN`. El endpoint `POST /api/config/reset` permite al admin devolver el servidor al mismo estado en que arrancaría tras un primer despliegue: vacía la BBDD y la config, y reproduce los bootstraps de arranque — reseedea el admin desde `ADMIN_USERNAME`/`ADMIN_PASSWORD` del `.env` (si no están definidos no se crea ningún usuario) y reañade la librería musical del `.env` a `scan.paths` (si está configurada y accesible). Tras el reset, el wizard se vuelve a forzar en el siguiente acceso.
 
 Además del wizard, se pueden tocar otras configuraciones que no están ahí (normalmente porque son más técnicas) en el envfile (ver sección "Variables clave del .env").
 
@@ -77,9 +77,9 @@ flowchart TD
     Decide -- true --> Ready
     Ready -. admin pulsa Reset .-> Reset[POST /api/config/reset]
     Reset --> Wipe[ResetService:<br/>deleteAll en playlists,<br/>songs, albums, artists,<br/>profiles, users]
-    Wipe --> Seed[Recrear admin/admin<br/>y user/password]
-    Seed --> ResetCfg[ConfigService<br/>resetToDefaults]
-    ResetCfg --> Public
+    Wipe --> ResetCfg[ConfigService<br/>resetToDefaults]
+    ResetCfg --> Reboot[Re-ejecutar bootstraps:<br/>admin desde .env<br/>+ librería del .env a scan.paths]
+    Reboot --> Public
 ```
 
 #### Empaquetado y arranque con Docker
