@@ -259,17 +259,27 @@ Cada usuario tiene asociado obligatoriamente un `UserFeed` (relación `@OneToOne
 
 El endpoint `GET /api/feed` regenera el feed **en cada acceso al home** con
 recomendaciones **personalizadas por usuario** (`UserFeedService.regenerateFeedForUser`
-→ `recommendArtistsForUser`):
+→ `recommendArtistsForUser`). El feed devuelve hasta **10 artistas**
+(`FEED_SIZE`), de los que **siempre se reservan 3 aleatorios** del catálogo como
+descubrimiento (`RANDOM_ARTISTS`), dejando **7 huecos personalizados**:
 
-1. **Historial propio.** Se toman primero los artistas que *ese* usuario más ha
-   escuchado, derivados de sus filas en `user_song_listen`
-   (`findTopArtistsByUserListens`), de más a menos escuchado.
-2. **Relleno por popularidad global.** Si el historial no llega a 10 artistas,
-   se completa con la popularidad global (`findArtistsByGlobalListensDesc`)
-   descartando los que ya estaban, para aportar descubrimiento sin dejar huecos.
-3. **Cold-start.** Un usuario sin escuchas no tiene historial, así que recibe
-   directamente la popularidad global (también derivada de los eventos, ya que
-   el contador numérico desapareció).
+1. **Cold-start.** Si *el servidor* no tiene ninguna escucha registrada, o si
+   *este* usuario no tiene escuchas propias, no hay historial con el que
+   personalizar y se devuelven **todos** los artistas del catálogo.
+2. **Por géneros recientes.** Con historial, los 7 huecos personalizados se
+   llenan primero con los artistas **más escuchados globalmente dentro de los
+   géneros que el usuario ha escuchado últimamente** (la pila reciente
+   `last20GenresListened`, cabeza = más reciente, vía
+   `findArtistsByGenreOrderByGlobalListensDesc`).
+3. **Relleno afín del catálogo.** Si aún quedan huecos, se amplían con más
+   artistas de esos mismos géneros según el catálogo (`findArtistsByGenre`),
+   aunque todavía no tengan escuchas, para no reducir el feed al único artista ya
+   escuchado.
+4. **Relleno por popularidad global.** Si todavía faltan, se completan con la
+   popularidad global (`findArtistsByGlobalListensDesc`).
+5. **3 aleatorios + relleno final.** Se añaden siempre 3 artistas aleatorios del
+   catálogo (sin repetir) y, si con todo no se llega a 10 (catálogo pequeño), se
+   rellena de nuevo con popularidad global hasta donde se pueda.
 
 La lista resultante (máx. 10, sin repetidos) sobrescribe los artistas
 recomendados del feed. La pila de géneros escuchados (`last20GenresListened`) es
@@ -282,11 +292,18 @@ flowchart TD
     Home([Usuario abre el home]) --> Get[GET /api/feed]
     Get --> Auth[Resolver usuario autenticado<br/>desde el SecurityContext]
     Auth --> Regen[regenerateFeedForUser]
-    Regen --> Own[recommendArtistsForUser:<br/>top artistas del HISTORIAL<br/>del usuario]
-    Own --> Enough{¿llega a 10<br/>artistas?}
-    Enough -- no --> Pad[Completar con popularidad<br/>global sin repetir<br/>cold-start si historial vacío]
-    Enough -- sí --> Has
+    Regen --> Cold{¿Servidor o usuario<br/>sin escuchas?}
+    Cold -- sí --> All[Cold-start:<br/>todos los artistas<br/>del catálogo]
+    Cold -- no --> Genres[Llenar 7 huecos:<br/>artistas top por géneros<br/>recientes del usuario]
+    Genres --> Akin{¿quedan huecos?}
+    Akin -- sí --> Catalog[Ampliar con artistas<br/>afines del catálogo<br/>+ popularidad global]
+    Akin -- no --> Random
+    Catalog --> Random[Añadir SIEMPRE<br/>3 artistas aleatorios]
+    Random --> Fill{¿llega a 10?}
+    Fill -- no --> Pad[Rellenar con<br/>popularidad global]
+    Fill -- sí --> Has
     Pad --> Has{¿El usuario<br/>ya tiene feed?}
+    All --> Has
     Has -- no --> Save[Guardar feed nuevo<br/>y asociarlo al usuario]
     Has -- sí --> Over[Sobrescribir artistas<br/>recomendados]
     Save --> DTO[Mapear artistas a ArtistDTO]
@@ -665,7 +682,7 @@ graph LR
     subgraph Sistema Self-Potify
         UC9("Abrir el home")
         UC9a("Regenerar feed del usuario")
-        UC9b("Recomendar top 10 artistas<br/>según su historial<br/>(popularidad global si no tiene)")
+        UC9b("Recomendar hasta 10 artistas<br/>por géneros recientes + 3 aleatorios<br/>(todos los artistas si no tiene escuchas)")
         UC9c("Mostrar artistas recomendados")
     end
 
