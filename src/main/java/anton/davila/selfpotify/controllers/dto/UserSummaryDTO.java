@@ -31,7 +31,7 @@ public class UserSummaryDTO {
         dto.setUsername(user.getUsername());
         if (user.getProfile() != null) {
             dto.setDisplayName(user.getProfile().getName());
-            dto.setAvatarUrl(user.getProfile().getAvatarURL());
+            dto.setAvatarUrl(user.getProfile().getPictureUrl());
         }
         dto.setType(user instanceof Admin ? "ADMIN" : "USER");
         return dto;

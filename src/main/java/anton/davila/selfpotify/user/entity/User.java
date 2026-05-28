@@ -18,7 +18,11 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
+    // Cascade ALL: al persistir/actualizar el User se persiste el Profile asociado
+    // automáticamente. Útil para que el endpoint PUT /api/me/profile pueda crear
+    // el Profile bajo demanda la primera vez que el usuario edita su perfil sin
+    // tener que tocar el ProfileRepository explícitamente.
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "profile_id")
     private Profile profile;
 
