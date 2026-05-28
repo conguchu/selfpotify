@@ -225,11 +225,12 @@ El registro se dispara en `StreamingController` junto al `registerGenreListen`,
 llamando a `UserSongListenService.recordListen(userId, songId)`. Al hacer
 streaming **ya no se incrementa ningún contador numérico** (esos métodos y sus
 `@Query`/`@Modifying` desaparecieron): el único efecto sobre el conteo es
-insertar la fila del evento. La decisión es **crear un registro por cada
-petición HTTP** de `/api/listen/{id}`: como el reproductor sirve una
-reproducción en varias peticiones de rango, una sola escucha real genera varias
-filas. Se asume a propósito por simplicidad, y el límite por usuario (ver abajo)
-absorbe esa multiplicidad.
+insertar la fila del evento. La decisión es **registrar la escucha una sola vez
+por reproducción**, en la **petición inicial** de `/api/listen/{id}` (la que no
+trae cabecera `Range`, o la que pide un rango desde el byte 0). Las peticiones
+de rango posteriores —que el reproductor genera al hacer *seek* dentro de la
+canción— **no** insertan filas: así un *seek* no infla los conteos ni bloquea el
+streaming con escrituras síncronas a la base de datos antes de enviar los bytes.
 
 Para que la tabla no crezca sin control, se acota a **1000 registros por
 usuario** con descarte **FIFO**: tras insertar, `recordListen` cuenta las filas

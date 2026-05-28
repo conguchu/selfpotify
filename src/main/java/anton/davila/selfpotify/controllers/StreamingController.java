@@ -65,16 +65,7 @@ public class StreamingController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encuentra el archivo de la canción");
         }
 
-        // añadimos el genero de la canción a los gustos del usuario
         User currentUser = getCurrentUser();
-        userService.registerGenreListen(currentUser.getId(), song.getGenre());
-
-        // registramos la escucha en la tabla cruzada usuario-canción. Es la
-        // única fuente de los recuentos: la popularidad de canciones, álbumes,
-        // artistas y géneros se deriva por consulta de user_song_listen, así
-        // que ya no se tocan contadores numéricos al hacer streaming.
-        userSongListenService.recordListen(currentUser.getId(), song.getId());
-
 
         Path filePath = Paths.get(song.getSongPath());
 
@@ -101,6 +92,13 @@ public class StreamingController {
                 long end = range.getRangeEnd(fileSize);
                 long contentLength = end - start + 1;
 
+                // Solo la petición inicial (rango desde el byte 0) cuenta como
+                // escucha. Los seeks piden rangos con start > 0 y NO registran,
+                // así no inflan los conteos ni bloquean el stream con escrituras.
+                if (start == 0) {
+                    recordPlaybackListen(currentUser, song);
+                }
+
                 headers.setContentLength(contentLength);
                 headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileSize);
 
@@ -122,7 +120,9 @@ public class StreamingController {
                         .body(body);
             }
 
-            // sin Range: devolver archivo completo (200 OK)
+            // sin Range: petición inicial completa, cuenta como escucha
+            recordPlaybackListen(currentUser, song);
+
             headers.setContentLength(fileSize);
             StreamingResponseBody fullBody = outputStream -> {
                 try (RandomAccessFile raf = new RandomAccessFile(filePath.toFile(), "r")) {
@@ -142,6 +142,18 @@ public class StreamingController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Error al transmitir audio: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Registra la escucha de una canción: añade su género a los gustos del
+     * usuario y guarda la fila del evento en {@code user_song_listen} (única
+     * fuente de los conteos de popularidad). Solo se invoca en la petición
+     * inicial de la reproducción (sin Range o con Range desde el byte 0), no en
+     * los seeks.
+     */
+    private void recordPlaybackListen(User currentUser, Song song) {
+        userService.registerGenreListen(currentUser.getId(), song.getGenre());
+        userSongListenService.recordListen(currentUser.getId(), song.getId());
     }
 
     private String detectMimeType(Path file) {

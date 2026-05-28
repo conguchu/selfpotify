@@ -194,7 +194,7 @@ Todos los endpoints requieren `ROLE_USER` o `ROLE_ADMIN`.
 - **Respuesta `416 Requested Range Not Satisfiable`** si el Range es inválido.
 - **Respuesta `404 Not Found`** si la canción no existe o el archivo (`Song.songPath`) no es accesible (en cuyo caso además se marca `Song.available = false`).
 
-**Efectos secundarios:** cada llamada exitosa registra una fila en la tabla de eventos `user_song_listen` (`UserSongListenService.recordListen`) y apila el género de la canción en el feed del usuario (`registerGenreListen`). **No** se incrementa ningún contador numérico: la popularidad de canciones, álbumes, artistas y géneros se deriva por consulta a partir de esos eventos (ver §6.5 y la nota de `SongDTO` en §8). La tabla de eventos se acota a 1000 registros por usuario con descarte FIFO.
+**Efectos secundarios:** solo la **petición inicial** de la reproducción (sin cabecera `Range`, o con `Range` desde el byte 0) registra una fila en la tabla de eventos `user_song_listen` (`UserSongListenService.recordListen`) y apila el género de la canción en el feed del usuario (`registerGenreListen`). Las peticiones de rango posteriores (los *seeks* dentro de la canción, con `start > 0`) **no** tienen efectos secundarios: no insertan filas ni alteran el feed. **No** se incrementa ningún contador numérico: la popularidad de canciones, álbumes, artistas y géneros se deriva por consulta a partir de esos eventos (ver §6.5 y la nota de `SongDTO` en §8). La tabla de eventos se acota a 1000 registros por usuario con descarte FIFO.
 
 ---
 
