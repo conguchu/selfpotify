@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { CoverArt } from "@/components/music/CoverArt";
 import { useSearch } from "@/lib/query/hooks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { usePlayerStore } from "@/lib/player/store";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,6 +36,7 @@ export function SearchBar() {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const debounced = useDebouncedValue(value, 250);
+  const playSong = usePlayerStore((s) => s.playSong);
   const trimmed = debounced.trim();
   // Preview compacto: 5 elementos por categoría (lo que devuelve el modo "all").
   const query = useSearch(trimmed, "all", 0, 5);
@@ -180,38 +182,36 @@ export function SearchBar() {
 
               {data?.songs?.content.length ? (
                 <PreviewSection title="Canciones">
-                  {data.songs.content.map((s) => {
-                    // Llevar al usuario al artista o al álbum es lo que más se
-                    // acerca a una "página de canción", que todavía no existe.
-                    const href = s.artistIds?.length
-                      ? `/artist/${s.artistIds[0]}`
-                      : s.albumId
-                        ? `/album/${s.albumId}`
-                        : `/search?q=${encodeURIComponent(trimmed)}&type=songs`;
-                    return (
-                      <button
-                        key={`song-${s.id}`}
-                        role="option"
-                        onClick={() => navigate(href)}
-                        className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-hover"
-                      >
-                        <CoverArt
-                          src={s.picture_url}
-                          alt={s.title}
-                          size="sm"
-                          rounded="md"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {s.title}
-                          </p>
-                          <p className="truncate text-xs text-text-subtle">
-                            {s.artistNames?.join(", ") || "Canción"}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {data.songs.content.map((s) => (
+                    <button
+                      key={`song-${s.id}`}
+                      role="option"
+                      onClick={() => {
+                        // El click en una canción del dropdown la reproduce
+                        // directamente, usando el resto de canciones del
+                        // preview como cola para que el "siguiente" encadene
+                        // resultados afines a la búsqueda.
+                        playSong(s, data.songs!.content);
+                        setFocused(false);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-hover"
+                    >
+                      <CoverArt
+                        src={s.picture_url}
+                        alt={s.title}
+                        size="sm"
+                        rounded="md"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {s.title}
+                        </p>
+                        <p className="truncate text-xs text-text-subtle">
+                          {s.artistNames?.join(", ") || "Canción"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
                 </PreviewSection>
               ) : null}
 
