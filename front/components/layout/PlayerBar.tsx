@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { CoverArt } from "@/components/music/CoverArt";
+import { AddToPlaylistButton } from "@/components/music/AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
 import { Slider } from "@/components/ui/Slider";
 import { usePlayerStore } from "@/lib/player/store";
@@ -94,6 +95,7 @@ export function PlayerBar() {
                   .join(" - ") || "—"}
               </p>
             </div>
+            <AddToPlaylistButton songId={current.id} size="sm" className="shrink-0" />
           </>
         ) : (
           <p className="text-sm text-text-subtle">Sin reproducción</p>
