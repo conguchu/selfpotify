@@ -13,6 +13,9 @@ import { formatDuration, cn } from "@/lib/utils";
 
 export function PlayerBar() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Mientras hay un seek en curso ignoramos los timeupdate, que aún reportan
+  // la posición antigua y harían saltar la barra hacia atrás.
+  const seekingRef = useRef(false);
   const token = useAuthStore((s) => s.token);
   const current = usePlayerStore((s) => s.current);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -66,6 +69,7 @@ export function PlayerBar() {
   const seek = (ms: number) => {
     const audio = audioRef.current;
     if (!audio) return;
+    seekingRef.current = true;
     audio.currentTime = ms / 1000;
     setPosition(ms);
   };
@@ -175,9 +179,14 @@ export function PlayerBar() {
       <audio
         ref={audioRef}
         preload="metadata"
-        onTimeUpdate={(e) =>
-          setPosition((e.currentTarget.currentTime || 0) * 1000)
-        }
+        onTimeUpdate={(e) => {
+          if (seekingRef.current) return;
+          setPosition((e.currentTarget.currentTime || 0) * 1000);
+        }}
+        onSeeked={(e) => {
+          seekingRef.current = false;
+          setPosition((e.currentTarget.currentTime || 0) * 1000);
+        }}
         onLoadedMetadata={(e) => {
           const d = e.currentTarget.duration;
           if (Number.isFinite(d) && d > 0) {
