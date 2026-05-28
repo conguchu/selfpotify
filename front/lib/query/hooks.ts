@@ -26,7 +26,7 @@ import {
   getRecentGenres,
   getDailyDiscoveries,
 } from "@/lib/api/feed";
-import { listAlbums } from "@/lib/api/albums";
+import { getAlbum, listAlbums } from "@/lib/api/albums";
 import { search as searchApi } from "@/lib/api/search";
 import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
 import {
@@ -49,6 +49,7 @@ export const queryKeys = {
   artist: (id: number) => ["artists", id] as const,
   artistTopTracks: (id: number) => ["artists", id, "top-tracks"] as const,
   albums: ["albums"] as const,
+  album: (id: number) => ["albums", id] as const,
   homeFeed: ["feed", "home"] as const,
   recentGenres: ["feed", "genres"] as const,
   dailyDiscoveries: ["feed", "daily-discoveries"] as const,
@@ -166,6 +167,14 @@ export function useAlbums(enabled = true) {
     queryKey: queryKeys.albums,
     queryFn: listAlbums,
     enabled,
+  });
+}
+
+export function useAlbum(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.album(id),
+    queryFn: () => getAlbum(id),
+    enabled: enabled && Number.isFinite(id),
   });
 }
 
