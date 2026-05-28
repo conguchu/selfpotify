@@ -44,6 +44,7 @@ public class ScanService {
         }
         try {
             log.info("ScanService: starting periodic scan");
+            SongService.RescanStats total = new SongService.RescanStats(0, 0, 0, 0);
             List<String> paths = configService.getConfig().getScan().getPaths();
             for (String p : paths) {
                 Path folder = Paths.get(p);
@@ -52,14 +53,17 @@ public class ScanService {
                     continue;
                 }
                 try {
-                    songService.loadFolder(folder.toAbsolutePath().normalize().toString());
+                    // Idempotente: no reinserta lo ya presente en BBDD (dedupe por songPath).
+                    SongService.RescanStats stats = songService.rescanFolder(
+                            folder.toAbsolutePath().normalize().toString());
+                    total = total.plus(stats);
                 } catch (Exception e) {
                     log.error("ScanService: error escaneando {}", p, e);
                 }
             }
             sweepAvailability();
             configService.markScanFinished(Instant.now().getEpochSecond());
-            log.info("ScanService: scan completed");
+            log.info("ScanService: scan completed → {}", total);
             return true;
         } finally {
             scanLock.unlock();
@@ -79,7 +83,8 @@ public class ScanService {
                     log.warn("ScanService: ruta no accesible para scan inicial: {}", absolutePath);
                     return;
                 }
-                songService.loadFolder(folder.toAbsolutePath().normalize().toString());
+                // Idempotente: si el usuario re-añade una ruta ya conocida no se duplica.
+                songService.rescanFolder(folder.toAbsolutePath().normalize().toString());
             } catch (Exception e) {
                 log.error("ScanService: error en scan inicial de {}", absolutePath, e);
             } finally {
