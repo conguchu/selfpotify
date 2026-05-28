@@ -7,28 +7,31 @@
 
 ## Objetivos
 
-Mi idea para mi proyecto de fin de grado es crear un "clon" alternativo de código abierto de Spotify. Funcionará con tecnologías de streaming, permitiendo escuchar la música con baja latencia sin tener que esperar a que descargue ningún archivo igual que en el original, y tendrá sistemas de playlist creadas automáticamente como "Recomendaciones Diarias" o "Selección del artista".
+Mi idea para mi proyecto de fin de grado es crear un "clon" alternativo de código abierto de Spotify. Funcionará con tecnologías de streaming, permitiendo escuchar la música con baja latencia sin tener que esperar a que descargue ningún archivo igual que en el original, y tendrá una pequeña recreación de los sistemas de recomendaciones para que el usuario pueda descubrir música y organizarla a su manera en playlists.
 
 El proyecto incluiría:
 
-- **Servidor Self-Potify** — Contiene toda la librería musical organizada en carpetas, además de la BBDD que almacenará tanto los usuarios como sus likes / playlists.
+- **Backend Self-Potify** — Sirve la API a los clientes. Contiene toda la librería musical organizada en carpetas, además de la BBDD que almacenará tanto los usuarios como sus likes / playlists.
 - **Cliente web** — Para escuchar la música del servidor en streaming desde un ordenador. Esto será a través de un servidor web en el que puedes acceder solamente con tu login de usuario.
 - **Cliente móvil / televisión** — Aplicación para Android con las mismas funciones que la web pero mayor rendimiento. Al entrar por primera vez, se tendrá que configurar para poner los datos de conexión al servidor (IP / puerto) y el login, que permanecerá activo. El traspaso de datos será mediante una API con JWT, que mantendrá la sesión activa por varios meses.
 
 ## Justificación de la necesidad
 
-Este software permitiría a los usuarios poder disfrutar de escuchar música libremente, sin anuncios y gestionándolo todo desde su servidor, necesidad cada vez más creciente debido al abuso de estas empresas de streaming hacia sus consumidores cada vez dando servicios de menos calidad solo para intentar recaudar más dinero.
+Este software permitiría a los usuarios administradores levantar una app para sí mismos y sus amigos (creandoles usuarios a parte) poder disfrutar de escuchar música libremente, sin anuncios y gestionándolo todo desde su servidor, necesidad cada vez más creciente debido al abuso de estas empresas de streaming hacia sus consumidores cada vez dando servicios de menos calidad solo para intentar recaudar más dinero.
 
 ## Tecnologías a emplear
 
-| Tecnología             | Uso |
-|------------------------|---|
-| **Spring Boot (REST)** | API, lógica back-end y servidor web |
-| **FFMPEG**             | Procesado de audio en fragmentos para streaming |
-| **React + Next JS**    | Front-end del cliente web y recepción de streaming |
-| **MongoDB**            | Base de datos principal por su flexibilidad con datos dinámicos (playlists, likes…) |
-| **Jetpack Compose**    | Aplicación móvil y televisión (Android) |
-| **Media3**             | Recepción de streaming en la app móvil |
+| Tecnología             | Uso                                                                          |
+|------------------------|------------------------------------------------------------------------------|
+| **Spring Boot (REST)** | API, lógica back-end y servidor web                                          |
+| **FFMPEG**             | Procesado de audio en fragmentos para streaming                              |
+| **React + Next JS**    | Front-end del cliente web y recepción de streaming                           |
+| **MariaDB**            | Base de datos principal por su fiabilidad y experiencia con ella.            |
+| **Jetpack Compose**    | Aplicación móvil y televisión (Android)                                      |
+| **Media3**             | Recepción de streaming en la app móvil                                       |
+| **Docker Compose**     | Despliegue de la aplicación en contenedores                                  |
+| **Nginx**              | Proxy interno para enrutar los servidores Next y Spring cuando se usa docker |
+
 
 ---
 
@@ -39,13 +42,20 @@ He decidido crear esta aplicación basada en **microservicios** en vez de usar u
 así puedo desarrollar una aplicación más escalable, cuyo core sea el servidor API de springboot, del que consumen diferentes clientes
 como el web o mobile, dándome la posibilidad a futuro de crear más para otras plataformas.
 
-### Despliegue
+Estos microservicios están todos alojados en este **monorepo**, con solamente ejecutar `docker-compose up` se pone la aplicación a funcionar.
+
+### Despliegue e instalación
+
+Como se comentó antes, Selfpotify es un monorepo y ofrece la posibilidad de **desplegarlo con docker**, precisando especificar una ruta con la música para que se monte como volumen (con posibilidad de reescanearlo para no reiniciar el contenedor cada vez que se quiere añadir música). También es posible **hacer un despliegue bare metal**, ideal para trabajar por ejemplo con unidades externas permitiendo gestionar varias carpetas de source para la biblioteca musical.
 
 **Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre, por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la estructura de red para permitir el acceso desde internet.
 
 Por esto, en el **primer arranque** el servidor entra en **modo setup** y la web sirve un **wizard de configuración inicial al que se accede sin login**: mientras la instalación no esté completada, cualquier acceso al cliente web redirige siempre a este wizard. En él, el administrador deja el servidor operativo de una pasada — **branding** (nombre, colores y logo de la app), **biblioteca musical** (directorios a escanear e intervalo de escaneo) y **usuarios** (cuentas iniciales). El wizard funciona sin autenticación porque, en modo setup, el backend reabre temporalmente los endpoints que necesita (`POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, `POST /api/users`); el control real lo ejerce un guard dinámico (`@setupGuard.inSetupMode()`) ligado al flag `features.setupComplete`.
 
+
 El estado del wizard se persiste en un fichero YAML externo gestionado por `ConfigService`, con el flag `features.setupComplete` como interruptor entre "primer arranque" y "servidor ya operativo". Al confirmar el wizard, `POST /api/config/setup` marca `setupComplete=true`: el wizard queda **inaccesible** (el cliente deja de redirigir a él) y esos endpoints vuelven a exigir rol `ADMIN`. El endpoint `POST /api/config/reset` permite al admin devolver el servidor a su estado de fábrica (vaciado de BBDD, usuarios por defecto `admin/admin` y `user/password`, y config en blanco), volviendo a forzar el wizard en el siguiente acceso.
+
+Además del wizard, se pueden tocar otras configuraciones que no están ahí (normalmente porque son más técnicas) en el envfile (ver sección "Variables clave del .env").
 
 #### Flujo de setup inicial y reset
 
@@ -117,14 +127,6 @@ Toda la configuración por instalación se declara en `.env` (ver `.env.example`
 | `APP_CONFIG_PATH` | **no sobreescribir** | Lo fija el contenedor a `/data/selfpotify/config.yml`, que vive en el volumen `selfpotify-data` y sobrevive a reinicios. |
 | `H2_CONSOLE_ENABLED` | `false` | Deshabilitar la consola H2 en despliegue. |
 
-##### Arranque
-
-```bash
-cp .env.example .env        # ajusta JWT_SECRET, ADMIN_PASSWORD y WEB_ORIGIN
-docker compose up -d --build
-```
-
-Tras unos segundos, la app está disponible en `http://localhost/` (web) y en `http://<host>:8080/api/...` (clientes móviles).
 
 ### Funcionamiento del streaming
 
@@ -185,6 +187,8 @@ flowchart TD
 ```
 
 ### Conteo de escuchas derivado de la base de datos
+
+Para crear el feed del usuario con sus recomendaciones, he decidido basarme en las escuchas del usuario para canciones, géneros y artistas en mi algoritmo.
 
 No existe ningún contador numérico de escuchas en las entidades. Los campos
 `Song.listeners`, `Album.listeners` y `Artist.listeners` se eliminaron: toda la
@@ -260,13 +264,14 @@ Cada usuario tiene asociado obligatoriamente un `UserFeed` (relación `@OneToOne
 
 El endpoint `GET /api/feed` regenera el feed **en cada acceso al home** con
 recomendaciones **personalizadas por usuario** (`UserFeedService.regenerateFeedForUser`
-→ `recommendArtistsForUser`). El feed devuelve hasta **10 artistas**
-(`FEED_SIZE`), de los que **siempre se reservan 3 aleatorios** del catálogo como
-descubrimiento (`RANDOM_ARTISTS`), dejando **7 huecos personalizados**:
+→ `recommendArtistsForUser`). 
+
+El feed devuelve:
 
 1. **Cold-start.** Si *el servidor* no tiene ninguna escucha registrada, o si
    *este* usuario no tiene escuchas propias, no hay historial con el que
    personalizar y se devuelven **todos** los artistas del catálogo.
+2. **Descubrimientos diarios**: explicado más abajo.
 2. **Por géneros recientes.** Con historial, los 7 huecos personalizados se
    llenan primero con los artistas **más escuchados globalmente dentro de los
    géneros que el usuario ha escuchado últimamente** (la pila reciente
@@ -314,7 +319,7 @@ flowchart TD
 
 #### Carátulas y fotos automáticas
 
-Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta) la carátula de cada canción y álbum y la foto de cada artista, gemelo de cómo `GenreApiService` rellena el género. El orden de prioridad es:
+Durante el escaneo, el servidor completa de forma solo si falta la carátula de cada canción y álbum y la foto de cada artista, gemelo de cómo `GenreApiService` rellena el género. El orden de prioridad es:
 
 1. **Carátula embebida** en el propio archivo `.mp3`/`.wav` (etiqueta ID3/APIC). Si existe, se vuelca a `<assets>/covers/<sha256>.<ext>` y se guarda la ruta `/assets/covers/…` (servida por el mismo handler `/assets/**` que el logo); **no se consulta internet** para esa canción. Sirve también como portada del álbum, al ser la del propio lanzamiento.
 2. **Fuentes online sin API key** (links a CDN en la nube), "lo más oficial primero": **Cover Art Archive** vía MusicBrainz (portada canónica del *release*) → **iTunes Search API** (CDN de Apple) → **Deezer**. La foto del artista sale de **Deezer** (`picture_xl`), ya que iTunes no la expone y MusicBrainz no aloja fotografías.
@@ -333,8 +338,6 @@ Las playlists pueden tener una imagen de portada cuadrada que solo el creador pu
 Alternativa descartada: recorte en el cliente con Canvas antes de subir. Añade complejidad al frontend (exportar Blob, gestionar URLs efímeras de `URL.createObjectURL`) sin ninguna ventaja real, ya que el servidor garantiza el resultado correcto independientemente del cliente.
 
 **Almacenamiento en `assets/playlist-covers/`, mismo patrón que las carátulas de canciones.** El archivo se nombra con el SHA-256 del original — igual que hace `EmbeddedCoverExtractor` — lo que hace la operación idempotente (subir la misma imagen dos veces no crea duplicados). Se sirve mediante el handler estático `/assets/**` ya configurado en `WebMvcConfig`, sin ningún cambio de infraestructura.
-
-**Sin migración de base de datos.** El proyecto usa `spring.jpa.hibernate.ddl-auto=update`, por lo que añadir el campo `pictureUrl` a la entidad `Playlist` crea la columna automáticamente al arrancar.
 
 ### Descubrimientos diarios
 
