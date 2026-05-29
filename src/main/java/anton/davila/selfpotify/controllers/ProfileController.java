@@ -4,6 +4,7 @@ import anton.davila.selfpotify.config.ConfigService;
 import anton.davila.selfpotify.controllers.dto.ProfileUpdateRequest;
 import anton.davila.selfpotify.controllers.dto.UserSummaryDTO;
 import anton.davila.selfpotify.user.entity.User;
+import anton.davila.selfpotify.user.follow.service.FollowService;
 import anton.davila.selfpotify.user.profile.entity.Profile;
 import anton.davila.selfpotify.user.repository.UserRepository;
 import anton.davila.selfpotify.user.service.UserService;
@@ -73,14 +74,17 @@ public class ProfileController {
     @Autowired
     private ConfigService configService;
 
+    @Autowired
+    private FollowService followService;
+
     // =====================================
     // ----- Mi perfil
     // =====================================
 
-    /** Devuelve la vista pública del usuario autenticado. */
+    /** Devuelve la vista pública del usuario autenticado, con sus counts de follow. */
     @GetMapping("/api/me")
     public UserSummaryDTO me() {
-        return UserSummaryDTO.fromEntity(getCurrentUser());
+        return enrich(getCurrentUser(), null);
     }
 
     /**
@@ -101,7 +105,7 @@ public class ProfileController {
         // El cascade ALL persiste el Profile al guardar el User. Necesario la
         // primera vez (cuando profile aún no estaba enlazado) y barato siempre.
         userRepository.save(user);
-        return UserSummaryDTO.fromEntity(user);
+        return enrich(user, null);
     }
 
     /**
@@ -151,7 +155,7 @@ public class ProfileController {
             profile.setPictureUrl("/assets/avatars/" + sha256 + ".jpg");
             userRepository.save(user);
 
-            return ResponseEntity.ok(UserSummaryDTO.fromEntity(user));
+            return ResponseEntity.ok(enrich(user, null));
         } catch (IOException | NoSuchAlgorithmException e) {
             log.error("No se pudo procesar el avatar de {}", user.getUsername(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -172,7 +176,7 @@ public class ProfileController {
         Profile profile = ensureProfile(user);
         profile.setPictureUrl(null);
         userRepository.save(user);
-        return UserSummaryDTO.fromEntity(user);
+        return enrich(user, null);
     }
 
     // =====================================
@@ -186,8 +190,9 @@ public class ProfileController {
      */
     @GetMapping("/api/users/{id}/public")
     public ResponseEntity<UserSummaryDTO> getPublicProfile(@PathVariable Long id) {
+        User viewer = getCurrentUser();
         return userService.getById(id)
-                .map(UserSummaryDTO::fromEntity)
+                .map(target -> enrich(target, viewer))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -195,6 +200,22 @@ public class ProfileController {
     // =====================================
     // ----- Helpers
     // =====================================
+
+    /**
+     * Rellena el {@link UserSummaryDTO} con counts de follow y, si
+     * {@code viewer} no es el propio target, con {@code isFollowedByMe}.
+     * Para listados grandes el {@code FollowController} usa la versión batch
+     * de {@link FollowService}; aquí basta con la versión por usuario.
+     */
+    private UserSummaryDTO enrich(User user, User viewer) {
+        UserSummaryDTO dto = UserSummaryDTO.fromEntity(user);
+        dto.setFollowersCount(followService.followersCountFor(user.getId()));
+        dto.setFollowingCount(followService.followingCountFor(user.getId()));
+        if (viewer != null && !viewer.getId().equals(user.getId())) {
+            dto.setIsFollowedByMe(followService.isFollowing(viewer.getId(), user.getId()));
+        }
+        return dto;
+    }
 
     private Profile ensureProfile(User user) {
         Profile profile = user.getProfile();

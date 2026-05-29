@@ -2,6 +2,7 @@ package anton.davila.selfpotify.user.service;
 
 import anton.davila.selfpotify.user.entity.Admin;
 import anton.davila.selfpotify.user.entity.User;
+import anton.davila.selfpotify.user.follow.service.FollowService;
 import anton.davila.selfpotify.user.repository.AdminRepository;
 import anton.davila.selfpotify.user.feed.entity.UserFeed;
 import anton.davila.selfpotify.user.repository.UserRepository;
@@ -35,6 +36,9 @@ public class UserService {
 
     @Autowired
     private SongRepository songRepository;
+
+    @Autowired
+    private FollowService followService;
 
     public User add(User u) {
         log.info("Añadiendo nuevo usuario: {}", u.getUsername());
@@ -150,10 +154,15 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
     }
 
+    @Transactional
     public User delete(long id) {
         log.warn("Eliminando usuario con ID: {}", id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + id));
+        // Borrar primero las aristas de user_follow donde participa este
+        // usuario (como follower o como followed) para no chocar con la FK
+        // al hacer el delete del User.
+        followService.deleteAllInvolving(id);
         userRepository.delete(user);
         return user;
     }
