@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Pencil, Shield, User } from "lucide-react";
+import { LogOut, Shield, User } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import {
   DropdownContent,
@@ -60,8 +60,8 @@ export function ProfileMenu() {
         </div>
         <DropdownSeparator />
         <DropdownItem onClick={() => router.push("/profile")}>
-          <Pencil className="h-4 w-4" />
-          Editar perfil
+          <User className="h-4 w-4" />
+          Ver tu perfil
         </DropdownItem>
         <DropdownSeparator />
         <DropdownItem variant="danger" onClick={logout}>
