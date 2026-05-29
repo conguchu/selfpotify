@@ -88,6 +88,15 @@ public class PlaylistSharingService {
         return collaboratorRepository.existsByPlaylistAndUser(playlist, user);
     }
 
+    /** Elimina a un colaborador de la playlist (lo invoca el dueño). No-op si no lo era. */
+    @Transactional
+    public void removeCollaborator(Playlist playlist, Long userId) {
+        collaboratorRepository.findByPlaylist(playlist).stream()
+                .filter(c -> c.getUser().getId().equals(userId))
+                .findFirst()
+                .ifPresent(collaboratorRepository::delete);
+    }
+
     public List<User> collaboratorsOf(Playlist playlist) {
         return collaboratorRepository.findByPlaylist(playlist).stream()
                 .map(PlaylistCollaborator::getUser)

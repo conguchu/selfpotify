@@ -2,6 +2,7 @@ package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.controllers.dto.PlaylistDTO;
 import anton.davila.selfpotify.controllers.dto.ShareLinkResponse;
+import anton.davila.selfpotify.controllers.dto.UserSummaryDTO;
 import anton.davila.selfpotify.music.entity.Playlist;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
@@ -256,6 +257,37 @@ public class PlaylistController {
                     }
                     Playlist updated = playlistService.removeSong(id, song);
                     return ResponseEntity.ok(convertToDTO(updated, true));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/collaborators")
+    public ResponseEntity<List<UserSummaryDTO>> getCollaborators(@PathVariable Long id) {
+        return playlistService.getById(id)
+                .map(playlist -> {
+                    User currentUser = getCurrentUser();
+                    if (!canView(playlist, currentUser)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<List<UserSummaryDTO>>build();
+                    }
+                    List<UserSummaryDTO> collaborators = playlistSharingService.collaboratorsOf(playlist).stream()
+                            .map(UserSummaryDTO::fromEntity)
+                            .collect(Collectors.toList());
+                    return ResponseEntity.ok(collaborators);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}/collaborators/{userId}")
+    public ResponseEntity<Void> removeCollaborator(@PathVariable Long id, @PathVariable Long userId) {
+        return playlistService.getById(id)
+                .map(playlist -> {
+                    User currentUser = getCurrentUser();
+                    if (playlist.getCreator() == null
+                            || !playlist.getCreator().getId().equals(currentUser.getId())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<Void>build();
+                    }
+                    playlistSharingService.removeCollaborator(playlist, userId);
+                    return ResponseEntity.noContent().<Void>build();
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

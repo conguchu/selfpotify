@@ -213,6 +213,15 @@ Una playlist puede compartirse con otros usuarios mediante un **magic link de un
 - **Errores:** `403` si no puede editar; `404` si la playlist o la canción no existen.
 - **Respuesta:** `200 OK PlaylistDTO`.
 
+### `GET /api/playlists/{id}/collaborators` — Listar colaboradores
+- **Acceso:** quien pueda ver la playlist (**creador, colaborador** o cualquiera si es pública).
+- **Respuesta:** `200 OK List<UserSummaryDTO>`, `403` o `404`.
+
+### `DELETE /api/playlists/{id}/collaborators/{userId}` — Quitar colaborador
+- **Acceso:** solo el **creador**.
+- **Comportamiento:** elimina al usuario de la lista de colaboradores. Idempotente (no falla si ya no lo era).
+- **Respuesta:** `204 No Content`, `403` o `404`.
+
 ---
 
 ## 6. Streaming de audio (`/api/listen`)
