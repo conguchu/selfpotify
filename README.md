@@ -469,6 +469,37 @@ flowchart TD
     Page --> Resp2([SearchResponseDTO con<br/>1 CategoryPage rellena])
 ```
 
+### Perfil de usuario (nombre visible + foto)
+
+Además del `username` —identificador único e inmutable usado para el login— cada usuario tiene asociado un `Profile` con un **nombre visible** (`name`, libre y editable) y una **foto de perfil** (`pictureUrl`). Ambos campos son opcionales: si están vacíos, la UI cae al username y a la inicial.
+
+**Decisión de diseño: editar el perfil propio vive bajo `/api/me/*`, no bajo `/api/users/{id}`.** El controlador `UserController` está reservado a operaciones de administrador (alta de cuentas, cambio de rol, borrado); meter ahí los endpoints "editar mi propio nombre" o "subir mi foto" forzaría guards condicionales por id en cada método. El nuevo `ProfileController` separa los dos casos: `GET /api/me`, `PUT /api/me/profile`, `POST /api/me/profile/picture` y `DELETE /api/me/profile/picture` operan **siempre sobre el usuario autenticado** —el id sale del `SecurityContext`, no del path— y `GET /api/users/{id}/public` devuelve la misma `UserSummaryDTO` que ya usa la búsqueda para que cualquier autenticado pueda abrir el perfil de otro. Así no se cruzan permisos: el admin nunca edita el perfil de otro usuario por error y un usuario corriente nunca tiene que pasar por un endpoint admin.
+
+**Decisión de diseño: subida del avatar por endpoint multipart separado, mismo patrón que la carátula de playlist.** El `PUT /api/me/profile` es un JSON pequeño (`{ "name": "..." }`) y la foto viaja por su propio endpoint multipart, recortándose al cuadrado en el servidor con `ImageIO` y persistiéndose como `assets/avatars/<sha256>.jpg`. Es la misma decisión que ya tomamos para `POST /api/playlists/{id}/cover`: mantenemos la API JSON limpia y reusamos el handler estático `/assets/**` para servir la imagen sin más infraestructura. El nombrado por SHA-256 hace la operación idempotente —subir dos veces la misma imagen no crea duplicados— y permite que `DELETE /api/me/profile/picture` se limite a poner el campo a `null` sin borrar el fichero físico (podría estar referenciado por otra cuenta que subió la misma imagen).
+
+**Decisión de diseño: buscar también por nombre visible sin penalizar el score.** La búsqueda de usuarios (`/api/search?type=users`) ya incluía `Profile.name` en el haystack —los matches "se notaban"— pero el score se calculaba **solo sobre el username**, así que un usuario con `displayName="María López"` y `username="maria_l"` aparecía peor posicionado al buscar "María" que el usuario `username="maria"`. Ahora el score por usuario es `min(score(username), score(displayName))`: el campo que mejor coincide con la consulta es el que cuenta. El tiebreaker sigue siendo alfabético por username, que es único y siempre está presente.
+
+#### Flujo de edición del perfil propio
+
+```mermaid
+flowchart TD
+    Open([Usuario abre /profile]) --> Get[GET /api/me]
+    Get --> Show[Render: avatar, nombre,<br/>username, rol]
+    Show --> Choice{¿Qué cambia?}
+    Choice -- Nombre --> Edit[PUT /api/me/profile<br/>body: name]
+    Edit --> Persist[ProfileController:<br/>crear Profile si no existía<br/>(cascade ALL) y actualizar name]
+    Choice -- Foto nueva --> Upload[POST /api/me/profile/picture<br/>multipart: file]
+    Upload --> Crop[Recortar al cuadrado<br/>con ImageIO + SHA-256]
+    Crop --> Save[Guardar assets/avatars/sha.jpg<br/>+ persistir pictureUrl]
+    Choice -- Quitar foto --> Clear[DELETE /api/me/profile/picture]
+    Clear --> Null[ProfileController:<br/>pictureUrl = null]
+    Persist --> DTO[Devolver UserSummaryDTO]
+    Save --> DTO
+    Null --> DTO
+    DTO --> Invalidate[React Query invalida key 'me']
+    Invalidate --> Render([Avatar + nombre actualizados<br/>en topbar y /profile])
+```
+
 #### Carátulas y fotos automáticas
 
 Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta) la carátula de cada canción y álbum y la foto de cada artista, gemelo de cómo `GenreApiService` rellena el género. El orden de prioridad es:
@@ -556,7 +587,7 @@ classDiagram
     class Profile {
         - Long id
         - String name
-        - String avatarURL
+        - String pictureUrl
         - Song favouriteSong
         + copy(Profile)
     }
@@ -792,6 +823,46 @@ graph LR
     User --> UC10
     UC10 -.->|include| UC10a
     UC10 -.->|include| UC10b
+```
+
+### UC11b — Editar el perfil propio
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCP("Editar mi perfil")
+        UCPa("Cargar mi perfil<br/>(GET /api/me)")
+        UCPb("Cambiar nombre visible<br/>(PUT /api/me/profile)")
+        UCPc("Subir foto<br/>(POST /api/me/profile/picture)")
+        UCPd("Quitar foto<br/>(DELETE /api/me/profile/picture)")
+    end
+
+    User --> UCP
+    UCP -.->|include| UCPa
+    UCP -.->|extend| UCPb
+    UCP -.->|extend| UCPc
+    UCP -.->|extend| UCPd
+```
+
+### UC11c — Ver el perfil público de otro usuario
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCV("Abrir perfil de otro usuario")
+        UCVa("Buscar usuario<br/>(/api/search?type=users)")
+        UCVb("Cargar vista pública<br/>(GET /api/users/{id}/public)")
+        UCVc("Listar sus playlists públicas<br/>(GET /api/playlists/user/{userId})")
+    end
+
+    User --> UCV
+    UCV -.->|include| UCVa
+    UCV -.->|include| UCVb
+    UCV -.->|include| UCVc
 ```
 
 ### UC11 — Ver los descubrimientos diarios
