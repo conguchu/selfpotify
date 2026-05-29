@@ -23,4 +23,5 @@ public class PlaylistDTO {
     private Long creatorId;
     private String pictureUrl;
     private List<Long> songIds;
+    private List<Long> collaboratorIds;
 }

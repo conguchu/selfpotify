@@ -1,10 +1,12 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.controllers.dto.PlaylistDTO;
+import anton.davila.selfpotify.controllers.dto.ShareLinkResponse;
 import anton.davila.selfpotify.music.entity.Playlist;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.PlaylistService;
+import anton.davila.selfpotify.music.service.PlaylistSharingService;
 import anton.davila.selfpotify.config.ConfigService;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.repository.UserRepository;
@@ -40,6 +42,9 @@ public class PlaylistController {
     private PlaylistService playlistService;
 
     @Autowired
+    private PlaylistSharingService playlistSharingService;
+
+    @Autowired
     private SongRepository songRepository;
     @Autowired
     private UserService userService;
@@ -71,12 +76,20 @@ public class PlaylistController {
         return playlistService.getById(id)
                 .map(playlist -> {
                     User currentUser = getCurrentUser();
-                    if (playlist.isPublic() || playlist.getCreator().getId().equals(currentUser.getId())) {
-                        return ResponseEntity.ok(convertToDTO(playlist));
+                    if (canView(playlist, currentUser)) {
+                        return ResponseEntity.ok(convertToDTO(playlist, true));
                     }
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).<PlaylistDTO>build();
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/shared")
+    public List<PlaylistDTO> getSharedWithMe() {
+        User currentUser = getCurrentUser();
+        return playlistSharingService.sharedWith(currentUser).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
     @PostMapping
@@ -122,6 +135,7 @@ public class PlaylistController {
                             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
                     if (isAdmin || playlist.getCreator().getId().equals(currentUser.getId())) {
+                        playlistSharingService.deleteSharingData(playlist);
                         playlistService.delete(id);
                         return ResponseEntity.noContent().<Void>build();
                     }
@@ -186,6 +200,79 @@ public class PlaylistController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // ---- Playlists compartidas (colaboración vía magic link) ----
+
+    @PostMapping("/{id}/share")
+    public ResponseEntity<ShareLinkResponse> createShareLink(@PathVariable Long id) {
+        return playlistService.getById(id)
+                .map(playlist -> {
+                    User currentUser = getCurrentUser();
+                    if (playlist.getCreator() == null
+                            || !playlist.getCreator().getId().equals(currentUser.getId())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<ShareLinkResponse>build();
+                    }
+                    String token = playlistSharingService.createShareToken(playlist);
+                    return ResponseEntity.ok(new ShareLinkResponse(token, "/api/playlists/share/" + token));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/share/{token}")
+    public ResponseEntity<PlaylistDTO> redeemShareLink(@PathVariable String token) {
+        User currentUser = getCurrentUser();
+        Playlist playlist = playlistSharingService.redeemToken(token, currentUser);
+        return ResponseEntity.ok(convertToDTO(playlist, true));
+    }
+
+    @PostMapping("/{id}/songs/{songId}")
+    public ResponseEntity<PlaylistDTO> addSong(@PathVariable Long id, @PathVariable Long songId) {
+        return playlistService.getById(id)
+                .map(playlist -> {
+                    User currentUser = getCurrentUser();
+                    if (!canEditSongs(playlist, currentUser)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<PlaylistDTO>build();
+                    }
+                    Song song = songRepository.findById(songId).orElse(null);
+                    if (song == null) {
+                        return ResponseEntity.notFound().<PlaylistDTO>build();
+                    }
+                    Playlist updated = playlistService.addSong(id, song);
+                    return ResponseEntity.ok(convertToDTO(updated, true));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}/songs/{songId}")
+    public ResponseEntity<PlaylistDTO> removeSong(@PathVariable Long id, @PathVariable Long songId) {
+        return playlistService.getById(id)
+                .map(playlist -> {
+                    User currentUser = getCurrentUser();
+                    if (!canEditSongs(playlist, currentUser)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<PlaylistDTO>build();
+                    }
+                    Song song = songRepository.findById(songId).orElse(null);
+                    if (song == null) {
+                        return ResponseEntity.notFound().<PlaylistDTO>build();
+                    }
+                    Playlist updated = playlistService.removeSong(id, song);
+                    return ResponseEntity.ok(convertToDTO(updated, true));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Puede ver: pública, o creador, o colaborador. */
+    private boolean canView(Playlist playlist, User user) {
+        if (playlist.isPublic()) return true;
+        if (playlist.getCreator() != null && playlist.getCreator().getId().equals(user.getId())) return true;
+        return playlistSharingService.isCollaborator(playlist, user);
+    }
+
+    /** Puede añadir/quitar canciones: creador o colaborador. */
+    private boolean canEditSongs(Playlist playlist, User user) {
+        if (playlist.getCreator() != null && playlist.getCreator().getId().equals(user.getId())) return true;
+        return playlistSharingService.isCollaborator(playlist, user);
+    }
+
     private String calculateSHA256(byte[] data) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(data);
@@ -218,6 +305,15 @@ public class PlaylistController {
     }
 
     private PlaylistDTO convertToDTO(Playlist playlist) {
+        return convertToDTO(playlist, false);
+    }
+
+    /**
+     * @param includeCollaborators si {@code true}, puebla {@code collaboratorIds}
+     *                             con una consulta extra. Se deja en {@code false}
+     *                             en endpoints de listado para evitar N+1.
+     */
+    private PlaylistDTO convertToDTO(Playlist playlist, boolean includeCollaborators) {
         PlaylistDTO dto = new PlaylistDTO();
         dto.setId(playlist.getId());
         dto.setName(playlist.getName());
@@ -230,6 +326,11 @@ public class PlaylistController {
         dto.setSongIds(playlist.getSongs() == null
                 ? Collections.emptyList()
                 : playlist.getSongs().stream().map(Song::getId).collect(Collectors.toList()));
+        if (includeCollaborators) {
+            dto.setCollaboratorIds(playlistSharingService.collaboratorsOf(playlist).stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList()));
+        }
         return dto;
     }
 }

@@ -1,12 +1,14 @@
 package anton.davila.selfpotify.music.service;
 
 import anton.davila.selfpotify.music.entity.Playlist;
+import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.PlaylistRepository;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,5 +64,46 @@ public class PlaylistService {
                 .orElseThrow(() -> new RuntimeException("No se encontró la playlist con ID " + id));
         playlistRepository.delete(playlist);
         return playlist;
+    }
+
+    /** Añade una canción a la playlist (sin duplicar) y recalcula la duración total. */
+    @Transactional
+    public Playlist addSong(long playlistId, Song song) {
+        log.info("Añadiendo canción {} a la playlist {}", song.getId(), playlistId);
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new RuntimeException("No se encontró la playlist con ID " + playlistId));
+        if (playlist.getSongs() == null) {
+            playlist.setSongs(new ArrayList<>());
+        }
+        boolean alreadyPresent = playlist.getSongs().stream()
+                .anyMatch(s -> s.getId().equals(song.getId()));
+        if (!alreadyPresent) {
+            playlist.getSongs().add(song);
+            recalcDuration(playlist);
+        }
+        return playlist;
+    }
+
+    /** Quita una canción de la playlist y recalcula la duración total. */
+    @Transactional
+    public Playlist removeSong(long playlistId, Song song) {
+        log.info("Quitando canción {} de la playlist {}", song.getId(), playlistId);
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new RuntimeException("No se encontró la playlist con ID " + playlistId));
+        if (playlist.getSongs() != null
+                && playlist.getSongs().removeIf(s -> s.getId().equals(song.getId()))) {
+            recalcDuration(playlist);
+        }
+        return playlist;
+    }
+
+    private void recalcDuration(Playlist playlist) {
+        int total = 0;
+        if (playlist.getSongs() != null) {
+            for (Song s : playlist.getSongs()) {
+                total += s.getDuration_ms();
+            }
+        }
+        playlist.setDuration_ms(total);
     }
 }
