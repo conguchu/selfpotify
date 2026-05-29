@@ -231,15 +231,21 @@ public class SearchService {
     }
 
     /**
-     * Usuarios: matchea contra username y nombre de perfil; scoring sobre
-     * username (más estable). Empate alfabético.
+     * Usuarios: matchea contra username y nombre de perfil; el score es el
+     * <em>mejor</em> match entre ambos campos para que buscar por el nombre
+     * visible no penalice respecto a buscar por username. Empate alfabético
+     * por username (más estable, único y siempre presente).
      */
     private CategoryPage<UserSummaryDTO> searchUsers(String[] tokens, int page, int size) {
         List<Scored<User>> matches = new ArrayList<>();
         for (User u : userRepository.findAll()) {
             String haystack = haystackOfUser(u);
             if (!matchesAll(haystack, tokens)) continue;
-            int score = scoreField(u.getUsername(), tokens);
+            int byUsername = scoreField(u.getUsername(), tokens);
+            int byDisplayName = u.getProfile() == null
+                    ? Integer.MAX_VALUE
+                    : scoreField(u.getProfile().getName(), tokens);
+            int score = Math.min(byUsername, byDisplayName);
             matches.add(new Scored<>(u, score, 0L));
         }
         matches.sort(Comparator

@@ -293,9 +293,13 @@ export function SearchBar() {
               {data?.users?.content.length ? (
                 <PreviewSection title="Usuarios">
                   {data.users.content.map((u) => (
-                    <div
+                    <button
                       key={`user-${u.id}`}
-                      className="flex w-full items-center gap-3 rounded-md px-2 py-2"
+                      role="option"
+                      // El click sobre un usuario lleva a la página pública del
+                      // perfil, donde se ven sus playlists públicas.
+                      onClick={() => navigate(`/user/${u.id}`)}
+                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-hover"
                     >
                       <Avatar
                         src={u.avatarUrl}
@@ -312,7 +316,7 @@ export function SearchBar() {
                           {u.displayName ? ` · @${u.username}` : ""}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </PreviewSection>
               ) : null}

@@ -4,6 +4,7 @@ import anton.davila.selfpotify.music.repository.AlbumRepository;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.repository.PlaylistRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
+import anton.davila.selfpotify.user.follow.repository.UserFollowRepository;
 import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
 import anton.davila.selfpotify.user.profile.repository.ProfileRepository;
 import anton.davila.selfpotify.user.repository.UserRepository;
@@ -43,6 +44,9 @@ public class ResetService {
     private UserSongListenRepository userSongListenRepository;
 
     @Autowired
+    private UserFollowRepository userFollowRepository;
+
+    @Autowired
     private AdminBootstrapRunner adminBootstrapRunner;
 
     @Autowired
@@ -61,6 +65,7 @@ public class ResetService {
         log.warn("RESET: borrando toda la base de datos y la configuración");
 
         userSongListenRepository.deleteAll();
+        userFollowRepository.deleteAll();
         playlistRepository.deleteAll();
         songRepository.deleteAll();
         albumRepository.deleteAll();

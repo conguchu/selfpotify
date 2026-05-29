@@ -9,10 +9,24 @@ import {
   createPlaylist,
   deletePlaylist,
   listMyPlaylists,
+  listUserPublicPlaylists,
   updatePlaylist,
   getPlaylist,
   uploadPlaylistCover,
 } from "@/lib/api/playlists";
+import {
+  deleteMyAvatar,
+  getMe,
+  getPublicProfile,
+  updateMyProfile,
+  uploadMyAvatar,
+} from "@/lib/api/profile";
+import {
+  followUser,
+  getFollowers,
+  getFollowing,
+  unfollowUser,
+} from "@/lib/api/follow";
 import {
   listSongs,
   importFolder,
@@ -57,6 +71,12 @@ export const queryKeys = {
   playlists: ["playlists", "my"] as const,
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
+  me: ["me"] as const,
+  publicProfile: (id: number) => ["users", "public", id] as const,
+  publicProfilePlaylists: (id: number) =>
+    ["users", "public", id, "playlists"] as const,
+  followers: (id: number) => ["users", id, "followers"] as const,
+  following: (id: number) => ["users", id, "following"] as const,
   publicConfig: ["config", "public"] as const,
   search: (q: string, type: SearchType, page: number, size: number) =>
     ["search", q, type, page, size] as const,
@@ -336,6 +356,135 @@ export function useSearch(
     enabled: trimmed.length > 0,
     staleTime: 30_000,
   });
+}
+
+/**
+ * Vista del usuario autenticado (`GET /api/me`). Se usa como fuente de verdad
+ * del nombre visible y la foto en la página de editar perfil; el resto de la
+ * app sigue leyendo el username del auth store local.
+ */
+export function useMe(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.me,
+    queryFn: getMe,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Vista pública mínima de un usuario por id, para la página /user/[id]. */
+export function usePublicProfile(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.publicProfile(id),
+    queryFn: () => getPublicProfile(id),
+    enabled: enabled && Number.isFinite(id),
+    staleTime: 60_000,
+  });
+}
+
+/** Playlists públicas de un usuario por id, para la página /user/[id]. */
+export function useUserPublicPlaylists(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.publicProfilePlaylists(id),
+    queryFn: () => listUserPublicPlaylists(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+export function useUpdateMyProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string | null }) => updateMyProfile(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  });
+}
+
+export function useUploadMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadMyAvatar(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  });
+}
+
+export function useDeleteMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => deleteMyAvatar(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  });
+}
+
+/** Lista de usuarios que siguen al id dado, ordenada de más reciente a más antiguo. */
+export function useFollowers(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.followers(id),
+    queryFn: () => getFollowers(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+/** Lista de usuarios a los que sigue el id dado, ordenada de más reciente a más antiguo. */
+export function useFollowing(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.following(id),
+    queryFn: () => getFollowing(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+/**
+ * Toggle de follow / unfollow. Invalida todas las queries que dependen del
+ * grafo afectado: el perfil del target (counts cambian) y el perfil del
+ * propio usuario (su {@code followingCount} cambia), más las listas de
+ * followers/following de ambos. La respuesta de la mutación ya trae el
+ * {@code UserSummaryDTO} del target actualizado, así que tras una invalidación
+ * el render queda consistente sin hacer pedir nada extra.
+ */
+export function useFollowUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (targetId: number) => followUser(targetId),
+    onSuccess: (updated, targetId) => {
+      invalidateFollowGraph(qc, targetId);
+    },
+  });
+}
+
+export function useUnfollowUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (targetId: number) => unfollowUser(targetId),
+    onSuccess: (updated, targetId) => {
+      invalidateFollowGraph(qc, targetId);
+    },
+  });
+}
+
+/**
+ * Tras un follow/unfollow cambian: el perfil del target (counts +
+ * isFollowedByMe), el perfil propio (followingCount), y las listas de
+ * followers/following de ambos lados. Lo invalidamos todo de golpe — el coste
+ * es bajo porque la mayoría de esas queries no estarán en el árbol.
+ */
+function invalidateFollowGraph(
+  qc: ReturnType<typeof useQueryClient>,
+  targetId: number,
+) {
+  qc.invalidateQueries({ queryKey: queryKeys.publicProfile(targetId) });
+  qc.invalidateQueries({ queryKey: queryKeys.followers(targetId) });
+  qc.invalidateQueries({ queryKey: queryKeys.following(targetId) });
+  qc.invalidateQueries({ queryKey: queryKeys.me });
+  // Y la del propio user en `users/public/<myId>`/`users/<myId>/following`,
+  // pero como no conocemos el id del usuario en sesión aquí, invalidamos la
+  // raíz "users" — Tanstack Query 5 invalida por prefijo de array.
+  qc.invalidateQueries({ queryKey: ["users"] });
 }
 
 export function useUpdateUserPassword() {

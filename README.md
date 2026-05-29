@@ -469,6 +469,47 @@ flowchart TD
     Page --> Resp2([SearchResponseDTO con<br/>1 CategoryPage rellena])
 ```
 
+### Perfil de usuario (nombre visible + foto)
+
+Además del `username` —identificador único e inmutable usado para el login— cada usuario tiene asociado un `Profile` con un **nombre visible** (`name`, libre y editable) y una **foto de perfil** (`pictureUrl`). Ambos campos son opcionales: si están vacíos, la UI cae al username y a la inicial.
+
+**Decisión de diseño: editar el perfil propio vive bajo `/api/me/*`, no bajo `/api/users/{id}`.** El controlador `UserController` está reservado a operaciones de administrador (alta de cuentas, cambio de rol, borrado); meter ahí los endpoints "editar mi propio nombre" o "subir mi foto" forzaría guards condicionales por id en cada método. El nuevo `ProfileController` separa los dos casos: `GET /api/me`, `PUT /api/me/profile`, `POST /api/me/profile/picture` y `DELETE /api/me/profile/picture` operan **siempre sobre el usuario autenticado** —el id sale del `SecurityContext`, no del path— y `GET /api/users/{id}/public` devuelve la misma `UserSummaryDTO` que ya usa la búsqueda para que cualquier autenticado pueda abrir el perfil de otro. Así no se cruzan permisos: el admin nunca edita el perfil de otro usuario por error y un usuario corriente nunca tiene que pasar por un endpoint admin.
+
+**Decisión de diseño: la pantalla del propio perfil es la misma que ven los demás; la edición vive en una página aparte.** En el cliente hay tres rutas: `/profile` (mi perfil), `/user/[id]` (perfil de otro) y `/profile/edit` (formulario para tocar nombre y foto). `/profile` y `/user/[id]` montan el **mismo componente** `UserProfileView`, que consume `GET /api/users/{id}/public` + `GET /api/playlists/user/{userId}`; lo único que cambia es un icono de lápiz junto al nombre que se pinta cuando el username del perfil coincide con el del auth store. El menú del topbar pasa de "Editar perfil" a "Ver tu perfil" y enlaza a `/profile`. La ventaja: el dueño ve exactamente lo que va a ver el resto de gente —si su nombre o su avatar quedan raros, lo nota sin tener que abrir un perfil ajeno para comparar—. Y separar la edición evita modos en la vista: la pantalla pública nunca contiene inputs, así que pulsar accidentalmente sobre el avatar no abre un selector de archivo cuando no toca.
+
+**Decisión de diseño: subida del avatar por endpoint multipart separado, mismo patrón que la carátula de playlist.** El `PUT /api/me/profile` es un JSON pequeño (`{ "name": "..." }`) y la foto viaja por su propio endpoint multipart, recortándose al cuadrado en el servidor con `ImageIO` y persistiéndose como `assets/avatars/<sha256>.jpg`. Es la misma decisión que ya tomamos para `POST /api/playlists/{id}/cover`: mantenemos la API JSON limpia y reusamos el handler estático `/assets/**` para servir la imagen sin más infraestructura. El nombrado por SHA-256 hace la operación idempotente —subir dos veces la misma imagen no crea duplicados— y permite que `DELETE /api/me/profile/picture` se limite a poner el campo a `null` sin borrar el fichero físico (podría estar referenciado por otra cuenta que subió la misma imagen).
+
+**Decisión de diseño: buscar también por nombre visible sin penalizar el score.** La búsqueda de usuarios (`/api/search?type=users`) ya incluía `Profile.name` en el haystack —los matches "se notaban"— pero el score se calculaba **solo sobre el username**, así que un usuario con `displayName="María López"` y `username="maria_l"` aparecía peor posicionado al buscar "María" que el usuario `username="maria"`. Ahora el score por usuario es `min(score(username), score(displayName))`: el campo que mejor coincide con la consulta es el que cuenta. El tiebreaker sigue siendo alfabético por username, que es único y siempre está presente.
+
+#### Flujo: ver tu perfil y editarlo
+
+```mermaid
+flowchart TD
+    Menu([Click en avatar del topbar]) --> View[Cliente navega a /profile]
+    View --> Me[GET /api/me<br/>(resolver mi id)]
+    Me --> Public[GET /api/users/id/public<br/>+ GET /api/playlists/user/userId]
+    Public --> Render[Render UserProfileView:<br/>avatar, nombre, badge admin,<br/>playlists públicas]
+    Render --> Owner{¿El username del perfil<br/>coincide con el del auth store?}
+    Owner -- sí --> Pencil[Pintar icono de lápiz<br/>junto al nombre]
+    Owner -- no --> NoPencil[Sin lápiz: vista pública pura]
+    Pencil --> Click{¿Click en el lápiz?}
+    Click -- no --> End([Fin])
+    Click -- sí --> Edit[Navegar a /profile/edit]
+    Edit --> Choice{¿Qué cambia?}
+    Choice -- Nombre --> Put[PUT /api/me/profile<br/>body: name]
+    Put --> Persist[ProfileController:<br/>crear Profile si no existía<br/>cascade ALL y actualizar name]
+    Choice -- Foto nueva --> Upload[POST /api/me/profile/picture<br/>multipart: file]
+    Upload --> Crop[Recortar al cuadrado<br/>con ImageIO + SHA-256]
+    Crop --> Save[Guardar assets/avatars/sha.jpg<br/>+ persistir pictureUrl]
+    Choice -- Quitar foto --> Clear[DELETE /api/me/profile/picture]
+    Clear --> Null[ProfileController:<br/>pictureUrl = null]
+    Persist --> DTO[Devolver UserSummaryDTO]
+    Save --> DTO
+    Null --> DTO
+    DTO --> Invalidate[React Query invalida key 'me'<br/>y la vista pública]
+    Invalidate --> View
+```
+
 #### Carátulas y fotos automáticas
 
 Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta) la carátula de cada canción y álbum y la foto de cada artista, gemelo de cómo `GenreApiService` rellena el género. El orden de prioridad es:
@@ -478,6 +519,49 @@ Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta
 3. Si no se encuentra nada (o el link externo muere), el campo queda **`null`** y el frontend pinta su icono/inicial; no se generan placeholders en el backend.
 
 Para poder rellenar `Album.picture_url`, el escaneo ahora **resuelve o crea el álbum** a partir de la etiqueta `ALBUM` del fichero. Todas las fuentes funcionan sin registrar ninguna clave; MusicBrainz solo exige un `User-Agent` descriptivo (`COVER_ART_USER_AGENT`). La resolución online puede desactivarse con `COVER_ART_ENABLED=false` (la extracción de carátula embebida se mantiene).
+
+### Grafo de seguimiento entre usuarios
+
+Cada usuario puede seguir y ser seguido por otros, formando un **grafo dirigido**: la arista `follower → followed` significa que `follower` ve a `followed` en su lista de "siguiendo". `UserSummaryDTO` incorpora dos contadores derivados (`followersCount`, `followingCount`) y una flag `isFollowedByMe` que indica si el usuario en sesión ya sigue al usuario representado por el DTO.
+
+**Decisión de diseño: tabla cruzada explícita (`UserFollow`) en lugar de `@ManyToMany` en `User`.** Modelar las aristas como una entidad propia con `follower`, `followed` y `createdAt` (con unique key `(follower_id, followed_id)`) sigue el mismo patrón que ya usa `UserSongListen` y aporta tres cosas que un `@ManyToMany(User → User)` no daría:
+
+1. **No se hidratan listas al cargar un usuario.** Si los seguidores vivieran como `Set<User>` en la entidad `User`, leer un perfil arrastraría el set por defecto (o forzaría a tocar el fetch en cada caller). Con la tabla cruzada, los counts se piden por consulta agregada (`countByFollowed_Id`, `countByFollower_Id`) y nunca cargan listas.
+2. **Aristas con metadatos**. `createdAt` se rellena en `@PrePersist` y permite ordenar la lista de seguidores por "más recientes primero" sin sacarlo del aire en cada llamada; queda hueco para añadir más metadatos (notificaciones, *muted*, etc.) si hace falta.
+3. **Borrado simétrico controlado.** Cuando se borra un usuario hay que limpiar las aristas en las que aparece como `follower` <em>o</em> como `followed`. `UserFollowRepository.deleteAllInvolving(userId)` lo hace con un único `DELETE` JPQL, y tanto `UserService.delete` como `ResetService.resetAll` lo invocan antes de borrar el `User` para no chocar con la FK. Con un `@ManyToMany` en `User` el cascade habría sido posible pero menos predecible (Hibernate no garantiza el orden de borrado de las dos direcciones).
+
+**Decisión de diseño: el path del POST/DELETE solo nombra al *followed*, nunca al follower.** El cliente llama a `POST /api/users/{id}/follow` y el servidor sustituye el `follower` por <strong>el usuario autenticado</strong> resuelto desde el `SecurityContext`. Que un cliente nunca pueda firmar la arista con un follower que no sea él mismo evita por construcción el caso "Alice fuerza a Bob a seguir a Carol". `POST` y `DELETE` son <strong>idempotentes</strong>: seguir a quien ya sigues, o dejar de seguir a quien no sigues, responden 200 con el `UserSummaryDTO` actualizado sin error; el cliente no tiene que mantener estado para distinguir "primer click" del segundo.
+
+**Decisión de diseño: counts y `isFollowedByMe` solo se rellenan en los endpoints de perfil; la búsqueda los manda a 0/null.** El DTO lleva los tres campos siempre (contrato JSON estable), pero solo los endpoints de perfil (`/api/me`, `/api/users/{id}/public`, `/api/users/{id}/follow`, `/followers`, `/following`) los calculan. `SearchService` se mantiene a salvo de un N+1 que duplicaría el coste de cada búsqueda sin un beneficio visible (la UI de búsqueda no pinta esos números). Para los listados de followers/following se evita el N+1 con dos consultas agregadas (`countFollowersGrouped`, `countFollowingGrouped`) y una sola query batch que devuelve el subconjunto de ids ya seguidos por el viewer (`findFollowedIdsByFollowerAmong`).
+
+**Decisión de diseño: en el frontend, los botones de seguir/dejar de seguir por fila viven solo en mis propias listas.** Los contadores son enlaces estilo Spotify a `/user/{id}/followers` y `/user/{id}/following`, accesibles desde cualquier perfil. La página de lista compara `me.id` (de `/api/me`) con el `[id]` de la URL: si coincide, las filas incluyen un botón "Siguiendo / Seguir" que llama a `useFollowUser`/`useUnfollowUser`; si no, las filas son puramente navegables (clic = ir al perfil de esa persona). La razón es no convertir la página en un panel de moderación inverso: si ves a quién sigue otro usuario, no eres tú quien decide a quién quitar de su lista, así que el botón solo aparece cuando estás operando sobre tu propio grafo.
+
+#### Flujo de seguir y dejar de seguir
+
+```mermaid
+flowchart TD
+    UI([Usuario pulsa botón Seguir/Siguiendo]) --> Mut{¿Estoy siguiendo?}
+    Mut -- no --> Post[POST /api/users/id/follow]
+    Mut -- sí --> Delete[DELETE /api/users/id/follow]
+    Post --> Resolve[Resolver follower del SecurityContext]
+    Delete --> Resolve
+    Resolve --> Check{¿follower == followed?}
+    Check -- sí --> Err400[400 Bad Request<br/>No te puedes seguir a ti mismo]
+    Check -- no --> Op{Operación}
+    Op -- follow --> Exists{¿Existe arista?}
+    Exists -- sí --> NoOp[No-op: no insertar]
+    Exists -- no --> Insert[Insertar UserFollow<br/>createdAt = now]
+    Op -- unfollow --> Find{¿Existe arista?}
+    Find -- sí --> Drop[Borrar UserFollow]
+    Find -- no --> NoOp2[No-op]
+    Insert --> Enrich[Recalcular counts<br/>+ isFollowedByMe del target]
+    Drop --> Enrich
+    NoOp --> Enrich
+    NoOp2 --> Enrich
+    Enrich --> Resp([200 OK UserSummaryDTO actualizado])
+    Resp --> Invalidate[React Query invalida:<br/>publicProfile target, me,<br/>followers/following de ambos]
+    Invalidate --> ReRender([UI re-pinta contador + botón])
+```
 
 ---
 
@@ -556,7 +640,7 @@ classDiagram
     class Profile {
         - Long id
         - String name
-        - String avatarURL
+        - String pictureUrl
         - Song favouriteSong
         + copy(Profile)
     }
@@ -575,6 +659,13 @@ classDiagram
         - Instant listenedAt
     }
 
+    class UserFollow {
+        - Long id
+        - User follower
+        - User followed
+        - Instant createdAt
+    }
+
     %% Herencia
     Admin --|> User : es un
 
@@ -589,6 +680,10 @@ classDiagram
     %% Tabla cruzada de escuchas (máx. 1000 por usuario, FIFO)
     UserSongListen "N" --> "1" User : la registra
     UserSongListen "N" --> "1" Song : referencia
+
+    %% Tabla cruzada de seguimiento (grafo dirigido follower → followed)
+    UserFollow "N" --> "1" User : follower
+    UserFollow "N" --> "1" User : followed
 
     %% Relaciones Profile
     Profile "N" --> "1" Song : tiene como favorita
@@ -792,6 +887,94 @@ graph LR
     User --> UC10
     UC10 -.->|include| UC10a
     UC10 -.->|include| UC10b
+```
+
+### UC11b — Ver tu propio perfil y editarlo
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCP("Ver tu perfil (/profile)")
+        UCPa("Cargar mi vista pública<br/>(GET /api/me + /api/users/{id}/public)")
+        UCPb("Listar mis playlists públicas<br/>(GET /api/playlists/user/{userId})")
+        UCE("Editar perfil (/profile/edit)")
+        UCEa("Cambiar nombre visible<br/>(PUT /api/me/profile)")
+        UCEb("Subir foto<br/>(POST /api/me/profile/picture)")
+        UCEc("Quitar foto<br/>(DELETE /api/me/profile/picture)")
+    end
+
+    User --> UCP
+    UCP -.->|include| UCPa
+    UCP -.->|include| UCPb
+    UCP -.->|extend| UCE
+    UCE -.->|extend| UCEa
+    UCE -.->|extend| UCEb
+    UCE -.->|extend| UCEc
+```
+
+### UC11c — Ver el perfil público de otro usuario
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCV("Abrir perfil de otro usuario (/user/[id])")
+        UCVa("Buscar usuario<br/>(/api/search?type=users)")
+        UCVb("Cargar vista pública<br/>(GET /api/users/{id}/public)")
+        UCVc("Listar sus playlists públicas<br/>(GET /api/playlists/user/{userId})")
+    end
+
+    User --> UCV
+    UCV -.->|include| UCVa
+    UCV -.->|include| UCVb
+    UCV -.->|include| UCVc
+```
+
+### UC11d — Seguir / dejar de seguir a otro usuario
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCF("Seguir / dejar de seguir")
+        UCFa("Resolver follower<br/>del SecurityContext")
+        UCFb("Validar follower ≠ followed")
+        UCFc("Crear o borrar arista<br/>UserFollow (idempotente)")
+        UCFd("Recalcular counts +<br/>isFollowedByMe del target")
+    end
+
+    User --> UCF
+    UCF -.->|include| UCFa
+    UCF -.->|include| UCFb
+    UCF -.->|include| UCFc
+    UCF -.->|include| UCFd
+```
+
+### UC11e — Ver las listas de seguidores / siguiendo
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCL("Abrir /user/[id]/followers o /following")
+        UCLa("Obtener lista<br/>(GET /api/users/{id}/followers|following)")
+        UCLb("Enriquecer DTOs en batch<br/>(counts + isFollowedByMe)")
+        UCLc{"¿La lista es mía<br/>(me.id == [id])?"}
+        UCLd("Render filas SIN botón")
+        UCLe("Render filas CON botón<br/>Siguiendo / Seguir")
+    end
+
+    User --> UCL
+    UCL -.->|include| UCLa
+    UCLa -.->|include| UCLb
+    UCLb --> UCLc
+    UCLc -- no --> UCLd
+    UCLc -- sí --> UCLe
 ```
 
 ### UC11 — Ver los descubrimientos diarios

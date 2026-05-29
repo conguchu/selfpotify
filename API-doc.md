@@ -243,7 +243,7 @@ Barra de búsqueda transversal sobre el catálogo (canciones, artistas, álbumes
 | `artists` | nombre del artista | nº de canciones desc, luego nombre asc |
 | `albums` | nombre del álbum + nombres de artistas | nº de canciones desc, luego nombre asc |
 | `playlists` | nombre + descripción + username del creador | nº de canciones desc, luego nombre asc |
-| `users` | username + nombre del perfil | username asc |
+| `users` | username + nombre del perfil | username asc (score = mejor match entre username y displayName) |
 | `genres` | nombre del género (distintos del catálogo) | nº de canciones desc, luego nombre asc |
 
 - **Visibilidad de playlists:** se incluyen las **públicas** y las **propias** (públicas o privadas) del usuario autenticado. Las privadas de otros usuarios nunca aparecen.
@@ -267,6 +267,74 @@ Barra de búsqueda transversal sobre el catálogo (canciones, artistas, álbumes
     "genres":    { "content": [/* GenreResultDTO */], "totalElements": 0,  "totalPages": 1 }
   }
   ```
+
+---
+
+## 6.7 Perfil del usuario (`/api/me`, `/api/users/{id}/public`)
+
+Endpoints para que cada usuario gestione su propio perfil (nombre visible + foto) y para consultar la vista pública mínima de cualquier otro. Todos requieren `ROLE_USER` o `ROLE_ADMIN`.
+
+> Los endpoints administrativos (alta/baja, cambio de rol, listado completo) siguen viviendo en `/api/users` (§7) y son `ROLE_ADMIN`-only.
+
+### `GET /api/me`
+
+- **Comportamiento:** devuelve la vista pública del usuario autenticado, resuelto desde el `SecurityContext`.
+- **Respuesta `200 OK UserSummaryDTO`** (ver §8).
+
+### `PUT /api/me/profile`
+
+- **Body:** `ProfileUpdateRequest` — único campo es `name`. Si llega `null`, vacío o solo espacios, el nombre se borra y la UI cae al username.
+  ```json
+  { "name": "Anton Davila" }
+  ```
+- **Comportamiento:** si el usuario no tiene `Profile` aún, se crea bajo demanda (cascade ALL en `User.profile`). El username no se modifica desde aquí en ningún caso.
+- **Respuesta `200 OK UserSummaryDTO`** con el perfil actualizado.
+
+### `POST /api/me/profile/picture`
+
+- **Body:** `multipart/form-data` con campo `file`.
+- **Validaciones:** MIME en `{image/jpeg, image/png, image/webp}`; tamaño máximo **5 MB**.
+- **Comportamiento:** recorta la imagen al cuadrado por el centro con `ImageIO`, la guarda como JPEG en `<assets>/avatars/<sha256>.jpg` y persiste `Profile.pictureUrl = "/assets/avatars/<sha256>.jpg"`. Mismo patrón que `POST /api/playlists/{id}/cover`. La operación es **idempotente**: subir dos veces la misma imagen no crea ficheros duplicados.
+- **Errores:** `400` sin archivo o ilegible; `413` si excede 5 MB; `415` si el MIME no está soportado.
+- **Respuesta `200 OK UserSummaryDTO`** con la nueva `avatarUrl`.
+
+### `DELETE /api/me/profile/picture`
+
+- **Comportamiento:** pone `Profile.pictureUrl = null`. **No** borra el fichero físico de `assets/avatars/` (podría estar referenciado por otra cuenta que subió la misma imagen).
+- **Respuesta `200 OK UserSummaryDTO`** con `avatarUrl = null`.
+
+### `GET /api/users/{id}/public`
+
+- **Comportamiento:** vista pública mínima de cualquier usuario por id. Misma forma que la que devuelve `/api/search?type=users`. Se usa para enlazar al perfil desde la búsqueda. Las playlists públicas se siguen consultando vía `GET /api/playlists/user/{userId}` (§5).
+- **Respuesta:** `200 OK UserSummaryDTO` o `404 Not Found` si no existe.
+
+---
+
+## 6.8 Seguimiento entre usuarios (follow)
+
+Cada usuario puede seguir y ser seguido por otros (grafo dirigido). El follower de cada arista se infiere siempre del `SecurityContext` del usuario en sesión, nunca del path. Todos los endpoints requieren `ROLE_USER` o `ROLE_ADMIN`.
+
+### `POST /api/users/{id}/follow`
+
+- **Comportamiento:** el usuario autenticado pasa a seguir a `{id}`. Idempotente: si ya lo seguías, no inserta nada pero responde 200.
+- **Errores:** `400 Bad Request` si `{id}` es el propio usuario autenticado; `404 Not Found` si `{id}` no existe.
+- **Respuesta:** `200 OK UserSummaryDTO` del usuario `{id}` con sus counts recalculados y `isFollowedByMe = true`.
+
+### `DELETE /api/users/{id}/follow`
+
+- **Comportamiento:** el usuario autenticado deja de seguir a `{id}`. Idempotente: si no lo seguías, no borra nada pero responde 200.
+- **Errores:** `404 Not Found` si `{id}` no existe.
+- **Respuesta:** `200 OK UserSummaryDTO` del usuario `{id}` con sus counts recalculados y `isFollowedByMe = false`.
+
+### `GET /api/users/{id}/followers`
+
+- **Comportamiento:** quién sigue a `{id}`, **más recientes primero** (`createdAt desc`). Para cada fila se rellenan en batch los counts y `isFollowedByMe` respecto al usuario en sesión, evitando N+1.
+- **Respuesta:** `200 OK List<UserSummaryDTO>` o `404 Not Found` si `{id}` no existe.
+
+### `GET /api/users/{id}/following`
+
+- **Comportamiento:** a quién sigue `{id}`, más recientes primero. Misma forma y enriquecido que `/followers`.
+- **Respuesta:** `200 OK List<UserSummaryDTO>` o `404 Not Found` si `{id}` no existe.
 
 ---
 
@@ -516,17 +584,28 @@ Todos los campos son opcionales; los nulos se dejan sin tocar.
 { "path": "/ruta/absoluta/a/carpeta" }
 ```
 
-### `UserSummaryDTO` (devuelto por `/api/search?type=users` y modo `all`)
+### `UserSummaryDTO` (devuelto por `/api/search?type=users`, perfiles y endpoints de follow)
 ```json
 {
   "id": 1,
   "username": "anton",
   "displayName": "Anton Davila",
   "avatarUrl": "/assets/avatars/anton.jpg",
-  "type": "USER"
+  "type": "USER",
+  "followersCount": 12,
+  "followingCount": 7,
+  "isFollowedByMe": true
 }
 ```
-Vista pública mínima de un usuario: no incluye contraseña, feed ni perfil completo. `displayName` y `avatarUrl` provienen del `Profile` asociado y pueden venir `null` si el usuario aún no tiene perfil.
+Vista pública mínima de un usuario: no incluye contraseña, feed ni perfil completo. `displayName` y `avatarUrl` provienen del `Profile` asociado y pueden venir `null` si el usuario aún no tiene perfil. Devuelta también por `GET /api/me`, `GET /api/users/{id}/public` y los endpoints `PUT/POST/DELETE /api/me/profile*` (ver §6.7).
+
+Los campos de follow viajan siempre en el JSON con la misma forma, pero **solo los endpoints de perfil y follow** los rellenan; los resultados de búsqueda los emiten en `0` / `null` para no inducir N+1 en `SearchService`. `isFollowedByMe` es `null` cuando no hay viewer (admin listings) o cuando el viewer es el propio usuario representado por el DTO.
+
+### `ProfileUpdateRequest` (PUT `/api/me/profile`)
+```json
+{ "name": "Anton Davila" }
+```
+Único campo editable de momento. `null` o blanco limpia el nombre y la UI cae al username.
 
 ### `GenreResultDTO` (devuelto por `/api/search?type=genres` y modo `all`)
 ```json
