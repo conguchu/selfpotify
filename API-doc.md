@@ -310,6 +310,34 @@ Endpoints para que cada usuario gestione su propio perfil (nombre visible + foto
 
 ---
 
+## 6.8 Seguimiento entre usuarios (follow)
+
+Cada usuario puede seguir y ser seguido por otros (grafo dirigido). El follower de cada arista se infiere siempre del `SecurityContext` del usuario en sesión, nunca del path. Todos los endpoints requieren `ROLE_USER` o `ROLE_ADMIN`.
+
+### `POST /api/users/{id}/follow`
+
+- **Comportamiento:** el usuario autenticado pasa a seguir a `{id}`. Idempotente: si ya lo seguías, no inserta nada pero responde 200.
+- **Errores:** `400 Bad Request` si `{id}` es el propio usuario autenticado; `404 Not Found` si `{id}` no existe.
+- **Respuesta:** `200 OK UserSummaryDTO` del usuario `{id}` con sus counts recalculados y `isFollowedByMe = true`.
+
+### `DELETE /api/users/{id}/follow`
+
+- **Comportamiento:** el usuario autenticado deja de seguir a `{id}`. Idempotente: si no lo seguías, no borra nada pero responde 200.
+- **Errores:** `404 Not Found` si `{id}` no existe.
+- **Respuesta:** `200 OK UserSummaryDTO` del usuario `{id}` con sus counts recalculados y `isFollowedByMe = false`.
+
+### `GET /api/users/{id}/followers`
+
+- **Comportamiento:** quién sigue a `{id}`, **más recientes primero** (`createdAt desc`). Para cada fila se rellenan en batch los counts y `isFollowedByMe` respecto al usuario en sesión, evitando N+1.
+- **Respuesta:** `200 OK List<UserSummaryDTO>` o `404 Not Found` si `{id}` no existe.
+
+### `GET /api/users/{id}/following`
+
+- **Comportamiento:** a quién sigue `{id}`, más recientes primero. Misma forma y enriquecido que `/followers`.
+- **Respuesta:** `200 OK List<UserSummaryDTO>` o `404 Not Found` si `{id}` no existe.
+
+---
+
 ## 7. Administración de usuarios (`/api/users`)
 
 Acceso exclusivo `ROLE_ADMIN`.
@@ -556,17 +584,22 @@ Todos los campos son opcionales; los nulos se dejan sin tocar.
 { "path": "/ruta/absoluta/a/carpeta" }
 ```
 
-### `UserSummaryDTO` (devuelto por `/api/search?type=users` y modo `all`)
+### `UserSummaryDTO` (devuelto por `/api/search?type=users`, perfiles y endpoints de follow)
 ```json
 {
   "id": 1,
   "username": "anton",
   "displayName": "Anton Davila",
   "avatarUrl": "/assets/avatars/anton.jpg",
-  "type": "USER"
+  "type": "USER",
+  "followersCount": 12,
+  "followingCount": 7,
+  "isFollowedByMe": true
 }
 ```
 Vista pública mínima de un usuario: no incluye contraseña, feed ni perfil completo. `displayName` y `avatarUrl` provienen del `Profile` asociado y pueden venir `null` si el usuario aún no tiene perfil. Devuelta también por `GET /api/me`, `GET /api/users/{id}/public` y los endpoints `PUT/POST/DELETE /api/me/profile*` (ver §6.7).
+
+Los campos de follow viajan siempre en el JSON con la misma forma, pero **solo los endpoints de perfil y follow** los rellenan; los resultados de búsqueda los emiten en `0` / `null` para no inducir N+1 en `SearchService`. `isFollowedByMe` es `null` cuando no hay viewer (admin listings) o cuando el viewer es el propio usuario representado por el DTO.
 
 ### `ProfileUpdateRequest` (PUT `/api/me/profile`)
 ```json

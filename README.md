@@ -520,6 +520,49 @@ Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta
 
 Para poder rellenar `Album.picture_url`, el escaneo ahora **resuelve o crea el álbum** a partir de la etiqueta `ALBUM` del fichero. Todas las fuentes funcionan sin registrar ninguna clave; MusicBrainz solo exige un `User-Agent` descriptivo (`COVER_ART_USER_AGENT`). La resolución online puede desactivarse con `COVER_ART_ENABLED=false` (la extracción de carátula embebida se mantiene).
 
+### Grafo de seguimiento entre usuarios
+
+Cada usuario puede seguir y ser seguido por otros, formando un **grafo dirigido**: la arista `follower → followed` significa que `follower` ve a `followed` en su lista de "siguiendo". `UserSummaryDTO` incorpora dos contadores derivados (`followersCount`, `followingCount`) y una flag `isFollowedByMe` que indica si el usuario en sesión ya sigue al usuario representado por el DTO.
+
+**Decisión de diseño: tabla cruzada explícita (`UserFollow`) en lugar de `@ManyToMany` en `User`.** Modelar las aristas como una entidad propia con `follower`, `followed` y `createdAt` (con unique key `(follower_id, followed_id)`) sigue el mismo patrón que ya usa `UserSongListen` y aporta tres cosas que un `@ManyToMany(User → User)` no daría:
+
+1. **No se hidratan listas al cargar un usuario.** Si los seguidores vivieran como `Set<User>` en la entidad `User`, leer un perfil arrastraría el set por defecto (o forzaría a tocar el fetch en cada caller). Con la tabla cruzada, los counts se piden por consulta agregada (`countByFollowed_Id`, `countByFollower_Id`) y nunca cargan listas.
+2. **Aristas con metadatos**. `createdAt` se rellena en `@PrePersist` y permite ordenar la lista de seguidores por "más recientes primero" sin sacarlo del aire en cada llamada; queda hueco para añadir más metadatos (notificaciones, *muted*, etc.) si hace falta.
+3. **Borrado simétrico controlado.** Cuando se borra un usuario hay que limpiar las aristas en las que aparece como `follower` <em>o</em> como `followed`. `UserFollowRepository.deleteAllInvolving(userId)` lo hace con un único `DELETE` JPQL, y tanto `UserService.delete` como `ResetService.resetAll` lo invocan antes de borrar el `User` para no chocar con la FK. Con un `@ManyToMany` en `User` el cascade habría sido posible pero menos predecible (Hibernate no garantiza el orden de borrado de las dos direcciones).
+
+**Decisión de diseño: el path del POST/DELETE solo nombra al *followed*, nunca al follower.** El cliente llama a `POST /api/users/{id}/follow` y el servidor sustituye el `follower` por <strong>el usuario autenticado</strong> resuelto desde el `SecurityContext`. Que un cliente nunca pueda firmar la arista con un follower que no sea él mismo evita por construcción el caso "Alice fuerza a Bob a seguir a Carol". `POST` y `DELETE` son <strong>idempotentes</strong>: seguir a quien ya sigues, o dejar de seguir a quien no sigues, responden 200 con el `UserSummaryDTO` actualizado sin error; el cliente no tiene que mantener estado para distinguir "primer click" del segundo.
+
+**Decisión de diseño: counts y `isFollowedByMe` solo se rellenan en los endpoints de perfil; la búsqueda los manda a 0/null.** El DTO lleva los tres campos siempre (contrato JSON estable), pero solo los endpoints de perfil (`/api/me`, `/api/users/{id}/public`, `/api/users/{id}/follow`, `/followers`, `/following`) los calculan. `SearchService` se mantiene a salvo de un N+1 que duplicaría el coste de cada búsqueda sin un beneficio visible (la UI de búsqueda no pinta esos números). Para los listados de followers/following se evita el N+1 con dos consultas agregadas (`countFollowersGrouped`, `countFollowingGrouped`) y una sola query batch que devuelve el subconjunto de ids ya seguidos por el viewer (`findFollowedIdsByFollowerAmong`).
+
+**Decisión de diseño: en el frontend, los botones de seguir/dejar de seguir por fila viven solo en mis propias listas.** Los contadores son enlaces estilo Spotify a `/user/{id}/followers` y `/user/{id}/following`, accesibles desde cualquier perfil. La página de lista compara `me.id` (de `/api/me`) con el `[id]` de la URL: si coincide, las filas incluyen un botón "Siguiendo / Seguir" que llama a `useFollowUser`/`useUnfollowUser`; si no, las filas son puramente navegables (clic = ir al perfil de esa persona). La razón es no convertir la página en un panel de moderación inverso: si ves a quién sigue otro usuario, no eres tú quien decide a quién quitar de su lista, así que el botón solo aparece cuando estás operando sobre tu propio grafo.
+
+#### Flujo de seguir y dejar de seguir
+
+```mermaid
+flowchart TD
+    UI([Usuario pulsa botón Seguir/Siguiendo]) --> Mut{¿Estoy siguiendo?}
+    Mut -- no --> Post[POST /api/users/id/follow]
+    Mut -- sí --> Delete[DELETE /api/users/id/follow]
+    Post --> Resolve[Resolver follower del SecurityContext]
+    Delete --> Resolve
+    Resolve --> Check{¿follower == followed?}
+    Check -- sí --> Err400[400 Bad Request<br/>No te puedes seguir a ti mismo]
+    Check -- no --> Op{Operación}
+    Op -- follow --> Exists{¿Existe arista?}
+    Exists -- sí --> NoOp[No-op: no insertar]
+    Exists -- no --> Insert[Insertar UserFollow<br/>createdAt = now]
+    Op -- unfollow --> Find{¿Existe arista?}
+    Find -- sí --> Drop[Borrar UserFollow]
+    Find -- no --> NoOp2[No-op]
+    Insert --> Enrich[Recalcular counts<br/>+ isFollowedByMe del target]
+    Drop --> Enrich
+    NoOp --> Enrich
+    NoOp2 --> Enrich
+    Enrich --> Resp([200 OK UserSummaryDTO actualizado])
+    Resp --> Invalidate[React Query invalida:<br/>publicProfile target, me,<br/>followers/following de ambos]
+    Invalidate --> ReRender([UI re-pinta contador + botón])
+```
+
 ---
 
 ## Gestión de recursos
@@ -616,6 +659,13 @@ classDiagram
         - Instant listenedAt
     }
 
+    class UserFollow {
+        - Long id
+        - User follower
+        - User followed
+        - Instant createdAt
+    }
+
     %% Herencia
     Admin --|> User : es un
 
@@ -630,6 +680,10 @@ classDiagram
     %% Tabla cruzada de escuchas (máx. 1000 por usuario, FIFO)
     UserSongListen "N" --> "1" User : la registra
     UserSongListen "N" --> "1" Song : referencia
+
+    %% Tabla cruzada de seguimiento (grafo dirigido follower → followed)
+    UserFollow "N" --> "1" User : follower
+    UserFollow "N" --> "1" User : followed
 
     %% Relaciones Profile
     Profile "N" --> "1" Song : tiene como favorita
@@ -877,6 +931,50 @@ graph LR
     UCV -.->|include| UCVa
     UCV -.->|include| UCVb
     UCV -.->|include| UCVc
+```
+
+### UC11d — Seguir / dejar de seguir a otro usuario
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCF("Seguir / dejar de seguir")
+        UCFa("Resolver follower<br/>del SecurityContext")
+        UCFb("Validar follower ≠ followed")
+        UCFc("Crear o borrar arista<br/>UserFollow (idempotente)")
+        UCFd("Recalcular counts +<br/>isFollowedByMe del target")
+    end
+
+    User --> UCF
+    UCF -.->|include| UCFa
+    UCF -.->|include| UCFb
+    UCF -.->|include| UCFc
+    UCF -.->|include| UCFd
+```
+
+### UC11e — Ver las listas de seguidores / siguiendo
+
+```mermaid
+graph LR
+    User["👤 Usuario"]
+
+    subgraph Sistema Self-Potify
+        UCL("Abrir /user/[id]/followers o /following")
+        UCLa("Obtener lista<br/>(GET /api/users/{id}/followers|following)")
+        UCLb("Enriquecer DTOs en batch<br/>(counts + isFollowedByMe)")
+        UCLc{"¿La lista es mía<br/>(me.id == [id])?"}
+        UCLd("Render filas SIN botón")
+        UCLe("Render filas CON botón<br/>Siguiendo / Seguir")
+    end
+
+    User --> UCL
+    UCL -.->|include| UCLa
+    UCLa -.->|include| UCLb
+    UCLb --> UCLc
+    UCLc -- no --> UCLd
+    UCLc -- sí --> UCLe
 ```
 
 ### UC11 — Ver los descubrimientos diarios
