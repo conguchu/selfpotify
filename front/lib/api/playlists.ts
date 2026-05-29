@@ -1,5 +1,10 @@
 import { apiFetch } from "./client";
-import type { PlaylistDTO, PlaylistInput, ShareLinkResponse } from "@/lib/types";
+import type {
+  PlaylistDTO,
+  PlaylistInput,
+  ShareLinkResponse,
+  UserSummaryDTO,
+} from "@/lib/types";
 
 export function listMyPlaylists() {
   return apiFetch<PlaylistDTO[]>("/api/playlists/my");
@@ -62,6 +67,19 @@ export function redeemPlaylistShareLink(token: string) {
     `/api/playlists/share/${encodeURIComponent(token)}`,
     { method: "POST" },
   );
+}
+
+/** Lista los colaboradores de una playlist. */
+export function listPlaylistCollaborators(id: number) {
+  return apiFetch<UserSummaryDTO[]>(`/api/playlists/${id}/collaborators`);
+}
+
+/** Quita un colaborador de la playlist (solo el dueño). */
+export function removePlaylistCollaborator(id: number, userId: number) {
+  return apiFetch<void>(`/api/playlists/${id}/collaborators/${userId}`, {
+    method: "DELETE",
+    parse: "none",
+  });
 }
 
 /** Añade una canción (dueño o colaborador). */

@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
-import { ListMusic, Lock, Pencil, Trash2, UserPlus, Users } from "lucide-react";
+import { ListMusic, Lock, Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
@@ -127,10 +127,10 @@ export default function PlaylistPage({
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              leftIcon={<UserPlus className="h-4 w-4" />}
+              leftIcon={<Users className="h-4 w-4" />}
               onClick={() => setShareOpen(true)}
             >
-              Añadir usuarios
+              Compartir
             </Button>
             <Button
               variant="outline"

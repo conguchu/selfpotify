@@ -18,6 +18,8 @@ import {
   redeemPlaylistShareLink,
   addSongToPlaylist,
   removeSongFromPlaylist,
+  listPlaylistCollaborators,
+  removePlaylistCollaborator,
 } from "@/lib/api/playlists";
 import {
   deleteMyAvatar,
@@ -76,6 +78,8 @@ export const queryKeys = {
   playlists: ["playlists", "my"] as const,
   sharedPlaylists: ["playlists", "shared"] as const,
   playlist: (id: number) => ["playlists", id] as const,
+  playlistCollaborators: (id: number) =>
+    ["playlists", id, "collaborators"] as const,
   users: ["users"] as const,
   me: ["me"] as const,
   publicProfile: (id: number) => ["users", "public", id] as const,
@@ -283,6 +287,30 @@ export function useUploadPlaylistCover() {
 export function useCreatePlaylistShareLink() {
   return useMutation({
     mutationFn: (id: number) => createPlaylistShareLink(id),
+  });
+}
+
+export function usePlaylistCollaborators(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.playlistCollaborators(id),
+    queryFn: () => listPlaylistCollaborators(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+export function useRemovePlaylistCollaborator() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ playlistId, userId }: { playlistId: number; userId: number }) =>
+      removePlaylistCollaborator(playlistId, userId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.playlistCollaborators(vars.playlistId),
+      });
+      qc.invalidateQueries({ queryKey: queryKeys.playlist(vars.playlistId) });
+      qc.invalidateQueries({ queryKey: queryKeys.playlists });
+      qc.invalidateQueries({ queryKey: queryKeys.sharedPlaylists });
+    },
   });
 }
 
