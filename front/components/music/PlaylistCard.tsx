@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ListMusic, Lock } from "lucide-react";
+import { ListMusic, Lock, Users } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import type { PlaylistDTO } from "@/lib/types";
 import { cn, pluralize } from "@/lib/utils";
@@ -20,6 +20,10 @@ export function PlaylistCard({
 }) {
   const songCount = playlist.songIds?.length ?? 0;
   const resolved = resolveImageUrl(playlist.pictureUrl);
+  // Una playlist con colaboradores se marca como compartida. `collaboratorIds`
+  // solo llega poblado en listados propios (/my, /shared); en perfiles ajenos
+  // es null y el icono no se pinta, que es justo lo que queremos.
+  const isShared = (playlist.collaboratorIds?.length ?? 0) > 0;
   return (
     <Link
       href={`/playlist/${playlist.id}`}
@@ -50,6 +54,16 @@ export function PlaylistCard({
           >
             <Lock className="h-3 w-3" />
             Privada
+          </span>
+        ) : null}
+        {isShared ? (
+          <span
+            aria-label="Compartida"
+            title="Playlist compartida"
+            className="absolute left-2 top-2 flex items-center gap-1 rounded bg-bg-elevated/85 px-1.5 py-0.5 text-[10px] font-medium text-text-muted"
+          >
+            <Users className="h-3 w-3" />
+            Compartida
           </span>
         ) : null}
       </div>

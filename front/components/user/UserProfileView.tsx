@@ -13,6 +13,7 @@ import {
   useFollowUser,
   useMyPlaylists,
   usePublicProfile,
+  useSharedPlaylists,
   useUnfollowUser,
   useUserPublicPlaylists,
 } from "@/lib/query/hooks";
@@ -47,6 +48,10 @@ export function UserProfileView({ userId }: { userId: number }) {
   // públicas, ya filtradas por el backend). Solo una de las dos se dispara,
   // de modo que un visitante nunca pega al endpoint que listaría las mías.
   const ownPlaylistsQuery = useMyPlaylists(isOwner);
+  // En mi propio perfil mezclo mis playlists con las compartidas conmigo (en
+  // las que soy colaborador): ambas aparecen en "Tus playlists", y las
+  // compartidas se distinguen por el icono de personas de PlaylistCard.
+  const sharedPlaylistsQuery = useSharedPlaylists(isOwner);
   const publicPlaylistsQuery = useUserPublicPlaylists(userId, !isOwner);
 
   const followMutation = useFollowUser();
@@ -77,8 +82,12 @@ export function UserProfileView({ userId }: { userId: number }) {
   const profile = profileQuery.data;
   const visibleName = profile.displayName?.trim() || profile.username;
   const isAdmin = profile.type === "ADMIN";
-  const playlistsQuery = isOwner ? ownPlaylistsQuery : publicPlaylistsQuery;
-  const playlists = playlistsQuery.data ?? [];
+  const playlistsLoading = isOwner
+    ? ownPlaylistsQuery.isLoading || sharedPlaylistsQuery.isLoading
+    : publicPlaylistsQuery.isLoading;
+  const playlists = isOwner
+    ? [...(ownPlaylistsQuery.data ?? []), ...(sharedPlaylistsQuery.data ?? [])]
+    : (publicPlaylistsQuery.data ?? []);
   const followBusy = followMutation.isPending || unfollowMutation.isPending;
   // `isFollowedByMe` viaja del backend ya resuelto contra el SecurityContext;
   // basta con leerlo (null para un usuario sin sesión o para uno mismo).
@@ -191,7 +200,7 @@ export function UserProfileView({ userId }: { userId: number }) {
         <h2 className="text-xl font-bold tracking-tight">
           {isOwner ? "Tus playlists" : "Playlists públicas"}
         </h2>
-        {playlistsQuery.isLoading ? (
+        {playlistsLoading ? (
           <div className="flex h-32 items-center justify-center">
             <Spinner size="md" />
           </div>

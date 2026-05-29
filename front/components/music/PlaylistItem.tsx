@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ListMusic, Lock } from "lucide-react";
+import { ListMusic, Lock, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resolveImageUrl } from "@/lib/image";
 import type { PlaylistDTO } from "@/lib/types";
@@ -16,6 +16,7 @@ export function PlaylistItem({
   className?: string;
 }) {
   const songCount = playlist.songIds?.length ?? 0;
+  const isShared = (playlist.collaboratorIds?.length ?? 0) > 0;
   return (
     <Link
       href={`/playlist/${playlist.id}`}
@@ -47,6 +48,12 @@ export function PlaylistItem({
           {songCount} canci{songCount === 1 ? "ón" : "ones"}
         </p>
       </div>
+      {isShared ? (
+        <Users
+          className="h-3.5 w-3.5 shrink-0 text-text-subtle"
+          aria-label="Compartida"
+        />
+      ) : null}
       {!playlist.isPublic ? (
         <Lock className="h-3.5 w-3.5 shrink-0 text-text-subtle" />
       ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
-import { ListMusic, Lock, Pencil, Trash2 } from "lucide-react";
+import { ListMusic, Lock, Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { SongRow } from "@/components/music/SongRow";
 import { EditPlaylistModal } from "@/components/music/EditPlaylistModal";
+import { SharePlaylistModal } from "@/components/music/SharePlaylistModal";
 import { useMe, usePlaylist, useSongs, useDeletePlaylist } from "@/lib/query/hooks";
 import { usePlayerStore } from "@/lib/player/store";
 import { resolveImageUrl } from "@/lib/image";
@@ -32,6 +33,7 @@ export default function PlaylistPage({
   const deletePlaylist = useDeletePlaylist();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const songsInPlaylist = useMemo(() => {
     if (!playlistQuery.data || !songsQuery.data) return [];
@@ -63,6 +65,8 @@ export default function PlaylistPage({
   // API (lo gestiona PlaylistController) pero no exponemos el botón aquí
   // para no confundir el caso normal: si quieres administrar, vas al panel.
   const isOwner = !!meQuery.data && meQuery.data.id === playlist.creatorId;
+  const collaboratorCount = playlist.collaboratorIds?.length ?? 0;
+  const isShared = collaboratorCount > 0;
 
   const onDelete = async () => {
     try {
@@ -105,6 +109,13 @@ export default function PlaylistPage({
                 </span>
               )}
             </Badge>
+            {isShared ? (
+              <Badge variant="neutral">
+                <span className="inline-flex items-center gap-1">
+                  <Users className="h-3 w-3" /> Compartida · {collaboratorCount}
+                </span>
+              </Badge>
+            ) : null}
             <span>·</span>
             <span>
               {songsInPlaylist.length} canci
@@ -114,6 +125,13 @@ export default function PlaylistPage({
         </div>
         {isOwner ? (
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              leftIcon={<Users className="h-4 w-4" />}
+              onClick={() => setShareOpen(true)}
+            >
+              Compartir
+            </Button>
             <Button
               variant="outline"
               leftIcon={<Pencil className="h-4 w-4" />}
@@ -162,6 +180,14 @@ export default function PlaylistPage({
         onClose={() => setEditOpen(false)}
         playlist={playlist}
       />
+
+      {isOwner ? (
+        <SharePlaylistModal
+          playlistId={playlist.id}
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+        />
+      ) : null}
 
       <Modal
         open={confirmOpen}

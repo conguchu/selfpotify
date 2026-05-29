@@ -59,6 +59,19 @@ export interface PlaylistDTO {
   creatorId: number;
   pictureUrl: string | null;
   songIds: number[];
+  /**
+   * Ids de los colaboradores de la playlist. El backend solo lo rellena en
+   * respuestas de "mi contexto" (`/my`, `/shared` y la playlist individual);
+   * en listados ajenos (`/user/{id}`) y búsqueda viaja `null`. Una playlist con
+   * al menos un colaborador se considera compartida.
+   */
+  collaboratorIds: number[] | null;
+}
+
+/** Respuesta de `POST /api/playlists/{id}/share`: magic link de un solo uso. */
+export interface ShareLinkResponse {
+  token: string;
+  shareUrl: string;
 }
 
 export interface AdminUser {

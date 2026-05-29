@@ -150,10 +150,18 @@ Todos los endpoints requieren `ROLE_USER` o `ROLE_ADMIN`.
 - Playlists **públicas** de otro usuario.
 - **Respuesta:** `200 OK List<PlaylistDTO>` o `404` si el usuario no existe.
 
+### `GET /api/playlists/my`
+> (definido arriba)
+
+### `GET /api/playlists/shared`
+- Playlists en las que el usuario autenticado figura como **colaborador** (no como creador).
+- **Respuesta:** `200 OK List<PlaylistDTO>`.
+
 ### `GET /api/playlists/{id}`
-- **Reglas:**
+- **Reglas de acceso:**
   - Si la playlist es pública → cualquier autenticado puede verla.
-  - Si es privada → solo el creador.
+  - Si es privada → solo el **creador** o un **colaborador**.
+- En este endpoint la respuesta incluye `collaboratorIds` poblado.
 - **Respuesta:** `200 OK PlaylistDTO`, `403 Forbidden`, o `404 Not Found`.
 
 ### `POST /api/playlists` — Crear
@@ -170,12 +178,49 @@ Todos los endpoints requieren `ROLE_USER` o `ROLE_ADMIN`.
 - **Respuesta:** `201 Created PlaylistDTO`.
 
 ### `PUT /api/playlists/{id}` — Actualizar
-- Solo el creador puede modificarla. Cuerpo igual al de creación.
+- Solo el **creador** puede modificar los metadatos (nombre, descripción, visibilidad, carátula). Cuerpo igual al de creación. Los colaboradores **no** pueden usar este endpoint.
 - **Respuesta:** `200 OK PlaylistDTO`, `403`, o `404`.
 
 ### `DELETE /api/playlists/{id}` — Borrar
-- El creador o un admin pueden borrar.
+- El **creador** o un **admin** pueden borrar. Al borrar se eliminan también los colaboradores y los magic links pendientes de la playlist.
 - **Respuesta:** `204 No Content`, `403`, o `404`.
+
+### Colaboración (playlists compartidas)
+
+Una playlist puede compartirse con otros usuarios mediante un **magic link de un solo uso**. El creador genera el enlace; quien lo canjea se convierte en **colaborador**. Creador y colaboradores pueden añadir/quitar canciones; solo el creador edita metadatos o borra (ver arriba).
+
+### `POST /api/playlists/{id}/share` — Generar magic link
+- **Acceso:** solo el **creador** de la playlist.
+- **Comportamiento:** crea un token aleatorio de un solo uso (sin caducidad temporal; se consume al canjearse). El creador puede generar varios.
+- **Errores:** `403` si no es el creador; `404` si la playlist no existe.
+- **Respuesta:** `200 OK ShareLinkResponse` (ver §8).
+
+### `POST /api/playlists/share/{token}` — Canjear magic link
+- **Acceso:** cualquier usuario autenticado.
+- **Comportamiento:** añade al usuario autenticado como colaborador y **consume** (elimina) el token. Idempotente respecto al colaborador (si ya lo era, no se duplica), pero el token siempre se gasta.
+- **Errores:** `404` si el token no existe o ya fue usado; `409 Conflict` si quien canjea es el propio creador.
+- **Respuesta:** `200 OK PlaylistDTO` (con `collaboratorIds`).
+
+### `POST /api/playlists/{id}/songs/{songId}` — Añadir canción
+- **Acceso:** **creador o colaborador**.
+- **Comportamiento:** añade la canción si no estaba ya y recalcula la duración total. Idempotente.
+- **Errores:** `403` si no puede editar; `404` si la playlist o la canción no existen.
+- **Respuesta:** `200 OK PlaylistDTO`.
+
+### `DELETE /api/playlists/{id}/songs/{songId}` — Quitar canción
+- **Acceso:** **creador o colaborador**.
+- **Comportamiento:** quita la canción y recalcula la duración total.
+- **Errores:** `403` si no puede editar; `404` si la playlist o la canción no existen.
+- **Respuesta:** `200 OK PlaylistDTO`.
+
+### `GET /api/playlists/{id}/collaborators` — Listar colaboradores
+- **Acceso:** quien pueda ver la playlist (**creador, colaborador** o cualquiera si es pública).
+- **Respuesta:** `200 OK List<UserSummaryDTO>`, `403` o `404`.
+
+### `DELETE /api/playlists/{id}/collaborators/{userId}` — Quitar colaborador
+- **Acceso:** solo el **creador**.
+- **Comportamiento:** elimina al usuario de la lista de colaboradores. Idempotente (no falla si ya no lo era).
+- **Respuesta:** `204 No Content`, `403` o `404`.
 
 ---
 
@@ -532,9 +577,20 @@ Además, en el primer arranque y solo mientras `setupComplete=false`, la librer�
   "description": "Para conducir",
   "isPublic": false,
   "creatorId": 3,
-  "songIds": [1, 2, 3]
+  "songIds": [1, 2, 3],
+  "collaboratorIds": [7, 9]
 }
 ```
+> `collaboratorIds` se rellena en las respuestas de "mi contexto": la playlist individual (`GET /api/playlists/{id}`, canje de magic link, add/remove de canciones) y los listados propios `/my` y `/shared` (acotados al usuario). En los listados ajenos (`/user/{userId}`) y en la búsqueda viaja `null` para evitar un N+1.
+
+### `ShareLinkResponse`
+```json
+{
+  "token": "p3qR8s...Base64UrlSafe",
+  "shareUrl": "/api/playlists/share/p3qR8s...Base64UrlSafe"
+}
+```
+> Respuesta de `POST /api/playlists/{id}/share`. `token` es el magic link de un solo uso; `shareUrl` es la ruta relativa para canjearlo.
 
 ### `JwtResponse`
 ```json
