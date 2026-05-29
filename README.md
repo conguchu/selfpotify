@@ -339,6 +339,39 @@ Alternativa descartada: recorte en el cliente con Canvas antes de subir. Añade 
 
 **Almacenamiento en `assets/playlist-covers/`, mismo patrón que las carátulas de canciones.** El archivo se nombra con el SHA-256 del original — igual que hace `EmbeddedCoverExtractor` — lo que hace la operación idempotente (subir la misma imagen dos veces no crea duplicados). Se sirve mediante el handler estático `/assets/**` ya configurado en `WebMvcConfig`, sin ningún cambio de infraestructura.
 
+### Playlists compartidas (colaboración vía magic link)
+
+Una playlist deja de ser estrictamente individual: su creador puede **invitar a otros usuarios a colaborar** generando un *magic link* de un solo uso. Quien canjea el enlace queda añadido como **colaborador** y, a partir de ahí, propietario y colaboradores comparten la edición del contenido, pero **no** la del continente.
+
+**Reparto de permisos: el continente es del dueño, el contenido es compartido.** Propietario y colaboradores pueden **añadir y quitar canciones** (`POST`/`DELETE /api/playlists/{id}/songs/{songId}`). En cambio, solo el **propietario** puede editar los metadatos de la playlist —nombre, descripción, visibilidad y carátula (`PUT /api/playlists/{id}`, `POST /api/playlists/{id}/cover`)— y **borrarla** (`DELETE /api/playlists/{id}`, que además puede hacer un admin). Un colaborador con acceso a una playlist privada puede verla (`GET /api/playlists/{id}`) aunque no sea pública.
+
+**Decisión de diseño: tabla cruzada explícita (`PlaylistCollaborator`) en lugar de `@ManyToMany` en `Playlist`.** Igual que con `UserFollow`, modelar el vínculo como entidad propia con `playlist`, `user` y `createdAt` (unique key `(playlist_id, user_id)`) evita hidratar la lista entera de colaboradores al leer una playlist, deja hueco para metadatos (cuándo se unió) y permite un borrado controlado: al eliminar una playlist se limpian sus colaboradores y tokens antes de borrar la fila para no chocar con la FK (`PlaylistSharingService.deleteSharingData`). La relación `Playlist ↔ Song` se mantiene como `@ManyToMany` porque ahí no se necesita ningún metadato por arista.
+
+**Decisión de diseño: magic link de un solo uso, sin caducidad temporal.** El token (`PlaylistShareToken`) es un valor aleatorio no adivinable generado con `SecureRandom` (32 bytes, Base64 URL-safe). El "un solo uso" se garantiza **eliminando la fila al canjearla**, no con una flag `used`: una vez consumido, el mismo enlace responde `404`. No se añade caducidad por tiempo (no hay variable de configuración nueva); mientras el token no se canjee, sigue siendo válido. El creador puede generar varios enlaces para una misma playlist (uno por persona a invitar).
+
+**Decisión de diseño: el que canjea se resuelve del `SecurityContext`, nunca del path.** `POST /api/playlists/share/{token}` solo lleva el token; el colaborador a añadir es siempre el usuario autenticado. Canjear un enlace de **tu propia** playlist responde `409 Conflict` (ya eres el dueño). El canje es idempotente respecto al colaborador (si ya lo eras no se duplica la fila), pero el token siempre se consume.
+
+#### Flujo de compartir y canjear
+
+```mermaid
+flowchart TD
+    Gen([Propietario pulsa Compartir]) --> Share[POST /api/playlists/id/share]
+    Share --> OwnerChk{¿Es el creador?}
+    OwnerChk -- no --> Err403[403 Forbidden]
+    OwnerChk -- sí --> Token[Generar PlaylistShareToken<br/>SecureRandom + Base64]
+    Token --> Link([200 OK ShareLinkResponse<br/>token + shareUrl])
+    Link -. comparte enlace .-> Redeem[POST /api/playlists/share/token]
+    Redeem --> Find{¿Token existe?}
+    Find -- no --> Err404[404 Not Found<br/>enlace inválido o ya usado]
+    Find -- sí --> Self{¿Soy el propietario?}
+    Self -- sí --> Err409[409 Conflict]
+    Self -- no --> Exists{¿Ya soy colaborador?}
+    Exists -- sí --> Consume[Consumir token: borrar fila]
+    Exists -- no --> Insert[Insertar PlaylistCollaborator<br/>createdAt = now]
+    Insert --> Consume
+    Consume --> Resp([200 OK PlaylistDTO<br/>con collaboratorIds])
+```
+
 ### Descubrimientos diarios
 
 Junto al feed de artistas, el home ofrece una sección de **descubrimientos
@@ -666,6 +699,20 @@ classDiagram
         - Instant createdAt
     }
 
+    class PlaylistCollaborator {
+        - Long id
+        - Playlist playlist
+        - User user
+        - Instant createdAt
+    }
+
+    class PlaylistShareToken {
+        - Long id
+        - String token
+        - Playlist playlist
+        - Instant createdAt
+    }
+
     %% Herencia
     Admin --|> User : es un
 
@@ -684,6 +731,11 @@ classDiagram
     %% Tabla cruzada de seguimiento (grafo dirigido follower → followed)
     UserFollow "N" --> "1" User : follower
     UserFollow "N" --> "1" User : followed
+
+    %% Colaboración en playlists (tabla cruzada + magic link de un solo uso)
+    PlaylistCollaborator "N" --> "1" Playlist : colabora en
+    PlaylistCollaborator "N" --> "1" User : colaborador
+    PlaylistShareToken "N" --> "1" Playlist : invita a
 
     %% Relaciones Profile
     Profile "N" --> "1" Song : tiene como favorita
@@ -720,20 +772,29 @@ graph LR
     UC1a -.->|include| UC1d
 ```
 
-### UC2 — Crear playlist y añadir canciones
+### UC2 — Crear playlist, añadir canciones y compartir
 
 ```mermaid
 graph LR
-    User["👤 Usuario"]
+    Owner["👤 Propietario"]
+    Collab["👤 Colaborador"]
 
     subgraph Sistema Self-Potify
         UC2("Crear playlist")
         UC2a("Buscar canción")
         UC2b("Añadir canción a playlist")
+        UC2c("Quitar canción de playlist")
+        UC2d("Generar magic link")
+        UC2e("Canjear magic link<br/>(unirse como colaborador)")
     end
 
-    User --> UC2
-    User --> UC2b
+    Owner --> UC2
+    Owner --> UC2b
+    Owner --> UC2c
+    Owner --> UC2d
+    Collab --> UC2e
+    Collab --> UC2b
+    Collab --> UC2c
     UC2b -.->|include| UC2a
 ```
 
