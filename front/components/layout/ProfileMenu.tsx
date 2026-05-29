@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import {
   DropdownContent,
@@ -50,11 +50,16 @@ export function ProfileMenu() {
           onClick={() => router.push("/profile")}
           className="items-center gap-3 py-2"
         >
-          {isAdmin ? (
-            <Shield className="h-4 w-4 shrink-0 text-accent" />
-          ) : (
-            <User className="h-4 w-4 shrink-0 text-text-muted" />
-          )}
+          {/* Mini-avatar del propio usuario en vez del icono genérico de
+              rol: tu foto te identifica mejor que un escudo y reusa el
+              fallback de inicial de <Avatar> si aún no la has subido. El
+              rol sigue legible justo debajo en el subtítulo. */}
+          <Avatar
+            src={avatarUrl}
+            alt={displayName}
+            size="sm"
+            className="shrink-0"
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-text">
               {displayName}
