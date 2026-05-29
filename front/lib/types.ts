@@ -144,13 +144,26 @@ export interface SetupPayload {
 // ----- Búsqueda (`GET /api/search`)
 // =====================================
 
-/** Vista pública mínima de un usuario, devuelta por la búsqueda. */
+/**
+ * Vista pública mínima de un usuario, devuelta por la búsqueda y por todos
+ * los endpoints de perfil/follow.
+ *
+ * Los counts y `isFollowedByMe` viajan siempre en el JSON con la misma forma,
+ * pero solo los endpoints de perfil (/api/me, /api/users/{id}/public,
+ * /api/users/{id}/followers|following, /follow) los rellenan; en los
+ * resultados de búsqueda los counts vienen a 0 y `isFollowedByMe` a `null`
+ * (decisión consciente para no introducir N+1 en SearchService).
+ */
 export interface UserSummaryDTO {
   id: number;
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   type: "USER" | "ADMIN";
+  followersCount: number;
+  followingCount: number;
+  /** `null` cuando no hay viewer (admin listings) o cuando soy yo mismo. */
+  isFollowedByMe: boolean | null;
 }
 
 /** Entrada de género en la búsqueda: nombre + canciones del catálogo. */
