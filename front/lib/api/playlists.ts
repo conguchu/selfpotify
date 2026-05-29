@@ -5,6 +5,11 @@ export function listMyPlaylists() {
   return apiFetch<PlaylistDTO[]>("/api/playlists/my");
 }
 
+/** Playlists públicas de otro usuario por id. */
+export function listUserPublicPlaylists(userId: number) {
+  return apiFetch<PlaylistDTO[]>(`/api/playlists/user/${userId}`);
+}
+
 export function getPlaylist(id: number) {
   return apiFetch<PlaylistDTO>(`/api/playlists/${id}`);
 }

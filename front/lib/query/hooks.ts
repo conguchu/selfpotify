@@ -9,10 +9,18 @@ import {
   createPlaylist,
   deletePlaylist,
   listMyPlaylists,
+  listUserPublicPlaylists,
   updatePlaylist,
   getPlaylist,
   uploadPlaylistCover,
 } from "@/lib/api/playlists";
+import {
+  deleteMyAvatar,
+  getMe,
+  getPublicProfile,
+  updateMyProfile,
+  uploadMyAvatar,
+} from "@/lib/api/profile";
 import {
   listSongs,
   importFolder,
@@ -57,6 +65,10 @@ export const queryKeys = {
   playlists: ["playlists", "my"] as const,
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
+  me: ["me"] as const,
+  publicProfile: (id: number) => ["users", "public", id] as const,
+  publicProfilePlaylists: (id: number) =>
+    ["users", "public", id, "playlists"] as const,
   publicConfig: ["config", "public"] as const,
   search: (q: string, type: SearchType, page: number, size: number) =>
     ["search", q, type, page, size] as const,
@@ -335,6 +347,69 @@ export function useSearch(
     queryFn: () => searchApi({ q: trimmed, type, page, size }),
     enabled: trimmed.length > 0,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Vista del usuario autenticado (`GET /api/me`). Se usa como fuente de verdad
+ * del nombre visible y la foto en la página de editar perfil; el resto de la
+ * app sigue leyendo el username del auth store local.
+ */
+export function useMe(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.me,
+    queryFn: getMe,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Vista pública mínima de un usuario por id, para la página /user/[id]. */
+export function usePublicProfile(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.publicProfile(id),
+    queryFn: () => getPublicProfile(id),
+    enabled: enabled && Number.isFinite(id),
+    staleTime: 60_000,
+  });
+}
+
+/** Playlists públicas de un usuario por id, para la página /user/[id]. */
+export function useUserPublicPlaylists(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.publicProfilePlaylists(id),
+    queryFn: () => listUserPublicPlaylists(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+export function useUpdateMyProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string | null }) => updateMyProfile(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  });
+}
+
+export function useUploadMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadMyAvatar(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  });
+}
+
+export function useDeleteMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => deleteMyAvatar(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
   });
 }
 

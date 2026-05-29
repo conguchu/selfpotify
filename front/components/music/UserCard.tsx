@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Shield, User as UserIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { UserSummaryDTO } from "@/lib/types";
@@ -8,9 +9,8 @@ import { cn } from "@/lib/utils";
 /**
  * Tarjeta de usuario para los resultados de búsqueda. Avatar circular grande,
  * nombre visible (displayName del perfil con fallback al username) y badge de
- * rol si es admin. No enlaza a ningún sitio porque la página de perfil pública
- * de usuario todavía no existe; queda como vista informativa coherente con el
- * resto de tarjetas.
+ * rol si es admin. Es un enlace a la página pública del usuario
+ * ({@code /user/[id]}), donde se pueden ver sus playlists públicas.
  */
 export function UserCard({
   user,
@@ -22,9 +22,10 @@ export function UserCard({
   const visibleName = user.displayName?.trim() || user.username;
   const isAdmin = user.type === "ADMIN";
   return (
-    <div
+    <Link
+      href={`/user/${user.id}`}
       className={cn(
-        "group relative flex flex-col items-center gap-3 rounded-lg bg-bg-card/40 p-4",
+        "group relative flex flex-col items-center gap-3 rounded-lg bg-bg-card/40 p-4 transition-colors hover:bg-bg-hover",
         className,
       )}
     >
@@ -50,6 +51,6 @@ export function UserCard({
           ) : null}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
