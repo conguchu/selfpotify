@@ -7,7 +7,11 @@ import { Modal } from "@/components/ui/Modal";
 import { IconButton } from "@/components/ui/IconButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { useMyPlaylists, useUpdatePlaylist } from "@/lib/query/hooks";
+import {
+  useMyPlaylists,
+  useSharedPlaylists,
+  useTogglePlaylistSong,
+} from "@/lib/query/hooks";
 import { useTapAction } from "@/lib/use-tap";
 import type { PlaylistDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -59,25 +63,31 @@ function AddToPlaylistModal({
   songId: number;
   onClose: () => void;
 }) {
-  const { data: playlists, isLoading, isError } = useMyPlaylists();
-  const update = useUpdatePlaylist();
+  // Mostramos tanto mis playlists como aquellas en las que soy colaborador:
+  // ambos roles pueden añadir/quitar canciones. Los conjuntos son disjuntos
+  // (mías = creadas por mí; compartidas = donde soy colaborador, no creador).
+  const myQuery = useMyPlaylists();
+  const sharedQuery = useSharedPlaylists();
+  const toggleSong = useTogglePlaylistSong();
   const [pendingId, setPendingId] = React.useState<number | null>(null);
+
+  const playlists = React.useMemo(
+    () => [...(myQuery.data ?? []), ...(sharedQuery.data ?? [])],
+    [myQuery.data, sharedQuery.data],
+  );
+  const isLoading = myQuery.isLoading || sharedQuery.isLoading;
+  const isError = myQuery.isError;
 
   const toggle = async (pl: PlaylistDTO) => {
     const has = pl.songIds.includes(songId);
-    const songIds = has
-      ? pl.songIds.filter((id) => id !== songId)
-      : [...pl.songIds, songId];
     setPendingId(pl.id);
     try {
-      await update.mutateAsync({
-        id: pl.id,
-        payload: {
-          name: pl.name,
-          description: pl.description ?? undefined,
-          isPublic: pl.isPublic,
-          songIds,
-        },
+      // Endpoints granulares: funcionan para dueño y colaborador (el PUT
+      // completo solo lo admite el dueño).
+      await toggleSong.mutateAsync({
+        playlistId: pl.id,
+        songId,
+        add: !has,
       });
       toast.success(has ? `Quitada de «${pl.name}»` : `Añadida a «${pl.name}»`);
     } catch (err) {

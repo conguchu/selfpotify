@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Plus } from "lucide-react";
@@ -10,14 +10,23 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CreatePlaylistModal } from "@/components/music/CreatePlaylistModal";
 import { PlaylistItem } from "@/components/music/PlaylistItem";
-import { useMyPlaylists, useAppName } from "@/lib/query/hooks";
+import { useMyPlaylists, useSharedPlaylists, useAppName } from "@/lib/query/hooks";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const pathname = usePathname();
   const [createOpen, setCreateOpen] = useState(false);
+  // "Tus playlists" mezcla las propias con las compartidas conmigo; estas
+  // últimas se distinguen por el icono de personas de PlaylistItem.
   const playlistsQuery = useMyPlaylists();
+  const sharedQuery = useSharedPlaylists();
   const appName = useAppName();
+
+  const playlists = useMemo(
+    () => [...(playlistsQuery.data ?? []), ...(sharedQuery.data ?? [])],
+    [playlistsQuery.data, sharedQuery.data],
+  );
+  const playlistsLoading = playlistsQuery.isLoading || sharedQuery.isLoading;
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col gap-3 border-r border-border bg-bg-elevated p-4">
@@ -47,14 +56,14 @@ export function Sidebar() {
       </div>
 
       <div className="-mx-1 flex flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-2">
-        {playlistsQuery.isLoading ? (
+        {playlistsLoading ? (
           <div className="flex items-center justify-center py-6">
             <Spinner />
           </div>
         ) : playlistsQuery.isError ? (
           <p className="px-2 text-xs text-danger">Error al cargar playlists</p>
-        ) : playlistsQuery.data && playlistsQuery.data.length > 0 ? (
-          playlistsQuery.data.map((p) => (
+        ) : playlists.length > 0 ? (
+          playlists.map((p) => (
             <PlaylistItem
               key={p.id}
               playlist={p}

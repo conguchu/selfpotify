@@ -1,8 +1,13 @@
 import { apiFetch } from "./client";
-import type { PlaylistDTO, PlaylistInput } from "@/lib/types";
+import type { PlaylistDTO, PlaylistInput, ShareLinkResponse } from "@/lib/types";
 
 export function listMyPlaylists() {
   return apiFetch<PlaylistDTO[]>("/api/playlists/my");
+}
+
+/** Playlists en las que soy colaborador (no creador). */
+export function listSharedPlaylists() {
+  return apiFetch<PlaylistDTO[]>("/api/playlists/shared");
 }
 
 /** Playlists públicas de otro usuario por id. */
@@ -41,5 +46,34 @@ export function uploadPlaylistCover(id: number, file: File) {
   return apiFetch<PlaylistDTO>(`/api/playlists/${id}/cover`, {
     method: "POST",
     body: form,
+  });
+}
+
+/** Genera un magic link de un solo uso para invitar a colaborar (solo el dueño). */
+export function createPlaylistShareLink(id: number) {
+  return apiFetch<ShareLinkResponse>(`/api/playlists/${id}/share`, {
+    method: "POST",
+  });
+}
+
+/** Canjea un magic link: une al usuario autenticado como colaborador. */
+export function redeemPlaylistShareLink(token: string) {
+  return apiFetch<PlaylistDTO>(
+    `/api/playlists/share/${encodeURIComponent(token)}`,
+    { method: "POST" },
+  );
+}
+
+/** Añade una canción (dueño o colaborador). */
+export function addSongToPlaylist(id: number, songId: number) {
+  return apiFetch<PlaylistDTO>(`/api/playlists/${id}/songs/${songId}`, {
+    method: "POST",
+  });
+}
+
+/** Quita una canción (dueño o colaborador). */
+export function removeSongFromPlaylist(id: number, songId: number) {
+  return apiFetch<PlaylistDTO>(`/api/playlists/${id}/songs/${songId}`, {
+    method: "DELETE",
   });
 }

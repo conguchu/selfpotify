@@ -9,10 +9,15 @@ import {
   createPlaylist,
   deletePlaylist,
   listMyPlaylists,
+  listSharedPlaylists,
   listUserPublicPlaylists,
   updatePlaylist,
   getPlaylist,
   uploadPlaylistCover,
+  createPlaylistShareLink,
+  redeemPlaylistShareLink,
+  addSongToPlaylist,
+  removeSongFromPlaylist,
 } from "@/lib/api/playlists";
 import {
   deleteMyAvatar,
@@ -69,6 +74,7 @@ export const queryKeys = {
   dailyDiscoveries: ["feed", "daily-discoveries"] as const,
   genreTopSongs: (genre: string) => ["songs", "genre", genre, "top"] as const,
   playlists: ["playlists", "my"] as const,
+  sharedPlaylists: ["playlists", "shared"] as const,
   playlist: (id: number) => ["playlists", id] as const,
   users: ["users"] as const,
   me: ["me"] as const,
@@ -206,6 +212,14 @@ export function useMyPlaylists(enabled = true) {
   });
 }
 
+export function useSharedPlaylists(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.sharedPlaylists,
+    queryFn: listSharedPlaylists,
+    enabled,
+  });
+}
+
 export function usePlaylist(id: number, enabled = true) {
   return useQuery({
     queryKey: queryKeys.playlist(id),
@@ -262,6 +276,47 @@ export function useUploadPlaylistCover() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.playlist(vars.id) });
       qc.invalidateQueries({ queryKey: queryKeys.playlists });
+    },
+  });
+}
+
+export function useCreatePlaylistShareLink() {
+  return useMutation({
+    mutationFn: (id: number) => createPlaylistShareLink(id),
+  });
+}
+
+export function useRedeemPlaylistShareLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) => redeemPlaylistShareLink(token),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: queryKeys.sharedPlaylists });
+      qc.invalidateQueries({ queryKey: queryKeys.playlist(data.id) });
+    },
+  });
+}
+
+/** Añade o quita una canción de una playlist (dueño o colaborador). */
+export function useTogglePlaylistSong() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      playlistId,
+      songId,
+      add,
+    }: {
+      playlistId: number;
+      songId: number;
+      add: boolean;
+    }) =>
+      add
+        ? addSongToPlaylist(playlistId, songId)
+        : removeSongFromPlaylist(playlistId, songId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.playlists });
+      qc.invalidateQueries({ queryKey: queryKeys.sharedPlaylists });
+      qc.invalidateQueries({ queryKey: queryKeys.playlist(vars.playlistId) });
     },
   });
 }
