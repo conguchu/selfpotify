@@ -56,7 +56,7 @@ public class PlaylistController {
     public List<PlaylistDTO> getMyPlaylists() {
         User currentUser = getCurrentUser();
         return playlistService.getByUser(currentUser).stream()
-                .map(this::convertToDTO)
+                .map(p -> convertToDTO(p, true))
                 .collect(Collectors.toList());
     }
 
@@ -88,7 +88,7 @@ public class PlaylistController {
     public List<PlaylistDTO> getSharedWithMe() {
         User currentUser = getCurrentUser();
         return playlistSharingService.sharedWith(currentUser).stream()
-                .map(this::convertToDTO)
+                .map(p -> convertToDTO(p, true))
                 .collect(Collectors.toList());
     }
 
