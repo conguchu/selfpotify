@@ -33,6 +33,37 @@ Este software permitiría a los usuarios administradores levantar una app para s
 | **Nginx**              | Proxy interno para enrutar los servidores Next y Spring cuando se usa docker |
 
 
+### Uso de Claude Code
+
+Muchas de las líneas de código de este proyecto se han escrito usando Claude Code. Esto ha permitido centrarse más en la experiencia de los usuarios finales y en las features de la app. Para poder seguir un desarrollo
+sostenible en la app sin perderse y dejar de entender su funcionamiento, se han seguido prácticas como documentar todas
+las features y decisiones en este readme, crear feature branches con commits muy descriptivos, etc.
+
+El flujo de trabajo normalmente fue:
+
+1. **Detectar necesidad**: Pienso una feature que me gustaría agregar, abro la app y encuentro algún bug... 
+2. **Crear un plan**: Teniendo una feature o un fix pendiente, explico lo más detallada y técnica posible a la herramienta qué es lo que quiero cambiar o arreglar. La herramienta me propone una solución al problema en forma de archivo markdown, la cual leo entera y voy moldeando y corrigiendo. 
+3. **Lanzo el plan**: Claude se ocupa de ejecutarlo y de modificar automáticamente los archivos escribiendo o cambiando el código. 
+4. **Revisión**: Me encargo de asegurarme de que todo lo que ha escrito claude funciona correctamente sin romper nada y tal y como lo había planeado.
+5. **Documentación**: Escribo en el README.md las decisiones de desarrollo y diseño que he tomado y porqué lo he hecho, para guardar constancia de ello.
+
+#### Skills
+
+A la hora de trabajar con claude, una de las características que más he utilizado son las skills.
+
+Son colecciones de archivos de texto que le dan contexto a la inteligencia artifical para poder seguir por ejemplo buenas prácticas en un lenguaje de programación o framework. El desarrollo del proyecto se ha apoyado sobre todo en las skills next-js-best-practices, para todo la creación del front end, y otra llamada java-springboot, que fue usada para trabajar en el backend.
+
+#### Archivo Claude.md
+
+En el proyecto, sin versionar, se almacenó un archivo llamado CLAUDE.md. Este archivo son las directrices que claude va a seguir cuando lo ejecuto en el mismo directorio donde se encuentra el archivo markdown. En este caso, ha sido de gran ayuda ya que así no hay que todo el rato estar dándole las convecciones del proyecto, arquitectura, etc.
+
+Algunas de las directrices a destacar han sido:
+
+- Si un cambio colisiona con las decisiones del readme, preguntar para saber si adaptarse al readme o cambiarlo.
+- Actualizar automáticamente los diagramas al cambiar cosas que los afecten.
+
+
+
 ---
 
 ## Decisiones de diseño
