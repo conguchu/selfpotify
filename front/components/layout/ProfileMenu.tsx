@@ -16,11 +16,11 @@ import { useMe } from "@/lib/query/hooks";
 
 /**
  * Botón circular del topbar con la foto/inicial del usuario en sesión. Abre un
- * dropdown con el resumen del perfil, un enlace para editarlo y el botón de
- * cerrar sesión. Lee el perfil real (foto + nombre visible) desde el endpoint
- * {@code /api/me} para que el avatar refleje la foto subida al instante; la
- * identidad de la sesión (username + roles) se sigue tomando del auth store
- * para no parpadear si la red tarda.
+ * dropdown con dos acciones: <em>Ver tu perfil</em> —la propia tarjeta de
+ * sesión hace de botón, así no se repite el icono dos veces seguidas— y
+ * <em>Cerrar sesión</em>. La foto y el nombre visible se leen de
+ * {@code /api/me} para que el avatar refleje la última subida; el username y
+ * los roles vienen del auth store para no parpadear si la red tarda.
  */
 export function ProfileMenu() {
   const router = useRouter();
@@ -42,26 +42,28 @@ export function ProfileMenu() {
       </DropdownTrigger>
       <DropdownContent>
         <DropdownLabel>Sesión</DropdownLabel>
-        <div className="flex items-center gap-2 px-3 pb-2 pt-1">
+        {/* La tarjeta de sesión es a la vez la entrada "Ver tu perfil":
+            tener la fila clicable evita duplicar @username + icono + texto
+            en dos items consecutivos, que era ruidoso. El hover y el cursor
+            dejan claro que es un botón. */}
+        <DropdownItem
+          onClick={() => router.push("/profile")}
+          className="items-center gap-3 py-2"
+        >
           {isAdmin ? (
-            <Shield className="h-4 w-4 text-accent" />
+            <Shield className="h-4 w-4 shrink-0 text-accent" />
           ) : (
-            <User className="h-4 w-4 text-text-muted" />
+            <User className="h-4 w-4 shrink-0 text-text-muted" />
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-text">
               {displayName}
             </p>
-            <p className="text-xs text-text-muted">
+            <p className="truncate text-xs text-text-muted">
               {isAdmin ? "Administrador" : "Usuario"}
               {meQuery.data?.displayName ? ` · @${username}` : ""}
             </p>
           </div>
-        </div>
-        <DropdownSeparator />
-        <DropdownItem onClick={() => router.push("/profile")}>
-          <User className="h-4 w-4" />
-          Ver tu perfil
         </DropdownItem>
         <DropdownSeparator />
         <DropdownItem variant="danger" onClick={logout}>

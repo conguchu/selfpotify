@@ -10,9 +10,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { SongRow } from "@/components/music/SongRow";
 import { EditPlaylistModal } from "@/components/music/EditPlaylistModal";
-import { usePlaylist, useSongs, useDeletePlaylist } from "@/lib/query/hooks";
+import { useMe, usePlaylist, useSongs, useDeletePlaylist } from "@/lib/query/hooks";
 import { usePlayerStore } from "@/lib/player/store";
-import { useAuthStore } from "@/lib/auth/store";
 import { resolveImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 
@@ -27,7 +26,9 @@ export default function PlaylistPage({
   const playlistQuery = usePlaylist(playlistId);
   const songsQuery = useSongs();
   const playSong = usePlayerStore((s) => s.playSong);
-  const username = useAuthStore((s) => s.username);
+  // Necesitamos el id del usuario autenticado, no solo el username, para
+  // compararlo contra creatorId. La playlist no expone el username del creador.
+  const meQuery = useMe();
   const deletePlaylist = useDeletePlaylist();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -58,6 +59,10 @@ export default function PlaylistPage({
   }
 
   const playlist = playlistQuery.data;
+  // Edit/Eliminar solo se ofrecen al creador. Los admins pueden borrar via
+  // API (lo gestiona PlaylistController) pero no exponemos el botón aquí
+  // para no confundir el caso normal: si quieres administrar, vas al panel.
+  const isOwner = !!meQuery.data && meQuery.data.id === playlist.creatorId;
 
   const onDelete = async () => {
     try {
@@ -107,24 +112,24 @@ export default function PlaylistPage({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            leftIcon={<Pencil className="h-4 w-4" />}
-            onClick={() => setEditOpen(true)}
-            disabled={username === null}
-          >
-            Editar
-          </Button>
-          <Button
-            variant="outline"
-            leftIcon={<Trash2 className="h-4 w-4" />}
-            onClick={() => setConfirmOpen(true)}
-            disabled={username === null}
-          >
-            Eliminar
-          </Button>
-        </div>
+        {isOwner ? (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              leftIcon={<Pencil className="h-4 w-4" />}
+              onClick={() => setEditOpen(true)}
+            >
+              Editar
+            </Button>
+            <Button
+              variant="outline"
+              leftIcon={<Trash2 className="h-4 w-4" />}
+              onClick={() => setConfirmOpen(true)}
+            >
+              Eliminar
+            </Button>
+          </div>
+        ) : null}
       </header>
 
       {songsInPlaylist.length > 0 ? (
@@ -148,7 +153,7 @@ export default function PlaylistPage({
         <EmptyState
           icon={<ListMusic />}
           title="Playlist vacía"
-          description="Aún no se ha implementado el flujo para añadir canciones desde la UI. Puedes editarla con la API mientras tanto."
+          description="Esta playlist no tiene canciones todavía."
         />
       )}
 

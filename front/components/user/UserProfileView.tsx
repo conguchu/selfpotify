@@ -7,7 +7,11 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { PlaylistCard } from "@/components/music/PlaylistCard";
-import { usePublicProfile, useUserPublicPlaylists } from "@/lib/query/hooks";
+import {
+  useMyPlaylists,
+  usePublicProfile,
+  useUserPublicPlaylists,
+} from "@/lib/query/hooks";
 import { useAuthStore } from "@/lib/auth/store";
 
 /**
@@ -23,8 +27,17 @@ import { useAuthStore } from "@/lib/auth/store";
  */
 export function UserProfileView({ userId }: { userId: number }) {
   const profileQuery = usePublicProfile(userId);
-  const playlistsQuery = useUserPublicPlaylists(userId);
   const myUsername = useAuthStore((s) => s.username);
+  // Saber si soy yo se hace por username (estable y único). Lo derivamos en
+  // cuanto llega el perfil; antes de eso `isOwner` queda en false y ambas
+  // queries de playlists se quedan deshabilitadas vía su flag `enabled`.
+  const isOwner = !!myUsername && myUsername === profileQuery.data?.username;
+  // Para "yo mismo" hago `GET /api/playlists/my` (devuelve públicas y
+  // privadas); para otro usuario, `GET /api/playlists/user/{id}` (solo
+  // públicas, ya filtradas por el backend). Solo una de las dos se dispara,
+  // de modo que un visitante nunca pega al endpoint que listaría las mías.
+  const ownPlaylistsQuery = useMyPlaylists(isOwner);
+  const publicPlaylistsQuery = useUserPublicPlaylists(userId, !isOwner);
 
   if (profileQuery.isLoading) {
     return (
@@ -51,7 +64,7 @@ export function UserProfileView({ userId }: { userId: number }) {
   const profile = profileQuery.data;
   const visibleName = profile.displayName?.trim() || profile.username;
   const isAdmin = profile.type === "ADMIN";
-  const isOwner = myUsername === profile.username;
+  const playlistsQuery = isOwner ? ownPlaylistsQuery : publicPlaylistsQuery;
   const playlists = playlistsQuery.data ?? [];
 
   return (
@@ -99,7 +112,7 @@ export function UserProfileView({ userId }: { userId: number }) {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-bold tracking-tight">
-          Playlists públicas
+          {isOwner ? "Tus playlists" : "Playlists públicas"}
         </h2>
         {playlistsQuery.isLoading ? (
           <div className="flex h-32 items-center justify-center">
@@ -108,14 +121,17 @@ export function UserProfileView({ userId }: { userId: number }) {
         ) : playlists.length === 0 ? (
           <EmptyState
             icon={<ListMusic />}
-            title="Sin playlists públicas"
+            title={isOwner ? "Sin playlists" : "Sin playlists públicas"}
             description={
               isOwner
-                ? "Aún no has compartido ninguna playlist. Crea una y márcala como pública para que aparezca aquí."
+                ? "Aún no has creado ninguna playlist."
                 : `${visibleName} todavía no comparte ninguna playlist.`
             }
           />
         ) : (
+          // PlaylistCard ya pinta el candado en la esquina superior derecha
+          // cuando isPublic=false, así que las privadas (solo visibles aquí
+          // si soy el dueño) quedan identificadas de un vistazo.
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {playlists.map((p) => (
               <PlaylistCard key={p.id} playlist={p} />
