@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import useEmblaCarousel from "embla-carousel-react";
+import { Splide, SplideSlide } from "@splidejs/react-splide";
+import type { Splide as SplideCore } from "@splidejs/splide";
+import "@splidejs/react-splide/css/core";
 import { cn } from "@/lib/utils";
 
 interface CoverflowProps<T> {
@@ -26,13 +28,16 @@ const clamp = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, n));
 
 /**
- * Carrusel horizontal estilo Cover Flow (macOS / Virtual DJ): el slide central
- * se muestra grande y nítido, mientras los laterales se encogen, se atenúan y
- * rotan en 3D hacia atrás. El efecto 3D se aplica a un wrapper externo a cada
- * slide para no romper el `position: relative` que necesita `<Image fill>`.
+ * Carrusel horizontal estilo Cover Flow usando Splide como motor de
+ * drag/snap y transforms 3D aplicados frame a frame vía getBoundingClientRect
+ * sobre el wrapper 2D exterior (fuera del contexto preserve-3d).
  *
- * Interacción: click en un lateral lo centra; click (o Enter/Espacio) en el
- * central dispara `onActivateCenter`. Respeta `prefers-reduced-motion`.
+ * Splide soporta adición dinámica de slides mediante MutationObserver interno,
+ * sin reInit ni salto de posición.
+ *
+ * Interacción: click en un lateral lo centra; click en el central dispara
+ * `onActivateCenter`. Pasar el ratón sobre un lateral lo centra. Teclado con
+ * flechas/Enter/Espacio. Respeta `prefers-reduced-motion`.
  */
 export function Coverflow<T>({
   items,
@@ -44,44 +49,44 @@ export function Coverflow<T>({
   ariaLabel,
   className,
 }: CoverflowProps<T>) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: "center",
-    loop,
-    containScroll: false,
-    skipSnaps: false,
-  });
+  const splideRef = React.useRef<SplideCore | null>(null);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
-  const reducedMotion = useReducedMotion();
   const slideRefs = React.useRef<(HTMLDivElement | null)[]>([]);
-  // Posición del puntero al pulsar, para distinguir un click de un arrastre.
+  const reducedMotion = useReducedMotion();
   const pointerDownRef = React.useRef<{ x: number; y: number } | null>(null);
+  // RAF para actualizar los transforms durante drag y animación.
+  const isAnimatingRef = React.useRef(false);
+  const rafIdRef = React.useRef<number | null>(null);
 
-  // Aplica las transformaciones 3D a cada slide según su distancia al snap activo.
+  // Calcula y aplica los transforms 3D a cada slide según su posición visual
+  // actual. Se basa en getBoundingClientRect para ser preciso durante drag.
   const applyStyles = React.useCallback(() => {
-    if (!emblaApi) return;
-    const progress = emblaApi.scrollProgress();
-    const snaps = emblaApi.scrollSnapList();
-    snaps.forEach((snap, i) => {
-      const node = slideRefs.current[i];
+    const splide = splideRef.current;
+    if (!splide?.root) return;
+    const containerRect = splide.root.getBoundingClientRect();
+    const containerCenter = containerRect.left + containerRect.width / 2;
+
+    slideRefs.current.forEach((node, i) => {
       if (!node) return;
-      // Con `loop`, el progreso envuelve en [0,1): la distancia al snap se
-      // normaliza al rango [-0.5, 0.5] para que la carátula que da la vuelta se
-      // trate como vecina inmediata y no como la más lejana.
-      let diff = snap - progress;
-      if (diff > 0.5) diff -= 1;
-      else if (diff < -0.5) diff += 1;
+      const rect = node.getBoundingClientRect();
+      const slideCenter = rect.left + rect.width / 2;
+      // Diferencia normalizada respecto al ancho del contenedor, en [-1.5, 1.5].
+      const diff = clamp(
+        (slideCenter - containerCenter) / containerRect.width,
+        -1.5,
+        1.5,
+      );
       const abs = Math.min(Math.abs(diff), 1);
-      // El contenedor de slides usa `preserve-3d`, donde el `z-index` se ignora:
-      // el apilado lo decide la posición Z. Las columnas (hijas directas) están
-      // todas en Z=0, así que una columna posterior en el DOM tapa los controles
-      // (play, +) de la columna central, que dejan de recibir clicks tras
-      // desplazar. Elevamos la columna activa en Z para que gane el sorteo 3D.
-      const column = node.parentElement;
-      if (column) column.style.transform = `translateZ(${(1 - abs) * 2}px)`;
+
+      // El <li> (parentElement del inner div) recibe translateZ para controlar
+      // el Z-order dentro del contexto preserve-3d: el slide central queda
+      // delante y recibe los eventos de puntero antes que los laterales.
+      const li = node.parentElement;
+      if (li) li.style.transform = `translateZ(${(1 - abs) * 2}px)`;
+
       if (reducedMotion) {
         node.style.transform = "none";
         node.style.opacity = abs > 0.5 ? "0.55" : "1";
-        node.style.zIndex = String(Math.round((1 - abs) * 100));
         return;
       }
       const scale = 1 - abs * 0.35;
@@ -90,60 +95,43 @@ export function Coverflow<T>({
       const opacity = 1 - abs * 0.5;
       node.style.transform = `translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`;
       node.style.opacity = String(opacity);
-      node.style.zIndex = String(Math.round((1 - abs) * 100));
     });
-  }, [emblaApi, reducedMotion]);
+  }, [reducedMotion]);
 
-  React.useEffect(() => {
-    if (!emblaApi) return;
-    const onSelect = () => {
-      const idx = emblaApi.selectedScrollSnap();
-      setSelectedIndex(idx);
-      onIndexChange?.(idx);
+  // Arranca el bucle RAF para actualizar frames durante drag/animación.
+  const startRAF = React.useCallback(() => {
+    isAnimatingRef.current = true;
+    if (rafIdRef.current) return;
+    const tick = () => {
+      applyStyles();
+      if (isAnimatingRef.current) {
+        rafIdRef.current = requestAnimationFrame(tick);
+      } else {
+        rafIdRef.current = null;
+        applyStyles(); // frame final cuando la animación se detiene
+      }
     };
-    onSelect();
-    applyStyles();
-    emblaApi.on("select", onSelect);
-    emblaApi.on("scroll", applyStyles);
-    emblaApi.on("reInit", applyStyles);
-    emblaApi.on("reInit", onSelect);
-    return () => {
-      emblaApi.off("select", onSelect);
-      emblaApi.off("scroll", applyStyles);
-      emblaApi.off("reInit", applyStyles);
-      emblaApi.off("reInit", onSelect);
-    };
-  }, [emblaApi, applyStyles, onIndexChange]);
+    rafIdRef.current = requestAnimationFrame(tick);
+  }, [applyStyles]);
 
-  // Re-inicializa cuando cambian los datos (nuevos slides añadidos al final).
-  // Guarda el snap activo antes y lo restaura sin animación para que añadir
-  // slides al final no salte el viewport al inicio.
-  React.useEffect(() => {
-    if (!emblaApi) return;
-    const snap = emblaApi.selectedScrollSnap();
-    emblaApi.reInit();
-    emblaApi.scrollTo(snap, true);
-  }, [emblaApi, items.length]);
+  const stopRAF = React.useCallback(() => {
+    isAnimatingRef.current = false;
+    // el bucle se auto-termina en el siguiente frame
+  }, []);
 
-  // Click en cualquier carátula: la centra (si no lo estaba) y la activa
-  // —reproduce o navega, según el consumidor—. Si hubo arrastre, no activa.
   const handleSlideClick = (e: React.MouseEvent, index: number) => {
-    if (!emblaApi) return;
     const down = pointerDownRef.current;
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
-    if (index !== selectedIndex) emblaApi.scrollTo(index, reducedMotion);
+    if (index !== selectedIndex) splideRef.current?.go(index);
     onActivateCenter?.(items[index], index);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!emblaApi) return;
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      emblaApi.scrollNext();
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      emblaApi.scrollPrev();
-    } else if (e.key === "Enter" || e.key === " ") {
+    const s = splideRef.current;
+    if (!s) return;
+    if (e.key === "ArrowRight") { e.preventDefault(); s.go(">"); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); s.go("<"); }
+    else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onActivateCenter?.(items[selectedIndex], selectedIndex);
     }
@@ -151,7 +139,6 @@ export function Coverflow<T>({
 
   return (
     <div
-      ref={emblaRef}
       className={cn("h-full w-full overflow-hidden", className)}
       style={{ perspective: "1200px" }}
       role="listbox"
@@ -162,45 +149,55 @@ export function Coverflow<T>({
         pointerDownRef.current = { x: e.clientX, y: e.clientY };
       }}
     >
-      <div
-        className="flex h-full items-center"
-        style={{ transformStyle: "preserve-3d" }}
+      <Splide
+        options={{
+          type: loop ? "loop" : "slide",
+          focus: "center",
+          autoWidth: true,
+          trimSpace: false,
+          arrows: false,
+          pagination: false,
+        }}
+        onMounted={(splide) => {
+          splideRef.current = splide;
+          // Activa el contexto 3D en la lista de slides para que el translateZ
+          // del <li> controle el Z-order entre slides (Splide no lo hace por defecto).
+          const list =
+            splide.root.querySelector<HTMLElement>(".splide__list");
+          if (list) list.style.transformStyle = "preserve-3d";
+          applyStyles();
+        }}
+        onMove={(splide, index) => {
+          setSelectedIndex(index);
+          onIndexChange?.(index);
+          startRAF();
+        }}
+        onMoved={stopRAF}
+        onDrag={startRAF}
+        onDragged={stopRAF}
+        className="h-full w-full"
       >
-        {items.map((item, i) => {
-          const isCenter = i === selectedIndex;
-          return (
+        {items.map((item, i) => (
+          <SplideSlide
+            key={getKey(item, i)}
+            onClick={(e: React.MouseEvent<HTMLLIElement>) => handleSlideClick(e, i)}
+            onPointerEnter={(e: React.PointerEvent<HTMLLIElement>) => {
+              if (e.pointerType !== "mouse" || e.buttons !== 0) return;
+              if (i !== selectedIndex) splideRef.current?.go(i);
+            }}
+            className="w-[78%] cursor-pointer select-none px-3 sm:w-[58%] md:w-[46%] lg:w-[36%] xl:w-[30%]"
+          >
             <div
-              key={getKey(item, i)}
-              role="option"
-              aria-selected={isCenter}
-              onClick={(e) => handleSlideClick(e, i)}
-              // Al pasar el ratón por encima, la carátula se centra sola para
-              // una navegación más fluida. Solo con ratón (no en táctil) y sin
-              // ningún botón pulsado, para no interferir con un arrastre.
-              onPointerEnter={(e) => {
-                if (e.pointerType !== "mouse" || e.buttons !== 0) return;
-                if (i !== selectedIndex) emblaApi?.scrollTo(i, reducedMotion);
+              ref={(el) => {
+                slideRefs.current[i] = el;
               }}
-              // El click vive en este contenedor (sin transformar): cada columna
-              // ocupa su carril sin solaparse, así cualquier carátula visible es
-              // pulsable. El contenido interno lleva las transformaciones 3D y se
-              // marca `pointer-events-none` para que no robe los clicks por su
-              // escala/zIndex; los controles internos (botón +) reactivan los
-              // eventos con `pointer-events-auto`.
-              className="relative flex min-w-0 shrink-0 grow-0 basis-[78%] cursor-pointer select-none items-center justify-center px-3 sm:basis-[58%] md:basis-[46%] lg:basis-[36%] xl:basis-[30%]"
+              className="w-full transform-gpu [backface-visibility:hidden] [pointer-events:none] [will-change:transform]"
             >
-              <div
-                ref={(el) => {
-                  slideRefs.current[i] = el;
-                }}
-                className="w-full transform-gpu [backface-visibility:hidden] [pointer-events:none] [will-change:transform]"
-              >
-                {renderItem(item, { isCenter, index: i })}
-              </div>
+              {renderItem(item, { isCenter: i === selectedIndex, index: i })}
             </div>
-          );
-        })}
-      </div>
+          </SplideSlide>
+        ))}
+      </Splide>
     </div>
   );
 }
