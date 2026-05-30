@@ -31,8 +31,6 @@ export function AddToPlaylistButton({
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
-  // El toque se resuelve en `pointerup` —no en `click`— porque Embla devora el
-  // primer click tras arrastrar el carrusel. Ver useTapAction.
   const tap = useTapAction(() => setOpen(true));
 
   return (
