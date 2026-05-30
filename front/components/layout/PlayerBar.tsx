@@ -123,7 +123,11 @@ export function PlayerBar() {
             size="sm"
             disabled={!current}
             onClick={toggleLoop}
-            className={loop ? "text-accent" : undefined}
+            className={
+              loop
+                ? "rounded-full bg-white text-black hover:bg-white/90"
+                : "text-text-muted hover:text-text"
+            }
           >
             <Repeat1 />
           </IconButton>
