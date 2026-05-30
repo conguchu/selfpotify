@@ -45,6 +45,12 @@ export default function HomePage() {
   const loadingMoreRef = useRef(false);
 
   const allDailySongs = [...daily, ...extraSongs];
+  // Cuando está cargando más canciones se añade un elemento sentinel al final
+  // del carrusel que se renderiza como card de carga (solo spinner).
+  const LOADER_ID = -1;
+  const carouselItems = loadingMore
+    ? [...allDailySongs, { id: LOADER_ID } as SongDTO]
+    : allDailySongs;
 
   const handleDailyIndexChange = useCallback(
     async (index: number) => {
@@ -97,7 +103,7 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div className="relative flex flex-1 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           {dailyQuery.isLoading ? (
             <Spinner size="lg" />
           ) : dailyQuery.isError ? (
@@ -108,27 +114,28 @@ export default function HomePage() {
                 : "?"}
             </p>
           ) : allDailySongs.length > 0 ? (
-            <>
-              <Coverflow
-                items={allDailySongs}
-                getKey={(s) => s.id}
-                loop={false}
-                ariaLabel="Descubrimientos diarios"
-                onIndexChange={handleDailyIndexChange}
-                renderItem={(song, { isCenter }) => (
+            <Coverflow
+              items={carouselItems}
+              getKey={(s) => s.id}
+              loop={false}
+              ariaLabel="Descubrimientos diarios"
+              onIndexChange={handleDailyIndexChange}
+              renderItem={(song, { isCenter }) =>
+                song.id === LOADER_ID ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="flex aspect-square w-full items-center justify-center">
+                      <Spinner size="lg" />
+                    </div>
+                  </div>
+                ) : (
                   <SongSlide
                     song={song}
                     isCenter={isCenter}
                     onPlay={() => playSong(song, allDailySongs)}
                   />
-                )}
-              />
-              {loadingMore && (
-                <div className="absolute right-6 top-1/2 -translate-y-1/2">
-                  <Spinner size="md" />
-                </div>
-              )}
-            </>
+                )
+              }
+            />
           ) : (
             <EmptyState
               icon={<Sparkles />}
