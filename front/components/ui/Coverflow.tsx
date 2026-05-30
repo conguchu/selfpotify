@@ -46,11 +46,8 @@ export function Coverflow<T>({
 }: CoverflowProps<T>) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const swiperRef = React.useRef<SwiperType | null>(null);
-  // Swiper necesita al menos el doble de slides visibles para que el loop
-  // funcione correctamente. Con slidesPerView="auto" y ~3 slides visibles,
-  // un mínimo de 6 es suficiente. Por debajo desactivamos loop para evitar
-  // el warning y el comportamiento errático.
-  const effectiveLoop = loop && items.length >= 6;
+  // Evita llamadas redundantes a slideTo cuando el ratón sigue sobre el mismo slide.
+  const hoveredSlideRef = React.useRef<number>(-1);
 
   const handleSlideChange = (swiper: SwiperType) => {
     const idx = swiper.realIndex;
@@ -71,18 +68,45 @@ export function Coverflow<T>({
     }
   };
 
+  // Hover-to-center: detectado en el wrapper 2D exterior para evitar
+  // problemas de hit-testing dentro del contexto CSS preserve-3d del coverflow.
+  const handleMouseMove = React.useCallback(
+    (e: React.MouseEvent) => {
+      const s = swiperRef.current;
+      if (!s || s.animating || !s.slides?.length) return;
+      const slides = s.slides as unknown as HTMLElement[];
+      for (let i = 0; i < slides.length; i++) {
+        const rect = slides[i].getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          if (i !== s.activeIndex && i !== hoveredSlideRef.current) {
+            hoveredSlideRef.current = i;
+            loop ? s.slideToLoop(i) : s.slideTo(i);
+          }
+          return;
+        }
+      }
+    },
+    [loop],
+  );
+
+  const handleMouseLeave = React.useCallback(() => {
+    hoveredSlideRef.current = -1;
+  }, []);
+
   return (
     <div
       className={cn("h-full w-full", className)}
       role="listbox"
       aria-label={ariaLabel}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
     >
       <Swiper
         modules={[EffectCoverflow, Keyboard]}
         effect="coverflow"
         centeredSlides
         slidesPerView="auto"
-        loop={effectiveLoop}
+        loop={loop}
         coverflowEffect={{
           rotate: 45,
           stretch: 0,
@@ -103,18 +127,7 @@ export function Coverflow<T>({
             key={getKey(item, i)}
             className="!w-[78%] cursor-pointer sm:!w-[58%] md:!w-[46%] lg:!w-[36%] xl:!w-[30%]"
           >
-            {/* El div wrapper recibe el onMouseEnter porque SwiperSlide no
-                reenvía event handlers arbitrarios al DOM subyacente. */}
-            <div
-              className="h-full w-full"
-              onMouseEnter={() => {
-                const s = swiperRef.current;
-                if (!s || i === activeIndex) return;
-                effectiveLoop ? s.slideToLoop(i) : s.slideTo(i);
-              }}
-            >
-              {renderItem(item, { isCenter: i === activeIndex, index: i })}
-            </div>
+            {renderItem(item, { isCenter: i === activeIndex, index: i })}
           </SwiperSlide>
         ))}
       </Swiper>
