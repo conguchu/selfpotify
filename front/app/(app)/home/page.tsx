@@ -54,8 +54,11 @@ export default function HomePage() {
       loadingMoreRef.current = true;
       setLoadingMore(true);
       try {
-        const more = await getRandomSongs(10);
-        setExtraSongs((prev) => [...prev, ...more]);
+        const [more] = await Promise.all([
+          getRandomSongs(10),
+          new Promise((r) => setTimeout(r, 700)),
+        ]);
+        setExtraSongs((prev) => [...prev, ...(more as typeof prev)]);
       } catch {
         // silencioso: simplemente no se añaden más
       } finally {
