@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Users } from "lucide-react";
 import { Coverflow } from "@/components/ui/Coverflow";
@@ -13,9 +14,11 @@ import {
   useRecentGenres,
   useDailyDiscoveries,
 } from "@/lib/query/hooks";
+import { getRandomSongs } from "@/lib/api/songs";
 import { usePlayerStore } from "@/lib/player/store";
 import { useAuthStore } from "@/lib/auth/store";
 import { useScrollRestoration } from "@/lib/use-scroll-restoration";
+import type { SongDTO } from "@/lib/types";
 
 export default function HomePage() {
   const router = useRouter();
@@ -35,6 +38,34 @@ export default function HomePage() {
   const recentGenres = genresQuery.data ? [...new Set(genresQuery.data)] : [];
   const artists = feedQuery.data ?? [];
   const daily = dailyQuery.data ?? [];
+
+  // Canciones extra cargadas por scroll infinito en descubrimientos diarios.
+  const [extraSongs, setExtraSongs] = useState<SongDTO[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+
+  const allDailySongs = [...daily, ...extraSongs];
+
+  const handleDailyIndexChange = useCallback(
+    async (index: number) => {
+      if (allDailySongs.length === 0) return;
+      if (index < allDailySongs.length - 2) return;
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      try {
+        const more = await getRandomSongs(10);
+        setExtraSongs((prev) => [...prev, ...more]);
+      } catch {
+        // silencioso: simplemente no se añaden más
+      } finally {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allDailySongs.length],
+  );
 
   // Contenedor a pantalla completa con scroll-snap vertical. Los márgenes
   // negativos cancelan el `px-6 py-6` del <main> de AppShell (full-bleed) y el
@@ -63,7 +94,7 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
           {dailyQuery.isLoading ? (
             <Spinner size="lg" />
           ) : dailyQuery.isError ? (
@@ -73,19 +104,24 @@ export default function HomePage() {
                 ? dailyQuery.error.message
                 : "?"}
             </p>
-          ) : daily.length > 0 ? (
-            <Coverflow
-              items={daily}
-              getKey={(s) => s.id}
-              ariaLabel="Descubrimientos diarios"
-              renderItem={(song, { isCenter }) => (
-                <SongSlide
-                  song={song}
-                  isCenter={isCenter}
-                  onPlay={() => playSong(song, daily)}
-                />
-              )}
-            />
+          ) : allDailySongs.length > 0 ? (
+            <>
+              <Coverflow
+                items={allDailySongs}
+                getKey={(s) => s.id}
+                loop={false}
+                ariaLabel="Descubrimientos diarios"
+                onIndexChange={handleDailyIndexChange}
+                renderItem={(song, { isCenter }) => (
+                  <SongSlide
+                    song={song}
+                    isCenter={isCenter}
+                    onPlay={() => playSong(song, allDailySongs)}
+                  />
+                )}
+              />
+              {loadingMore && <Spinner size="sm" />}
+            </>
           ) : (
             <EmptyState
               icon={<Sparkles />}
