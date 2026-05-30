@@ -14,6 +14,10 @@ interface CoverflowProps<T> {
   getKey: (item: T, index: number) => React.Key;
   /** Se invoca al hacer click/Enter sobre el slide central ya seleccionado. */
   onActivateCenter?: (item: T, index: number) => void;
+  /** Se invoca cada vez que cambia el slide seleccionado. */
+  onIndexChange?: (index: number) => void;
+  /** Si es false, el carrusel no hace bucle al llegar al final. Por defecto true. */
+  loop?: boolean;
   ariaLabel?: string;
   className?: string;
 }
@@ -35,20 +39,14 @@ export function Coverflow<T>({
   renderItem,
   getKey,
   onActivateCenter,
+  onIndexChange,
+  loop = true,
   ariaLabel,
   className,
 }: CoverflowProps<T>) {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "center",
-    // `loop: true` resuelve a la vez los dos extremos: como no hay principio ni
-    // fin, TODAS las carátulas pueden centrarse (sus controles play/+ solo
-    // aparecen en la central) y siempre hay una carátula vecina a cada lado,
-    // sin el hueco negro que dejaban los extremos sin bucle.
-    loop: true,
-    // Con pocas carátulas Embla desactiva el bucle automáticamente; sin esto
-    // caería en su default `"trimSnaps"`, que alinea la primera a la izquierda.
-    // Forzamos `false` para que el respaldo también la centre y todos los
-    // carruseles arranquen igual.
+    loop,
     containScroll: false,
     skipSnaps: false,
   });
@@ -98,7 +96,11 @@ export function Coverflow<T>({
 
   React.useEffect(() => {
     if (!emblaApi) return;
-    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    const onSelect = () => {
+      const idx = emblaApi.selectedScrollSnap();
+      setSelectedIndex(idx);
+      onIndexChange?.(idx);
+    };
     onSelect();
     applyStyles();
     emblaApi.on("select", onSelect);
@@ -111,7 +113,7 @@ export function Coverflow<T>({
       emblaApi.off("reInit", applyStyles);
       emblaApi.off("reInit", onSelect);
     };
-  }, [emblaApi, applyStyles]);
+  }, [emblaApi, applyStyles, onIndexChange]);
 
   // Re-inicializa cuando cambian los datos (llegan de forma asíncrona).
   React.useEffect(() => {
