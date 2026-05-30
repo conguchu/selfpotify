@@ -19,9 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@splidejs/react-splide": ["./node_modules/@splidejs/react-splide/dist/types/index.d.ts"],
-      "@splidejs/react-splide/css/core": ["./node_modules/@splidejs/react-splide/dist/css/splide-core.min.css"]
+      "@/*": ["./*"]
     }
   },
   "include": [

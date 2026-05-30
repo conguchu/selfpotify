@@ -1,10 +1,21 @@
 "use client";
 
 import * as React from "react";
+// @splidejs/react-splide@0.7.12 no expone sus tipos en `exports` de package.json
+// (incompatible con moduleResolution:bundler), así que suprimimos el error de
+// resolución. El bundler (webpack/Next.js) resuelve el módulo desde node_modules
+// con normalidad; solo el type-checker no lo encuentra.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error
 import { Splide, SplideSlide } from "@splidejs/react-splide";
-import type { Splide as SplideCore } from "@splidejs/splide";
 import "@splidejs/react-splide/css/core";
 import { cn } from "@/lib/utils";
+
+/** Superficie mínima de la instancia de Splide que usamos en este componente. */
+interface SplideInstance {
+  root: HTMLElement;
+  go: (control: number | string) => void;
+}
 
 interface CoverflowProps<T> {
   items: T[];
@@ -49,7 +60,7 @@ export function Coverflow<T>({
   ariaLabel,
   className,
 }: CoverflowProps<T>) {
-  const splideRef = React.useRef<SplideCore | null>(null);
+  const splideRef = React.useRef<SplideInstance | null>(null);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const slideRefs = React.useRef<(HTMLDivElement | null)[]>([]);
   const reducedMotion = useReducedMotion();
@@ -158,7 +169,7 @@ export function Coverflow<T>({
           arrows: false,
           pagination: false,
         }}
-        onMounted={(splide) => {
+        onMounted={(splide: SplideInstance) => {
           splideRef.current = splide;
           // Activa el contexto 3D en la lista de slides para que el translateZ
           // del <li> controle el Z-order entre slides (Splide no lo hace por defecto).
@@ -167,7 +178,7 @@ export function Coverflow<T>({
           if (list) list.style.transformStyle = "preserve-3d";
           applyStyles();
         }}
-        onMove={(splide, index) => {
+        onMove={(_splide: SplideInstance, index: number) => {
           setSelectedIndex(index);
           onIndexChange?.(index);
           startRAF();
