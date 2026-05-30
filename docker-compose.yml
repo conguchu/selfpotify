@@ -37,7 +37,7 @@ services:
       - api
       - next
     ports:
-      - "80:80"
+      - "${WEB_PORT:-80}:80"
     restart: unless-stopped
     networks: [internal]
 
