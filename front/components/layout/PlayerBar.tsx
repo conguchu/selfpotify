@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { Pause, Play, Repeat1, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { CoverArt } from "@/components/music/CoverArt";
 import { AddToPlaylistButton } from "@/components/music/AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
@@ -19,7 +19,10 @@ export function PlayerBar() {
   const token = useAuthStore((s) => s.token);
   const current = usePlayerStore((s) => s.current);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const loop = usePlayerStore((s) => s.loop);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
+  const toggleLoop = usePlayerStore((s) => s.toggleLoop);
+  const pause = usePlayerStore((s) => s.pause);
   const next = usePlayerStore((s) => s.next);
   const prev = usePlayerStore((s) => s.prev);
   const volume = usePlayerStore((s) => s.volume);
@@ -28,6 +31,12 @@ export function PlayerBar() {
   const setPosition = usePlayerStore((s) => s.setPosition);
   const durationMs = usePlayerStore((s) => s.durationMs);
   const setDuration = usePlayerStore((s) => s.setDuration);
+
+  // Al montar (primera carga de la app), garantizar que no hay reproducción automática.
+  useEffect(() => {
+    pause();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cargar nueva canción cuando cambia
   useEffect(() => {
@@ -108,6 +117,16 @@ export function PlayerBar() {
 
       <div className="flex flex-1 flex-col items-center gap-1.5">
         <div className="flex items-center gap-2">
+          <IconButton
+            label={loop ? "Desactivar bucle" : "Activar bucle"}
+            variant="ghost"
+            size="sm"
+            disabled={!current}
+            onClick={toggleLoop}
+            className={loop ? "text-accent" : undefined}
+          >
+            <Repeat1 />
+          </IconButton>
           <IconButton
             label="Anterior"
             variant="ghost"
@@ -195,7 +214,18 @@ export function PlayerBar() {
             setDuration(current.duration_ms);
           }
         }}
-        onEnded={() => next()}
+        onEnded={() => {
+          if (loop) {
+            const audio = audioRef.current;
+            if (audio) {
+              audio.currentTime = 0;
+              audio.play().catch(() => {});
+            }
+            setPosition(0);
+          } else {
+            next();
+          }
+        }}
       />
     </footer>
   );
