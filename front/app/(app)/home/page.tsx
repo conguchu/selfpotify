@@ -97,7 +97,7 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        <div className="relative flex flex-1 items-center justify-center">
           {dailyQuery.isLoading ? (
             <Spinner size="lg" />
           ) : dailyQuery.isError ? (
@@ -123,7 +123,11 @@ export default function HomePage() {
                   />
                 )}
               />
-              {loadingMore && <Spinner size="sm" />}
+              {loadingMore && (
+                <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                  <Spinner size="md" />
+                </div>
+              )}
             </>
           ) : (
             <EmptyState
