@@ -791,14 +791,16 @@ classDiagram
 
 ## Diagramas de casos de uso
 
-### UC1 — Añadir carpeta al path
+### UC1 — Incorporar música a la biblioteca (carpeta o subida)
 
 ```mermaid
 graph LR
     Admin["👤 Administrador"]
 
     subgraph Sistema Self-Potify
-        UC1("Añadir carpeta al path")
+        UC1("Incorporar música a la biblioteca")
+        UC1f("Añadir carpeta al path<br/>(POST /api/config/scan-paths)")
+        UC1g("Subir audios drag & drop<br/>(POST /api/songs/upload<br/>→ carpeta selfpotify_added)")
         UC1a("Leer etiquetas ID3")
         UC1b("Crear / actualizar Artista")
         UC1c("Crear / actualizar Álbum")
@@ -806,7 +808,10 @@ graph LR
     end
 
     Admin --> UC1
-    UC1 -.->|include| UC1a
+    UC1 -.->|include| UC1f
+    UC1 -.->|include| UC1g
+    UC1f -.->|include| UC1a
+    UC1g -.->|include| UC1a
     UC1a -.->|include| UC1b
     UC1a -.->|include| UC1c
     UC1a -.->|include| UC1d
@@ -1099,6 +1104,48 @@ graph LR
     UC11a -.->|include| UC11c
     UC11a -.->|include| UC11d
     UC11 -.->|include| UC11e
+```
+
+### UC12 — Gestionar el catálogo de canciones
+
+```mermaid
+graph LR
+    Admin["👤 Administrador"]
+
+    subgraph Sistema Self-Potify
+        UC12("Gestionar catálogo de canciones")
+        UC12a("Subir audios drag & drop<br/>(POST /api/songs/upload)")
+        UC12b("Editar metadatos<br/>(PUT /api/songs/{id}:<br/>title, género, BPM, duración, carátula)")
+        UC12c("Eliminar canción<br/>(DELETE /api/songs/{id})")
+        UC12d("Conservar songPath<br/>(la edición no toca la ruta física)")
+    end
+
+    Admin --> UC12
+    UC12 -.->|include| UC12a
+    UC12 -.->|include| UC12b
+    UC12 -.->|include| UC12c
+    UC12b -.->|include| UC12d
+```
+
+### UC13 — Cambiar el rol de un usuario
+
+```mermaid
+graph LR
+    Admin["👤 Administrador"]
+
+    subgraph Sistema Self-Potify
+        UC13("Cambiar rol de usuario")
+        UC13a("Reasignar discriminador users.type<br/>(PUT /api/users/{id}/role)")
+        UC13b{"¿Es el último ADMIN<br/>y se intenta degradar?"}
+        UC13c("Rechazar con 400<br/>(no degradar al último admin)")
+        UC13d("Refrescar contexto<br/>y devolver usuario actualizado")
+    end
+
+    Admin --> UC13
+    UC13 -.->|include| UC13a
+    UC13a --> UC13b
+    UC13b -- sí --> UC13c
+    UC13b -- no --> UC13d
 ```
 
 ## Diagrama de arquitectura
