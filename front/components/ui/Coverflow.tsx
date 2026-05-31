@@ -89,11 +89,12 @@ export function Coverflow<T>({
       );
       const abs = Math.min(Math.abs(diff), 1);
 
-      // El <li> (parentElement del inner div) recibe translateZ para controlar
-      // el Z-order dentro del contexto preserve-3d: el slide central queda
-      // delante y recibe los eventos de puntero antes que los laterales.
-      const li = node.parentElement;
-      if (li) li.style.transform = `translateZ(${(1 - abs) * 2}px)`;
+      // El <li> (abuelo del inner div, padre del wrapper de perspectiva) recibe
+      // z-index para controlar el orden de apilamiento 2D: el central queda
+      // delante sin provocar oclusión 3D que bloquee los eventos de puntero.
+      // Los <li> son flex items: z-index funciona sin position:relative (CSS Flexbox).
+      const li = node.parentElement?.parentElement;
+      if (li) li.style.zIndex = String(Math.round((1 - abs) * 10));
 
       if (reducedMotion) {
         node.style.transform = "none";
@@ -171,11 +172,6 @@ export function Coverflow<T>({
         }}
         onMounted={(splide: SplideInstance) => {
           splideRef.current = splide;
-          // Activa el contexto 3D en la lista de slides para que el translateZ
-          // del <li> controle el Z-order entre slides (Splide no lo hace por defecto).
-          const list =
-            splide.root.querySelector<HTMLElement>(".splide__list");
-          if (list) list.style.transformStyle = "preserve-3d";
           applyStyles();
         }}
         onMove={(_splide: SplideInstance, index: number) => {
@@ -198,13 +194,19 @@ export function Coverflow<T>({
             }}
             className="w-[78%] cursor-pointer select-none px-3 sm:w-[58%] md:w-[46%] lg:w-[36%] xl:w-[30%]"
           >
-            <div
-              ref={(el) => {
-                slideRefs.current[i] = el;
-              }}
-              className="w-full transform-gpu [backface-visibility:hidden] [pointer-events:none] [will-change:transform]"
-            >
-              {renderItem(item, { isCenter: i === selectedIndex, index: i })}
+            {/* Wrapper con perspectiva local: cada slide tiene su propio punto de
+                fuga. Así los transforms 3D del inner div funcionan con perspectiva
+                sin necesitar preserve-3d en .splide__list (que causaba oclusión
+                3D y bloqueaba clics en los slides del extremo). */}
+            <div className="h-full w-full" style={{ perspective: "1200px" }}>
+              <div
+                ref={(el) => {
+                  slideRefs.current[i] = el;
+                }}
+                className="w-full transform-gpu [backface-visibility:hidden] [pointer-events:none] [will-change:transform]"
+              >
+                {renderItem(item, { isCenter: i === selectedIndex, index: i })}
+              </div>
             </div>
           </SplideSlide>
         ))}
