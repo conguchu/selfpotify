@@ -60,6 +60,8 @@ export function Coverflow<T>({
   const dragRef = React.useRef({ active: false, startX: 0, scrollLeft: 0 });
   const rafIdRef = React.useRef<number | null>(null);
   const isScrollingRef = React.useRef(false);
+  // Limpieza de los listeners globales del drag; se llama al soltar o al desmontar.
+  const dragCleanupRef = React.useRef<(() => void) | null>(null);
 
   // ── 3D transforms ─────────────────────────────────────────────────────────
 
@@ -131,6 +133,9 @@ export function Coverflow<T>({
     }
   }, []);
 
+  // Limpia listeners de drag si el componente se desmonta en medio de un gesto.
+  React.useEffect(() => () => { dragCleanupRef.current?.(); }, []);
+
   // ── inicialización y cambios en items ────────────────────────────────────
 
   React.useEffect(() => {
@@ -188,31 +193,61 @@ export function Coverflow<T>({
   }, []);
 
   // ── drag de ratón ─────────────────────────────────────────────────────────
+  //
+  // NO usamos setPointerCapture porque redirige todos los pointerUp al track,
+  // impidiendo que useTapAction (play, +playlist) y los onClick de los slides
+  // reciban sus eventos.
+  //
+  // En su lugar instalamos listeners globales en el documento:
+  //   - pointermove: fase bubble (no hay stopPropagation en onPointerMove)
+  //   - pointerup:   fase CAPTURE → corre antes del stopPropagation de useTapAction,
+  //                  así siempre limpiamos el estado de drag aunque el botón absorba
+  //                  el evento en la fase de burbuja.
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     pointerDownRef.current = { x: e.clientX, y: e.clientY };
     if (e.pointerType !== "mouse") return;
     const track = trackRef.current;
     if (!track) return;
-    track.style.scrollSnapType = "none"; // evita snap durante el arrastre
-    dragRef.current = { active: true, startX: e.clientX, scrollLeft: track.scrollLeft };
-    track.setPointerCapture(e.pointerId);
-  };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return;
-    const track = trackRef.current;
-    if (track) track.scrollLeft = dragRef.current.scrollLeft - (e.clientX - dragRef.current.startX);
-  };
+    // Cancela cualquier drag anterior sin terminar.
+    dragCleanupRef.current?.();
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return;
-    dragRef.current.active = false;
-    const track = trackRef.current;
-    if (!track) return;
-    track.style.scrollSnapType = "x mandatory";
-    detectCenter();
-    goTo(selectedIndexRef.current);
+    const startX = e.clientX;
+    const scrollLeft = track.scrollLeft;
+    dragRef.current = { active: true, startX, scrollLeft };
+    let dragged = false; // true en cuanto el movimiento supera el umbral
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerType !== "mouse") return;
+      const dx = ev.clientX - startX;
+      if (!dragged && Math.abs(dx) < 5) return;
+      if (!dragged) {
+        dragged = true;
+        track.style.scrollSnapType = "none";
+      }
+      track.scrollLeft = scrollLeft - dx;
+    };
+
+    const onUp = () => {
+      dragRef.current.active = false;
+      dragCleanupRef.current = null;
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp, true);
+      if (dragged) {
+        track.style.scrollSnapType = "x mandatory";
+        detectCenter();
+        goTo(selectedIndexRef.current);
+      }
+    };
+
+    dragCleanupRef.current = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp, true);
+    };
+
+    document.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("pointerup", onUp, { capture: true });
   };
 
   // ── interacciones de slide ────────────────────────────────────────────────
@@ -263,9 +298,6 @@ export function Coverflow<T>({
         ref={trackRef}
         className="flex h-full w-full cursor-grab items-center overflow-x-auto active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
       >
         {/*
           Espaciadores para que el primer y el último slide puedan centrarse.
