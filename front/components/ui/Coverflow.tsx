@@ -62,12 +62,18 @@ export function Coverflow<T>({
 }: CoverflowProps<T>) {
   const splideRef = React.useRef<SplideInstance | null>(null);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
+  // Ref síncrono de selectedIndex para leerlo desde callbacks sin dependencia de closure.
+  const selectedIndexRef = React.useRef(0);
   const slideRefs = React.useRef<(HTMLDivElement | null)[]>([]);
   const reducedMotion = useReducedMotion();
   const pointerDownRef = React.useRef<{ x: number; y: number } | null>(null);
   // RAF para actualizar los transforms durante drag y animación.
   const isAnimatingRef = React.useRef(false);
   const rafIdRef = React.useRef<number | null>(null);
+  // Índice del último slide en el que el ratón hizo hover. Se mantiene incluso
+  // durante la animación y se usa en onMoved para encadenar navegaciones
+  // (evita que go() ignorado por Splide al estar animando deje el slide sin centrar).
+  const hoveredIndexRef = React.useRef(-1);
 
   // Calcula y aplica los transforms 3D a cada slide según su posición visual
   // actual. Se basa en getBoundingClientRect para ser preciso durante drag.
@@ -131,6 +137,17 @@ export function Coverflow<T>({
     // el bucle se auto-termina en el siguiente frame
   }, []);
 
+  // Encadena la siguiente navegación si el ratón ya estaba sobre otro slide
+  // cuando terminó la animación actual. Así el go() que Splide ignoró mientras
+  // animaba se reintenta en cuanto queda libre.
+  const handleMoved = React.useCallback(() => {
+    stopRAF();
+    const target = hoveredIndexRef.current;
+    if (target >= 0 && target !== selectedIndexRef.current) {
+      splideRef.current?.go(target);
+    }
+  }, [stopRAF]);
+
   const handleSlideClick = (e: React.MouseEvent, index: number) => {
     const down = pointerDownRef.current;
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
@@ -160,6 +177,9 @@ export function Coverflow<T>({
       onPointerDownCapture={(e) => {
         pointerDownRef.current = { x: e.clientX, y: e.clientY };
       }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") hoveredIndexRef.current = -1;
+      }}
     >
       <Splide
         options={{
@@ -175,13 +195,17 @@ export function Coverflow<T>({
           applyStyles();
         }}
         onMove={(_splide: SplideInstance, index: number) => {
+          selectedIndexRef.current = index;
           setSelectedIndex(index);
           onIndexChange?.(index);
           startRAF();
         }}
-        onMoved={stopRAF}
-        onDrag={startRAF}
-        onDragged={stopRAF}
+        onMoved={handleMoved}
+        onDrag={() => {
+          hoveredIndexRef.current = -1; // el drag descarta cualquier hover pendiente
+          startRAF();
+        }}
+        onDragged={handleMoved}
         className="h-full w-full"
       >
         {items.map((item, i) => (
@@ -190,7 +214,10 @@ export function Coverflow<T>({
             onClick={(e: React.MouseEvent<HTMLLIElement>) => handleSlideClick(e, i)}
             onPointerEnter={(e: React.PointerEvent<HTMLLIElement>) => {
               if (e.pointerType !== "mouse" || e.buttons !== 0) return;
-              if (i !== selectedIndex) splideRef.current?.go(i);
+              hoveredIndexRef.current = i;
+              if (!isAnimatingRef.current && i !== selectedIndexRef.current) {
+                splideRef.current?.go(i);
+              }
             }}
             className="w-[78%] cursor-pointer select-none px-3 sm:w-[58%] md:w-[46%] lg:w-[36%] xl:w-[30%]"
           >
