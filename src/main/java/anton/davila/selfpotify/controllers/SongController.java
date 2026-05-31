@@ -5,11 +5,13 @@ import anton.davila.selfpotify.controllers.dto.SongDTO;
 import anton.davila.selfpotify.controllers.dto.Top10GenreSongsDTO;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.service.SongService;
+import anton.davila.selfpotify.music.service.SongUploadService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Files;
@@ -29,6 +31,9 @@ public class SongController {
 
     @Autowired
     private SongService songService;
+
+    @Autowired
+    private SongUploadService songUploadService;
 
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
@@ -110,6 +115,20 @@ public class SongController {
         }
         // Canciones recién importadas: aún sin escuchas registradas.
         return songService.loadFolder(folder.toAbsolutePath().toString()).stream()
+                .map(song -> convertToDTO(song, 0L))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Sube uno o varios audios (drag&drop) desde el panel. Se guardan en la carpeta
+     * selfpotify_added (volumen de datos en Docker, o ruta elegida en local) y se
+     * incorporan a la biblioteca. Ver {@link SongUploadService}.
+     */
+    @PostMapping(value = "/upload", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<SongDTO> uploadSongs(@RequestParam("files") List<MultipartFile> files,
+                                     @RequestParam(value = "targetPath", required = false) String targetPath) {
+        return songUploadService.uploadSongs(files, targetPath).stream()
                 .map(song -> convertToDTO(song, 0L))
                 .collect(Collectors.toList());
     }

@@ -43,7 +43,13 @@ public class Song {
         this.setDuration_ms(s.getDuration_ms());
         this.setGenre(s.getGenre());
         this.setBpm(s.getBpm());
-        this.setSongPath(s.getSongPath());
+        // songPath se conserva si no llega valor: la edición de metadatos desde el
+        // panel no expone ni cambia la ruta física del audio (SongDTO no la incluye),
+        // así un PUT sin songPath no debe borrarla.
+        if (s.getSongPath() != null && !s.getSongPath().isBlank()) {
+            this.setSongPath(s.getSongPath());
+        }
+        this.setPicture_url(s.getPicture_url());
     }
 
     // todo: calcular duration en mm:ss

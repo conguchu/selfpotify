@@ -77,6 +77,22 @@ public class ConfigService {
         return assetsDir;
     }
 
+    /**
+     * Raíz de datos persistentes del servidor: la carpeta que contiene el
+     * config.yml. En Docker es el volumen montado ({@code /data/selfpotify}); en
+     * local, {@code ~/.selfpotify}. Es escribible (a diferencia del volumen de
+     * música, montado read-only), por lo que es el destino natural de los audios
+     * subidos desde el panel.
+     */
+    public Path dataDir() {
+        return configPath.getParent();
+    }
+
+    /** Carpeta donde se guardan los audios subidos desde el panel (drag&drop). */
+    public Path addedSongsDir() {
+        return dataDir().resolve("selfpotify_added");
+    }
+
     /** Ruta absoluta del fichero config.yml. */
     public Path configPath() {
         return configPath;

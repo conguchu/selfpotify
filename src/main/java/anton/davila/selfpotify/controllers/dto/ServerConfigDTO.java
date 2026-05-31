@@ -17,4 +17,10 @@ public class ServerConfigDTO {
     private List<String> scanPaths;
     private long scanIntervalSeconds;
     private long lastScanEpochSec;
+    // Contexto de ejecución para el panel: si corremos en Docker, los audios
+    // subidos van siempre a la carpeta de datos; si no, el panel deja elegir una
+    // de las scanPaths como destino. addedSongsDir es la carpeta selfpotify_added
+    // por defecto (dentro de la carpeta de datos), mostrada en el panel.
+    private boolean runningInDocker;
+    private String addedSongsDir;
 }

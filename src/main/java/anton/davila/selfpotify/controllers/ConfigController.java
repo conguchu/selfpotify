@@ -301,7 +301,9 @@ public class ConfigController {
                 cfg.getFeatures().isSetupComplete(),
                 cfg.getScan().getPaths(),
                 cfg.getScan().getIntervalSeconds(),
-                cfg.getScan().getLastRunEpochSec()
+                cfg.getScan().getLastRunEpochSec(),
+                musicLibraryResolver.runningInDocker(),
+                configService.addedSongsDir().toString()
         );
     }
 }
