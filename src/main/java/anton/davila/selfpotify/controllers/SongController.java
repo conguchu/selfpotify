@@ -1,11 +1,15 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.controllers.dto.ImportRequest;
+import anton.davila.selfpotify.controllers.dto.SongArtistsRequest;
+import anton.davila.selfpotify.controllers.dto.SongCommitRequest;
 import anton.davila.selfpotify.controllers.dto.SongDTO;
+import anton.davila.selfpotify.controllers.dto.SongDraftDTO;
 import anton.davila.selfpotify.controllers.dto.Top10GenreSongsDTO;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.service.SongService;
 import anton.davila.selfpotify.music.service.SongUploadService;
+import anton.davila.selfpotify.music.service.external.EmbeddedCoverExtractor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,6 +39,15 @@ public class SongController {
 
     @Autowired
     private SongUploadService songUploadService;
+
+    @Autowired
+    private EmbeddedCoverExtractor coverExtractor;
+
+    private static final Map<String, String> ACCEPTED_IMAGE_MIME = Map.of(
+            "image/png", "png",
+            "image/jpeg", "jpg",
+            "image/webp", "webp"
+    );
 
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
@@ -120,17 +134,64 @@ public class SongController {
     }
 
     /**
-     * Sube uno o varios audios (drag&drop) desde el panel. Se guardan en la carpeta
-     * selfpotify_added (volumen de datos en Docker, o ruta elegida en local) y se
-     * incorporan a la biblioteca. Ver {@link SongUploadService}.
+     * Fase 1 de la subida drag&drop: guarda los audios en staging y devuelve sus
+     * metadatos extraídos como borradores editables, SIN incorporarlos aún a la
+     * biblioteca. El panel los revisa/ajusta y luego confirma con {@code /commit}.
      */
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<SongDTO> uploadSongs(@RequestParam("files") List<MultipartFile> files,
-                                     @RequestParam(value = "targetPath", required = false) String targetPath) {
-        return songUploadService.uploadSongs(files, targetPath).stream()
+    public List<SongDraftDTO> uploadSongs(@RequestParam("files") List<MultipartFile> files) {
+        return songUploadService.uploadToStaging(files);
+    }
+
+    /**
+     * Fase 2: confirma una subida en staging con los metadatos ya ajustados. Mueve
+     * los audios a selfpotify_added (volumen de datos en Docker, o ruta elegida en
+     * local) y persiste las canciones. Ver {@link SongUploadService}.
+     */
+    @PostMapping(value = "/commit", consumes = "application/json")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<SongDTO> commitSongs(@RequestBody SongCommitRequest request) {
+        return songUploadService.commit(request).stream()
                 .map(song -> convertToDTO(song, 0L))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Sube una imagen de carátula y la guarda en el MISMO almacén que las carátulas
+     * normales ({@code /assets/covers/<sha256>.<ext>}). Devuelve {@code { "url": ... }}.
+     * La usa el panel tanto al subir canciones como al editarlas.
+     */
+    @PostMapping(value = "/cover", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<String, String> uploadCover(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Archivo requerido");
+        }
+        String mime = file.getContentType();
+        if (mime == null || !ACCEPTED_IMAGE_MIME.containsKey(mime)) {
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                    "Formato de imagen no soportado: " + mime + ". Aceptados: " + ACCEPTED_IMAGE_MIME.keySet());
+        }
+        try {
+            String url = coverExtractor.storeImageBytes(file.getBytes(), mime);
+            return Map.of("url", url);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo guardar la carátula");
+        }
+    }
+
+    /** Reasigna los artistas de una canción (modal de búsqueda del panel). */
+    @PutMapping("/{id}/artists")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SongDTO> setArtists(@PathVariable("id") Long id,
+                                              @RequestBody SongArtistsRequest request) {
+        try {
+            Song updated = songService.setArtists(id, request == null ? null : request.getArtistIds());
+            return ResponseEntity.ok(convertToDTO(updated, songService.getListenCount(updated.getId())));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     private SongDTO convertToDTO(Song song, long listeners) {

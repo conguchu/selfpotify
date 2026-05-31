@@ -49,4 +49,16 @@ public class User {
         this.setPassword(u.getPassword());
         this.setProfile(u.getProfile());
     }
+
+    /**
+     * Rol expuesto en el JSON. El discriminador JPA {@code users.type} no es un
+     * atributo mapeado, así que Jackson no lo serializaba y el panel no podía
+     * distinguir admins de usuarios. Este getter calculado lo expone como
+     * {@code "ADMIN"}/{@code "USER"} según la subclase real de la entidad.
+     */
+    @Transient
+    @JsonProperty("type")
+    public String getType() {
+        return this instanceof Admin ? "ADMIN" : "USER";
+    }
 }

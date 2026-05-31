@@ -95,6 +95,25 @@ public class SongService {
 
         // (metodo para copiar los atributos del objeto sin tener que hacerlo a mano siempre)
     }
+    /**
+     * Reasigna los artistas de una canción a partir de sus ids. Usado por el panel
+     * para cambiar el artista de una canción ya existente (modal de búsqueda).
+     */
+    @Transactional
+    public Song setArtists(long id, List<Long> artistIds) {
+        Song song = getById(id).orElseThrow(
+                () -> new RuntimeException("No se ha encontrado la cancion con ID " + id));
+        List<Artist> artists = (artistIds == null) ? List.of()
+                : artistIds.stream()
+                    .map(artistRepository::findById)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .toList();
+        song.setArtists(artists);
+        log.info("Canción {} reasignada a {} artista(s)", id, artists.size());
+        return song;
+    }
+
     @Transactional
     public Song delete(long id) {
         log.warn("Intentando eliminar la canción con ID: {}", id);

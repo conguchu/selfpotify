@@ -105,14 +105,38 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Errores:** `400 Bad Request` si la ruta está vacía / no existe / no es directorio / no es legible; `500 Internal Server Error` si falla la lectura.
 - **Nota:** importación manual one-shot. La ruta NO queda registrada para re-escaneo. Para escaneo persistente con re-escaneo periódico usar `POST /api/config/scan-paths` (§7.5).
 
-### `POST /api/songs/upload` — Subir audios (drag & drop)
+### `POST /api/songs/upload` — Subir audios a staging (fase 1)
 - **Acceso:** `ROLE_ADMIN`.
-- **Content-Type:** `multipart/form-data`.
-- **Campos:** `files` (uno o varios audios `.mp3`/`.wav`) y `targetPath` (opcional).
-- **Comportamiento:** guarda los audios en una carpeta `selfpotify_added` **escribible** y los incorpora a la biblioteca con el mismo escaneo idempotente que el resto (extracción de metadatos + autocompletado de género/carátula). Devuelve `List<SongDTO>` de las canciones resultantes.
-  - **Destino:** en **Docker** siempre la carpeta de datos (`/data/selfpotify/selfpotify_added`), porque el volumen de música se monta read-only. En **local**, `targetPath/selfpotify_added` si `targetPath` es una de las rutas de escaneo configuradas; si no se indica, la carpeta de datos (`~/.selfpotify/selfpotify_added`). La carpeta se registra como ruta de escaneo si no queda ya cubierta por una ruta padre.
-  - **Límites:** `SONG_UPLOAD_MAX_FILE_SIZE` por archivo (def. 50MB) y `SONG_UPLOAD_MAX_REQUEST_SIZE` por petición (def. 500MB).
-- **Errores:** `415` (formato no admitido), `413` (excede el tamaño máximo), `400` (`targetPath` no es una ruta configurada o ningún archivo válido).
+- **Content-Type:** `multipart/form-data`. **Campos:** `files` (uno o varios `.mp3`/`.wav`).
+- **Comportamiento:** guarda los audios en una carpeta de staging **no escaneada** (`<dataDir>/selfpotify_staging/<token>`) y devuelve `List<SongDraftDTO>` con los metadatos extraídos (título, artista, género, BPM, duración) y la carátula embebida ya volcada a `/assets/covers`. **No persiste** ninguna canción todavía: el panel los revisa/ajusta y confirma con `/commit`.
+- **`SongDraftDTO`:** `{ stagingToken, fileName, title, artistName, suggestedArtistId, genre, bpm, duration_ms, picture_url }`. `suggestedArtistId` es el id de un artista existente cuyo nombre coincide con el extraído (o null).
+- **Límites:** `SONG_UPLOAD_MAX_FILE_SIZE` por archivo (def. 50MB), `SONG_UPLOAD_MAX_REQUEST_SIZE` por petición (def. 500MB).
+- **Errores:** `415` (formato no admitido), `413` (excede tamaño).
+
+### `POST /api/songs/commit` — Confirmar subida (fase 2)
+- **Acceso:** `ROLE_ADMIN`. **Body** (`SongCommitRequest`):
+  ```json
+  {
+    "targetPath": "/music/extra",
+    "songs": [
+      { "stagingToken": "uuid", "fileName": "a.mp3", "title": "...",
+        "artistId": 5, "newArtistName": null,
+        "genre": "Rock", "bpm": 120, "duration_ms": 200000, "picture_url": "/assets/covers/..." }
+    ]
+  }
+  ```
+- **Comportamiento:** mueve cada audio de staging a `selfpotify_added` y persiste la canción con los metadatos finales. El artista se resuelve por `artistId`; si es null y hay `newArtistName`, se crea (o se reutiliza por nombre). La carpeta se registra como ruta de escaneo. Devuelve `List<SongDTO>`.
+  - **Destino (`targetPath`):** si null/blank, la carpeta de datos (`<dataDir>/selfpotify_added`). Si se indica, debe ser una ruta de escaneo configurada y **escribible** (en Docker `/music` es read-only y se rechaza).
+- **Errores:** `400` (sin canciones, `targetPath` no configurada/ no escribible, o staging expirado).
+
+### `POST /api/songs/cover` — Subir carátula
+- **Acceso:** `ROLE_ADMIN`. **Content-Type:** `multipart/form-data`, campo `file` (PNG/JPEG/WebP).
+- **Comportamiento:** guarda la imagen en el mismo almacén que las carátulas normales (`/assets/covers/<sha256>.<ext>`, idempotente) y devuelve `{ "url": "/assets/covers/..." }`. La usa el panel al subir y al editar canciones.
+- **Errores:** `400` (sin archivo), `415` (formato no soportado).
+
+### `PUT /api/songs/{id}/artists` — Reasignar artistas
+- **Acceso:** `ROLE_ADMIN`. **Body:** `{ "artistIds": [5, 8] }`.
+- **Comportamiento:** sustituye los artistas de la canción por los ids dados (lista vacía = sin artista). Devuelve el `SongDTO` actualizado o `404`.
 
 ---
 
@@ -398,7 +422,7 @@ Acceso exclusivo `ROLE_ADMIN`.
 
 | Método | Path | Body | Respuesta |
 |---|---|---|---|
-| GET | `/api/users` | — | `List<User>` (campo `type` indica USER/ADMIN; `password` no se serializa) |
+| GET | `/api/users` | — | `List<User>` (campo `type` = `USER`/`ADMIN`, getter calculado desde la subclase; `password` no se serializa) |
 | GET | `/api/users/{id}` | — | `User` o `404` |
 | POST | `/api/users` | `{ "username", "password", "isAdmin" }` | `200 OK "User created successfully by admin!"`; `400` si el username está cogido |
 | PUT | `/api/users/{id}` | `User` (si trae `password` se reencripta automáticamente) | `200 OK User` o `404` |
