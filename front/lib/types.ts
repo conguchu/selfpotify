@@ -188,6 +188,41 @@ export interface UpdateSongPayload {
   picture_url?: string | null;
 }
 
+/**
+ * Borrador editable de una canción subida por drag&drop, devuelto por
+ * `POST /api/songs/upload` (fase de staging, aún sin persistir).
+ */
+export interface SongDraft {
+  stagingToken: string;
+  fileName: string;
+  title: string;
+  artistName: string | null;
+  suggestedArtistId: number | null;
+  genre: string | null;
+  bpm: number;
+  duration_ms: number;
+  picture_url: string | null;
+}
+
+/** Item de `POST /api/songs/commit`: metadatos finales de un borrador a persistir. */
+export interface SongCommitItem {
+  stagingToken: string;
+  fileName: string;
+  title: string;
+  artistId?: number | null;
+  newArtistName?: string | null;
+  genre?: string | null;
+  bpm?: number;
+  duration_ms?: number;
+  picture_url?: string | null;
+}
+
+/** Cuerpo de `POST /api/songs/commit`. */
+export interface SongCommitPayload {
+  targetPath?: string;
+  songs: SongCommitItem[];
+}
+
 // =====================================
 // ----- Búsqueda (`GET /api/search`)
 // =====================================

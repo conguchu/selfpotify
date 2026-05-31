@@ -5,6 +5,14 @@ export function listArtists() {
   return apiFetch<ArtistDTO[]>("/api/artists");
 }
 
+/** Crea un artista nuevo solo con su nombre (modal de búsqueda del panel). */
+export function createArtist(name: string) {
+  return apiFetch<ArtistDTO>("/api/artists", {
+    method: "POST",
+    body: { name },
+  });
+}
+
 export function getArtist(id: number) {
   return apiFetch<ArtistDTO>(`/api/artists/${id}`);
 }

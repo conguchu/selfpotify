@@ -1,17 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { UploadCloud, Music, Trash2, FileAudio } from "lucide-react";
+import { UploadCloud, Trash2, FileAudio, Check, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import { useServerConfig, useUploadSongs } from "@/lib/query/hooks";
-import { formatDuration } from "@/lib/utils";
+import { ArtistPickerModal } from "@/components/admin/ArtistPickerModal";
+import { CoverDropzone } from "@/components/admin/CoverDropzone";
+import {
+  useServerConfig,
+  useUploadSongsToStaging,
+  useCommitSongs,
+} from "@/lib/query/hooks";
 import { cn } from "@/lib/utils";
-import type { SongDTO } from "@/lib/types";
+import type { SongDraft } from "@/lib/types";
 
 const ACCEPT = ".mp3,.wav,audio/mpeg,audio/wav,audio/x-wav";
 
@@ -20,17 +24,24 @@ function isAudio(file: File): boolean {
   return name.endsWith(".mp3") || name.endsWith(".wav");
 }
 
+/** Borrador editable en el panel (extiende el del backend con el artista resuelto). */
+interface DraftRow extends SongDraft {
+  artistId: number | null;
+  artistLabel: string; // nombre mostrado (existente elegido o el extraído)
+}
+
 export function UploadSongsForm() {
   const config = useServerConfig();
-  const upload = useUploadSongs();
+  const stage = useUploadSongsToStaging();
+  const commit = useCommitSongs();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [target, setTarget] = useState<string>(""); // "" = carpeta de datos por defecto
-  const [uploaded, setUploaded] = useState<SongDTO[] | null>(null);
+  const [target, setTarget] = useState<string>(""); // "" = carpeta de datos
+  const [drafts, setDrafts] = useState<DraftRow[] | null>(null);
+  const [pickerFor, setPickerFor] = useState<number | null>(null);
 
-  const runningInDocker = config.data?.runningInDocker ?? false;
   const scanPaths = config.data?.scanPaths ?? [];
   const addedSongsDir = config.data?.addedSongsDir ?? "selfpotify_added";
 
@@ -42,12 +53,9 @@ export function UploadSongsForm() {
       else rejected++;
     }
     if (rejected > 0) {
-      toast.error(
-        `${rejected} archivo(s) ignorado(s): solo se admiten .mp3 y .wav`,
-      );
+      toast.error(`${rejected} archivo(s) ignorado(s): solo .mp3 y .wav`);
     }
     if (accepted.length === 0) return;
-    // Deduplica por nombre+tamaño para no añadir el mismo audio dos veces.
     setFiles((prev) => {
       const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
       const merged = [...prev];
@@ -62,67 +70,203 @@ export function UploadSongsForm() {
     });
   };
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
-  };
-
-  const submit = async () => {
+  const onUpload = async () => {
     if (files.length === 0) {
       toast.error("Añade al menos un archivo");
       return;
     }
     try {
-      const result = await upload.mutateAsync({
-        files,
-        targetPath: !runningInDocker && target ? target : undefined,
-      });
-      setUploaded(result);
-      setFiles([]);
-      toast.success(
-        `Subidas ${result.length} canci${result.length === 1 ? "ón" : "ones"}`,
+      const result = await stage.mutateAsync(files);
+      setDrafts(
+        result.map((d) => ({
+          ...d,
+          artistId: d.suggestedArtistId,
+          artistLabel: d.artistName ?? "",
+        })),
       );
+      setFiles([]);
+      toast.success("Revisa los datos antes de confirmar");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al subir");
     }
   };
 
+  const updateDraft = (i: number, patch: Partial<DraftRow>) => {
+    setDrafts((prev) =>
+      prev ? prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)) : prev,
+    );
+  };
+
+  const onConfirm = async () => {
+    if (!drafts || drafts.length === 0) return;
+    try {
+      const result = await commit.mutateAsync({
+        targetPath: target || undefined,
+        songs: drafts.map((d) => ({
+          stagingToken: d.stagingToken,
+          fileName: d.fileName,
+          title: d.title,
+          // artista existente elegido; si no, crear con el nombre mostrado
+          artistId: d.artistId ?? undefined,
+          newArtistName: d.artistId ? undefined : d.artistLabel || undefined,
+          genre: d.genre,
+          bpm: d.bpm,
+          duration_ms: d.duration_ms,
+          picture_url: d.picture_url,
+        })),
+      });
+      toast.success(
+        `Importadas ${result.length} canci${result.length === 1 ? "ón" : "ones"}`,
+      );
+      setDrafts(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al confirmar");
+    }
+  };
+
+  if (config.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Spinner />
+      </div>
+    );
+  }
+
+  // ---- Fase 2: preview editable -------------------------------------------
+  if (drafts) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-text-muted">
+          Ajusta los datos de cada canción antes de incorporarla a la biblioteca.
+        </p>
+        <ul className="flex flex-col gap-3">
+          {drafts.map((d, i) => (
+            <li
+              key={d.stagingToken}
+              className="flex flex-col gap-3 rounded-md border border-border bg-bg p-3 sm:flex-row"
+            >
+              <CoverDropzone
+                value={d.picture_url}
+                onChange={(url) => updateDraft(i, { picture_url: url })}
+              />
+              <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <Label htmlFor={`t-${i}`}>Título</Label>
+                  <Input
+                    id={`t-${i}`}
+                    value={d.title}
+                    onChange={(e) => updateDraft(i, { title: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <Label>Artista</Label>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setPickerFor(i)}
+                    leftIcon={<UserIcon className="h-4 w-4" />}
+                    className="justify-start"
+                  >
+                    {d.artistLabel || "Sin artista — elegir"}
+                    {d.artistId ? (
+                      <Check className="ml-auto h-4 w-4 text-accent" />
+                    ) : null}
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`g-${i}`}>Género</Label>
+                  <Input
+                    id={`g-${i}`}
+                    value={d.genre ?? ""}
+                    onChange={(e) => updateDraft(i, { genre: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`b-${i}`}>BPM</Label>
+                  <Input
+                    id={`b-${i}`}
+                    type="number"
+                    min={0}
+                    value={d.bpm || ""}
+                    onChange={(e) => updateDraft(i, { bpm: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <Label htmlFor={`d-${i}`}>Duración (ms)</Label>
+                  <Input
+                    id={`d-${i}`}
+                    type="number"
+                    min={0}
+                    value={d.duration_ms || ""}
+                    onChange={(e) =>
+                      updateDraft(i, { duration_ms: Number(e.target.value) })
+                    }
+                  />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={onConfirm}
+            loading={commit.isPending}
+            leftIcon={<Check className="h-4 w-4" />}
+          >
+            Confirmar e importar {drafts.length}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setDrafts(null)}
+            disabled={commit.isPending}
+          >
+            Cancelar
+          </Button>
+        </div>
+
+        <ArtistPickerModal
+          open={pickerFor !== null}
+          onClose={() => setPickerFor(null)}
+          currentArtistId={pickerFor !== null ? drafts[pickerFor]?.artistId : null}
+          onSelect={(a) => {
+            if (pickerFor !== null) {
+              updateDraft(pickerFor, { artistId: a.id, artistLabel: a.name });
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ---- Fase 1: elegir destino y archivos ----------------------------------
   return (
     <div className="flex flex-col gap-4">
-      {/* Destino: en Docker es fijo; en local se elige entre las rutas configuradas. */}
-      {runningInDocker ? (
+      {/* Selector de volumen / carpeta destino (siempre visible) */}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="upload-target">Carpeta de destino</Label>
+        <select
+          id="upload-target"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          className={cn(
+            "h-10 w-full rounded-md border border-border bg-bg-card px-3 text-sm text-text",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent",
+          )}
+        >
+          <option value="">Carpeta de datos (por defecto)</option>
+          {scanPaths.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
         <p className="text-xs text-text-subtle">
-          Los audios se guardarán en{" "}
-          <code className="text-text-muted">{addedSongsDir}</code> dentro del
-          volumen de datos y se añadirán a la biblioteca.
+          Se creará una subcarpeta <code>selfpotify_added</code> dentro del destino.
+          La opción por defecto usa la carpeta de datos del servidor (
+          <code>{addedSongsDir}</code>). En Docker el volumen de música es de solo
+          lectura: elige la carpeta de datos.
         </p>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="upload-target">Carpeta de destino</Label>
-          <select
-            id="upload-target"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            className={cn(
-              "h-10 w-full rounded-md border border-border bg-bg-card px-3 text-sm text-text",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent",
-            )}
-          >
-            <option value="">Carpeta de datos (por defecto)</option>
-            {scanPaths.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-text-subtle">
-            Se creará una subcarpeta <code>selfpotify_added</code> dentro de la
-            ruta elegida. La opción por defecto usa la carpeta de datos del
-            servidor.
-          </p>
-        </div>
-      )}
+      </div>
 
       {/* Dropzone */}
       <div
@@ -140,7 +284,11 @@ export function UploadSongsForm() {
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
+        }}
         className={cn(
           "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
@@ -167,7 +315,6 @@ export function UploadSongsForm() {
         />
       </div>
 
-      {/* Cola de archivos pendientes */}
       {files.length > 0 && (
         <div className="flex flex-col gap-2">
           <ul className="flex flex-col gap-1.5">
@@ -196,16 +343,16 @@ export function UploadSongsForm() {
           </ul>
           <div className="flex items-center gap-3">
             <Button
-              onClick={submit}
-              loading={upload.isPending}
+              onClick={onUpload}
+              loading={stage.isPending}
               leftIcon={<UploadCloud className="h-4 w-4" />}
             >
-              Subir {files.length} archivo{files.length === 1 ? "" : "s"}
+              Subir y revisar {files.length} archivo{files.length === 1 ? "" : "s"}
             </Button>
             <Button
               variant="ghost"
               onClick={() => setFiles([])}
-              disabled={upload.isPending}
+              disabled={stage.isPending}
             >
               Vaciar
             </Button>
@@ -213,42 +360,10 @@ export function UploadSongsForm() {
         </div>
       )}
 
-      {upload.isPending && (
+      {stage.isPending && (
         <div className="flex items-center gap-2 text-sm text-text-muted">
-          <Spinner size="sm" /> Subiendo y escaneando metadatos…
+          <Spinner size="sm" /> Subiendo y extrayendo metadatos…
         </div>
-      )}
-
-      {/* Resultado de la última subida */}
-      {uploaded === null ? null : uploaded.length === 0 ? (
-        <EmptyState
-          icon={<Music />}
-          title="Sin canciones nuevas"
-          description="No se pudo extraer ninguna canción de los archivos subidos."
-        />
-      ) : (
-        <Table>
-          <THead>
-            <TR>
-              <TH>ID</TH>
-              <TH>Título</TH>
-              <TH>Género</TH>
-              <TH className="text-right">Duración</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {uploaded.map((s) => (
-              <TR key={s.id}>
-                <TD className="tabular-nums text-text-muted">{s.id}</TD>
-                <TD className="font-medium">{s.title}</TD>
-                <TD className="text-text-muted">{s.genre || "—"}</TD>
-                <TD className="text-right tabular-nums text-text-muted">
-                  {formatDuration(s.duration_ms)}
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
       )}
     </div>
   );

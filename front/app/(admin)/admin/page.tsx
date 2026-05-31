@@ -97,7 +97,7 @@ export default function AdminDashboardPage() {
       <Card>
         <CardTitle className="mb-2">Acciones rápidas</CardTitle>
         <CardDescription className="mb-4">
-          Crea contenido o importa una carpeta del disco.
+          Sube música, gestiona el catálogo o re-escanea la biblioteca.
         </CardDescription>
         <div className="flex flex-wrap gap-3">
           <Link

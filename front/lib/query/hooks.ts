@@ -41,10 +41,18 @@ import {
   createSong,
   deleteSong,
   updateSong,
-  uploadSongs,
+  uploadSongsToStaging,
+  commitSongs,
+  uploadSongCover,
+  setSongArtists,
   getGenreTopSongs,
 } from "@/lib/api/songs";
-import { listArtists, getArtist, getArtistTopTracks } from "@/lib/api/artists";
+import {
+  listArtists,
+  getArtist,
+  getArtistTopTracks,
+  createArtist,
+} from "@/lib/api/artists";
 import {
   getHomeFeed,
   getRecentGenres,
@@ -74,6 +82,7 @@ import type {
   ImportFolderPayload,
   PlaylistInput,
   SearchType,
+  SongCommitPayload,
   UpdateConfigPayload,
   UpdateSongPayload,
 } from "@/lib/types";
@@ -438,17 +447,55 @@ export function useUpdateSong() {
   });
 }
 
-/** Sube audios por drag&drop. Invalida biblioteca (canciones/artistas/álbumes). */
-export function useUploadSongs() {
+/** Fase 1: sube audios a staging y devuelve borradores editables. No persiste nada. */
+export function useUploadSongsToStaging() {
+  return useMutation({
+    mutationFn: (files: File[]) => uploadSongsToStaging(files),
+  });
+}
+
+/** Fase 2: confirma los borradores y persiste las canciones. Invalida biblioteca. */
+export function useCommitSongs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ files, targetPath }: { files: File[]; targetPath?: string }) =>
-      uploadSongs(files, targetPath),
+    mutationFn: (payload: SongCommitPayload) => commitSongs(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.songs });
       qc.invalidateQueries({ queryKey: queryKeys.artists });
       qc.invalidateQueries({ queryKey: queryKeys.albums });
       qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+    },
+  });
+}
+
+/** Sube una carátula (imagen) y devuelve su URL en /assets/covers. */
+export function useUploadSongCover() {
+  return useMutation({
+    mutationFn: (file: File) => uploadSongCover(file),
+  });
+}
+
+/** Crea un artista nuevo por nombre. Invalida la lista de artistas. */
+export function useCreateArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => createArtist(name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+    },
+  });
+}
+
+/** Reasigna los artistas de una canción. Invalida la canción y la biblioteca. */
+export function useSetSongArtists() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, artistIds }: { id: number; artistIds: number[] }) =>
+      setSongArtists(id, artistIds),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.song(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
     },
   });
 }

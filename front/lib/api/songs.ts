@@ -2,6 +2,8 @@ import { apiFetch } from "./client";
 import type {
   CreateSongPayload,
   ImportFolderPayload,
+  SongCommitPayload,
+  SongDraft,
   SongDTO,
   Top10GenreSongs,
   UpdateSongPayload,
@@ -56,16 +58,40 @@ export function updateSong(id: number, payload: UpdateSongPayload) {
 }
 
 /**
- * Sube audios (drag&drop). Se guardan en la carpeta selfpotify_added: en el
- * volumen de datos (Docker) o en `targetPath`/selfpotify_added (local, debe ser
- * una de las rutas de música configuradas).
+ * Fase 1 de la subida drag&drop: sube audios a staging y devuelve borradores
+ * editables (metadatos extraídos), aún sin incorporarlos a la biblioteca.
  */
-export function uploadSongs(files: File[], targetPath?: string) {
+export function uploadSongsToStaging(files: File[]) {
   const fd = new FormData();
   for (const file of files) fd.append("files", file);
-  if (targetPath) fd.append("targetPath", targetPath);
-  return apiFetch<SongDTO[]>("/api/songs/upload", {
+  return apiFetch<SongDraft[]>("/api/songs/upload", {
     method: "POST",
     body: fd,
+  });
+}
+
+/** Fase 2: confirma los borradores ya ajustados y persiste las canciones. */
+export function commitSongs(payload: SongCommitPayload) {
+  return apiFetch<SongDTO[]>("/api/songs/commit", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+/** Sube una carátula y la guarda donde las carátulas normales. Devuelve su URL. */
+export function uploadSongCover(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+  return apiFetch<{ url: string }>("/api/songs/cover", {
+    method: "POST",
+    body: fd,
+  });
+}
+
+/** Reasigna los artistas de una canción por sus ids. */
+export function setSongArtists(id: number, artistIds: number[]) {
+  return apiFetch<SongDTO>(`/api/songs/${id}/artists`, {
+    method: "PUT",
+    body: { artistIds },
   });
 }
