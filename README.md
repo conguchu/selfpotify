@@ -170,6 +170,15 @@ La biblioteca musical será gestionada por los admins, que tendrán la posibilid
 
 El escaneo lo dispara `SchedulingConfig` mediante un `PeriodicTrigger` que **relee el intervalo configurado en cada tick**, de forma que los cambios en `scan.intervalSeconds` realizados vía `PUT /api/config` se aplican en caliente sin reiniciar el servidor. La concurrencia se protege con un `ReentrantLock` en `ScanService`: si llega un tick (o un `POST /api/config/scan/run` manual) mientras hay otro escaneo activo, se descarta. Al añadir una ruta nueva vía `POST /api/config/scan-paths` se lanza además un escaneo inicial asíncrono solo de esa carpeta para no esperar al siguiente tick.
 
+#### Subida de audios desde el panel (drag & drop)
+
+Además de registrar carpetas del servidor, el panel admin permite **subir audios sueltos** (`POST /api/songs/upload`, gestionado por `SongUploadService`). La decisión de diseño clave es **dónde** se escriben: el volumen de música se monta **read-only** en Docker (`/music:ro`), así que los audios subidos no pueden ir ahí. Se guardan en una carpeta `selfpotify_added` **escribible**:
+
+- **En Docker**, dentro del volumen de datos persistente (`/data/selfpotify/selfpotify_added`), el mismo que ya guarda `config.yml` y los assets. El panel no deja elegir ruta porque solo ese volumen es escribible.
+- **En local**, dentro de la ruta de música que elija el admin de entre las ya configuradas (`<ruta>/selfpotify_added`) o, por defecto, la carpeta de datos (`~/.selfpotify/selfpotify_added`).
+
+Tras copiar los ficheros, la carpeta `selfpotify_added` se registra como ruta de escaneo (salvo que ya quede cubierta por una ruta padre) y se reutiliza `SongService.rescanFolder`, de modo que la subida recorre exactamente el mismo camino idempotente que cualquier otra importación: extracción de metadatos ID3, resolución de artista/álbum y autocompletado de género/carátula. Así una canción subida es indistinguible de una escaneada del disco, y los re-escaneos posteriores la mantienen sin duplicarla.
+
 #### Flujo del escaneo periódico
 
 ```mermaid
