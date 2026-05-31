@@ -153,6 +153,41 @@ export interface SetupPayload {
   scanIntervalSeconds?: number;
 }
 
+/** Config completa del servidor (`GET /api/config`, solo admin). */
+export interface ServerConfig {
+  branding: BrandingDTO;
+  autoCompleteMetadata: boolean;
+  autoCompleteCoverArt: boolean;
+  setupComplete: boolean;
+  scanPaths: string[];
+  scanIntervalSeconds: number;
+  lastScanEpochSec: number;
+  /** Si el backend corre en Docker, los audios subidos van siempre a la carpeta de datos. */
+  runningInDocker: boolean;
+  /** Carpeta selfpotify_added por defecto (dentro de la carpeta de datos). */
+  addedSongsDir: string;
+}
+
+/** Cuerpo de `PUT /api/config` (branding, features y/o intervalo de escaneo). */
+export interface UpdateConfigPayload {
+  branding?: { appName?: string; colors?: Record<string, string> };
+  autoCompleteMetadata?: boolean;
+  autoCompleteCoverArt?: boolean;
+  scanIntervalSeconds?: number;
+}
+
+/**
+ * Cuerpo de `PUT /api/songs/{id}`: edición de metadatos. No incluye songPath
+ * (el backend conserva la ruta física existente si no llega).
+ */
+export interface UpdateSongPayload {
+  title: string;
+  genre?: string | null;
+  bpm?: number;
+  duration_ms?: number;
+  picture_url?: string | null;
+}
+
 // =====================================
 // ----- Búsqueda (`GET /api/search`)
 // =====================================

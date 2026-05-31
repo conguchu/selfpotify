@@ -36,9 +36,12 @@ import {
 } from "@/lib/api/follow";
 import {
   listSongs,
+  getSong,
   importFolder,
   createSong,
   deleteSong,
+  updateSong,
+  uploadSongs,
   getGenreTopSongs,
 } from "@/lib/api/songs";
 import { listArtists, getArtist, getArtistTopTracks } from "@/lib/api/artists";
@@ -49,12 +52,21 @@ import {
 } from "@/lib/api/feed";
 import { getAlbum, listAlbums } from "@/lib/api/albums";
 import { search as searchApi } from "@/lib/api/search";
-import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
+import {
+  getPublicConfig,
+  getServerConfig,
+  rescanLibrary,
+  updateServerConfig,
+  addScanPath,
+  removeScanPath,
+  resetServer,
+} from "@/lib/api/config";
 import {
   createUser,
   deleteUser,
   listUsers,
   updateUserPassword,
+  changeUserRole,
 } from "@/lib/api/users";
 import type {
   CreateSongPayload,
@@ -62,6 +74,8 @@ import type {
   ImportFolderPayload,
   PlaylistInput,
   SearchType,
+  UpdateConfigPayload,
+  UpdateSongPayload,
 } from "@/lib/types";
 
 export const queryKeys = {
@@ -81,6 +95,8 @@ export const queryKeys = {
   playlistCollaborators: (id: number) =>
     ["playlists", id, "collaborators"] as const,
   users: ["users"] as const,
+  song: (id: number) => ["songs", id] as const,
+  serverConfig: ["config", "server"] as const,
   me: ["me"] as const,
   publicProfile: (id: number) => ["users", "public", id] as const,
   publicProfilePlaylists: (id: number) =>
@@ -180,6 +196,23 @@ export function useSongs(enabled = true) {
   return useQuery({
     queryKey: queryKeys.songs,
     queryFn: listSongs,
+    enabled,
+  });
+}
+
+export function useSong(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.song(id),
+    queryFn: () => getSong(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+/** Config completa del servidor (solo admin): branding, scan paths, features, contexto Docker. */
+export function useServerConfig(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.serverConfig,
+    queryFn: getServerConfig,
     enabled,
   });
 }
@@ -393,6 +426,73 @@ export function useDeleteSong() {
   });
 }
 
+export function useUpdateSong() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateSongPayload }) =>
+      updateSong(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.song(vars.id) });
+    },
+  });
+}
+
+/** Sube audios por drag&drop. Invalida biblioteca (canciones/artistas/álbumes). */
+export function useUploadSongs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ files, targetPath }: { files: File[]; targetPath?: string }) =>
+      uploadSongs(files, targetPath),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+    },
+  });
+}
+
+/** Actualiza branding/features/intervalo. Invalida la config pública (retematiza) y la de admin. */
+export function useUpdateServerConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateConfigPayload) => updateServerConfig(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+      qc.invalidateQueries({ queryKey: queryKeys.publicConfig });
+    },
+  });
+}
+
+export function useAddScanPath() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => addScanPath(path),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+    },
+  });
+}
+
+export function useRemoveScanPath() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => removeScanPath(path),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+    },
+  });
+}
+
+/** Reset total del servidor. No invalida caché: el llamante desloguea tras éxito. */
+export function useResetServer() {
+  return useMutation({
+    mutationFn: () => resetServer(),
+  });
+}
+
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
@@ -407,6 +507,17 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deleteUser(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+export function useChangeUserRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isAdmin }: { id: number; isAdmin: boolean }) =>
+      changeUserRole(id, isAdmin),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.users });
     },

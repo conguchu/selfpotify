@@ -11,9 +11,9 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Spinner } from "@/components/ui/Spinner";
 import { Switch } from "@/components/ui/Switch";
-import { Tooltip } from "@/components/ui/Tooltip";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import {
+  useChangeUserRole,
   useDeleteUser,
   useUpdateUserPassword,
   useUsers,
@@ -26,7 +26,9 @@ export function UserTable() {
   const currentUser = useAuthStore((s) => s.username);
   const deleteUser = useDeleteUser();
   const updatePassword = useUpdateUserPassword();
+  const changeRole = useChangeUserRole();
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
+  const [confirmRole, setConfirmRole] = useState<AdminUser | null>(null);
   const [editPassword, setEditPassword] = useState<AdminUser | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
@@ -55,6 +57,23 @@ export function UserTable() {
       setConfirmDelete(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al eliminar");
+    }
+  };
+
+  const onChangeRole = async () => {
+    if (!confirmRole) return;
+    const nextIsAdmin = confirmRole.type !== "ADMIN";
+    try {
+      await changeRole.mutateAsync({ id: confirmRole.id, isAdmin: nextIsAdmin });
+      toast.success(
+        nextIsAdmin
+          ? `${confirmRole.username} ahora es administrador`
+          : `${confirmRole.username} ahora es usuario`,
+      );
+      setConfirmRole(null);
+    } catch (err) {
+      // El backend devuelve 400 con texto al intentar degradar al último admin.
+      toast.error(err instanceof Error ? err.message : "No se pudo cambiar el rol");
     }
   };
 
@@ -111,19 +130,12 @@ export function UserTable() {
                 </TD>
                 <TD>
                   <div className="flex items-center gap-3">
-                    <Tooltip
-                      label="El cambio de rol requiere borrar y recrear (limitación del backend actual)"
-                      side="right"
-                    >
-                      <Switch
-                        ariaLabel={`Rol admin para ${u.username}`}
-                        checked={isAdmin}
-                        onChange={() => {
-                          /* deshabilitado */
-                        }}
-                        disabled
-                      />
-                    </Tooltip>
+                    <Switch
+                      ariaLabel={`Rol admin para ${u.username}`}
+                      checked={isAdmin}
+                      onChange={() => setConfirmRole(u)}
+                      disabled={changeRole.isPending}
+                    />
                     <Badge variant={isAdmin ? "accent" : "neutral"}>
                       {isAdmin ? "Admin" : "Usuario"}
                     </Badge>
@@ -157,6 +169,35 @@ export function UserTable() {
           })}
         </TBody>
       </Table>
+
+      <Modal
+        open={!!confirmRole}
+        onClose={() => setConfirmRole(null)}
+        title="Cambiar rol"
+        description={
+          confirmRole
+            ? confirmRole.type === "ADMIN"
+              ? `Vas a quitar el rol de administrador a "${confirmRole.username}".`
+              : `Vas a dar el rol de administrador a "${confirmRole.username}".`
+            : ""
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmRole(null)}>
+              Cancelar
+            </Button>
+            <Button loading={changeRole.isPending} onClick={onChangeRole}>
+              Confirmar
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-muted">
+          {confirmRole?.username === currentUser
+            ? "Es tu propia cuenta: si te quitas el rol de administrador perderás el acceso al panel."
+            : "Un administrador puede gestionar usuarios, música y la configuración del servidor."}
+        </p>
+      </Modal>
 
       <Modal
         open={!!confirmDelete}

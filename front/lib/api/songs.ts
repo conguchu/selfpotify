@@ -4,6 +4,7 @@ import type {
   ImportFolderPayload,
   SongDTO,
   Top10GenreSongs,
+  UpdateSongPayload,
 } from "@/lib/types";
 
 export function listSongs() {
@@ -43,5 +44,28 @@ export function importFolder(payload: ImportFolderPayload) {
   return apiFetch<SongDTO[]>("/api/songs/import", {
     method: "POST",
     body: payload,
+  });
+}
+
+/** Edita los metadatos de una canción (solo admin). */
+export function updateSong(id: number, payload: UpdateSongPayload) {
+  return apiFetch<SongDTO>(`/api/songs/${id}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+/**
+ * Sube audios (drag&drop). Se guardan en la carpeta selfpotify_added: en el
+ * volumen de datos (Docker) o en `targetPath`/selfpotify_added (local, debe ser
+ * una de las rutas de música configuradas).
+ */
+export function uploadSongs(files: File[], targetPath?: string) {
+  const fd = new FormData();
+  for (const file of files) fd.append("files", file);
+  if (targetPath) fd.append("targetPath", targetPath);
+  return apiFetch<SongDTO[]>("/api/songs/upload", {
+    method: "POST",
+    body: fd,
   });
 }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { DangerZone } from "@/components/admin/DangerZone";
 import { ApiError } from "@/lib/api/client";
 import {
   useAlbums,
@@ -123,6 +124,8 @@ export default function AdminDashboardPage() {
           </Button>
         </div>
       </Card>
+
+      <DangerZone />
     </div>
   );
 }

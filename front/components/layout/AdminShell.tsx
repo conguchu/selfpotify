@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Shield, Users } from "lucide-react";
+import { ListMusic, Music2, Settings, Shield, Users } from "lucide-react";
 import { ProfileMenu } from "./ProfileMenu";
 import { AppLogo } from "./AppLogo";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -13,6 +13,8 @@ const NAV = [
   { href: "/admin", label: "Resumen", icon: Shield, exact: true },
   { href: "/admin/users", label: "Usuarios", icon: Users },
   { href: "/admin/music", label: "Música", icon: Music2 },
+  { href: "/admin/songs", label: "Canciones", icon: ListMusic },
+  { href: "/admin/settings", label: "Ajustes", icon: Settings },
 ];
 
 export function AdminShell({
