@@ -44,10 +44,18 @@ public class User {
         }
     }
 
+    /**
+     * Copia SOLO los campos presentes (no nulos) de {@code u}. Las actualizaciones
+     * parciales desde el panel —p.ej. "cambiar contraseña" envía únicamente
+     * {@code {password}}— no deben borrar el resto: antes, copiar a ciegas
+     * username/profile/password ponía a null lo que no llegara en el body (de ahí
+     * que cambiar la contraseña dejara usuarios sin nombre). El password ya viene
+     * codificado del controlador cuando procede.
+     */
     public void copy(User u) {
-        this.setUsername(u.getUsername());
-        this.setPassword(u.getPassword());
-        this.setProfile(u.getProfile());
+        if (u.getUsername() != null) this.setUsername(u.getUsername());
+        if (u.getPassword() != null) this.setPassword(u.getPassword());
+        if (u.getProfile() != null) this.setProfile(u.getProfile());
     }
 
     /**
