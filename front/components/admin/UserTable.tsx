@@ -116,7 +116,7 @@ export function UserTable() {
                 <TD className="font-medium">
                   <span className="inline-flex items-center gap-2">
                     {isAdmin ? (
-                      <Shield className="h-4 w-4 text-accent" />
+                      <Shield className="h-4 w-4 text-accent-text" />
                     ) : (
                       <UserIcon className="h-4 w-4 text-text-muted" />
                     )}

@@ -41,7 +41,7 @@ export default function ArtistPage({
         title="Artista no encontrado"
         description="Puede que no exista o que el servidor no lo tenga registrado."
         action={
-          <Link href="/home" className="text-sm text-accent-hover hover:underline">
+          <Link href="/home" className="text-sm text-accent-text hover:underline">
             Volver al inicio
           </Link>
         }

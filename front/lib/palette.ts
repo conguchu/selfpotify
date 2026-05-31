@@ -153,6 +153,84 @@ export function onAccentFor(accentHex: string): string {
   return tone(TonalPalette.fromInt(argb), onTone(hct.tone));
 }
 
+/**
+ * Color del acento usable como PRIMER PLANO (iconos, enlaces, estados activos)
+ * SOBRE el fondo. El `--color-accent` se calibra para lucir como FONDO de botón
+ * (vivo, parecido al color elegido), y por eso no garantiza contraste contra el
+ * fondo de la página: un acento vivo sobre un fondo del mismo tono da iconos que
+ * no se ven. Aquí conservamos matiz y croma del acento pero llevamos el TONO al
+ * mínimo que alcanza AA (4.5:1) contra el fondo, de modo que el color siga
+ * "siendo el acento" (un rojo sigue rojo) pero legible. Se calcula SIEMPRE al
+ * aplicar (no se almacena), igual que {@link onAccentFor}, para seguir al acento
+ * y al fondo aunque se editen a mano. Alimenta `--color-accent-text`.
+ */
+export function accentTextFor(accentHex: string, bgHex: string): string {
+  const accentArgb = safeArgb(accentHex, 0xffb91c1c);
+  const bgTone = Hct.fromInt(safeArgb(bgHex, 0xff0a0a0a)).tone;
+  const accentHct = Hct.fromInt(accentArgb);
+  const dark = bgTone < 50;
+  const t = readableTone(bgTone, 4.5, dark);
+  return tone(TonalPalette.fromHueAndChroma(accentHct.hue, accentHct.chroma), t);
+}
+
+// Contraste mínimo exigido a cada color de texto contra la superficie de
+// contenido más exigente. `text` cumple AA (4.5:1); `muted`/`subtle` se dejan
+// más tenues a propósito, pero nunca por debajo de 3:1 (siguen siendo visibles).
+const TEXT_FLOORS: Record<string, number> = {
+  "--color-text": 4.5,
+  "--color-text-muted": 3,
+  "--color-text-subtle": 3,
+};
+
+/**
+ * Red de seguridad de accesibilidad: dado un mapa de colores cualquiera (incluido
+ * uno editado a mano en "Avanzado" o heredado de una config antigua), devuelve
+ * una copia donde cada color de texto que NO alcance su contraste mínimo contra
+ * el fondo se reemplaza por el tono legible más cercano, conservando su matiz y
+ * croma. Los colores que ya cumplen se dejan intactos, así que no "aplana" un
+ * tema bien derivado; solo corrige los que romperían la legibilidad. Se aplica
+ * tanto en el preview de los editores como al pintar la app real
+ * ({@link applyTheme}-style en ThemeApplier), por lo que la app NUNCA renderiza
+ * texto ilegible, da igual lo que haya guardado.
+ */
+export function enforceContrast(
+  colors: Record<string, string>,
+): Record<string, string> {
+  const bg = colors["--color-bg"];
+  if (!bg) return { ...colors };
+
+  const bgTone = Hct.fromInt(safeArgb(bg, 0xff0a0a0a)).tone;
+  const dark = bgTone < 50;
+
+  // Superficie de contenido más exigente: en oscuro la más clara, en claro la
+  // más oscura (la más próxima al texto en tono, que es la que peor contrasta).
+  const surfaceTones = [
+    "--color-bg",
+    "--color-bg-elevated",
+    "--color-bg-card",
+    "--color-bg-hover",
+  ]
+    .map((k) => colors[k])
+    .filter(Boolean)
+    .map((hex) => Hct.fromInt(safeArgb(hex, 0xff0a0a0a)).tone);
+  const refTone = surfaceTones.length
+    ? dark
+      ? Math.max(...surfaceTones)
+      : Math.min(...surfaceTones)
+    : bgTone;
+
+  const out = { ...colors };
+  for (const [key, ratio] of Object.entries(TEXT_FLOORS)) {
+    const value = colors[key];
+    if (!value) continue;
+    const hct = Hct.fromInt(safeArgb(value, 0xfff5f5f5));
+    if (Contrast.ratioOfTones(refTone, hct.tone) >= ratio) continue;
+    const t = readableTone(refTone, ratio, dark);
+    out[key] = tone(TonalPalette.fromHueAndChroma(hct.hue, hct.chroma), t);
+  }
+  return out;
+}
+
 /** Convierte un hex a ARGB; si el valor no es válido devuelve `fallback`. */
 function safeArgb(hex: string, fallback: number): number {
   try {

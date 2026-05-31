@@ -41,7 +41,7 @@ export function UserCard({
         </p>
         <p className="flex items-center justify-center gap-1 text-xs text-text-muted">
           {isAdmin ? (
-            <Shield className="h-3 w-3 text-accent" aria-hidden />
+            <Shield className="h-3 w-3 text-accent-text" aria-hidden />
           ) : (
             <UserIcon className="h-3 w-3" aria-hidden />
           )}

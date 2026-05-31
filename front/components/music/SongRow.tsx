@@ -60,7 +60,7 @@ export function SongRow({
           <p
             className={cn(
               "truncate text-sm font-medium",
-              isCurrent ? "text-accent-hover" : "text-text",
+              isCurrent ? "text-accent-text" : "text-text",
             )}
             title={song.title}
           >

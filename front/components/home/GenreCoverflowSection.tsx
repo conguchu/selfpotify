@@ -27,7 +27,7 @@ export function GenreCoverflowSection({ genre }: { genre: string }) {
       className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6"
     >
       <div className="flex items-center gap-2">
-        <Disc3 className="h-5 w-5 text-accent" />
+        <Disc3 className="h-5 w-5 text-accent-text" />
         <h2 className="text-xl font-bold capitalize tracking-tight">{genre}</h2>
       </div>
 

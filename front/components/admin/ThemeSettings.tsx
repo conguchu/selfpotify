@@ -16,7 +16,13 @@ import {
   queryKeys,
 } from "@/lib/query/hooks";
 import { uploadLogo } from "@/lib/api/config";
-import { derivePalette, onAccentFor } from "@/lib/palette";
+import {
+  derivePalette,
+  onAccentFor,
+  accentTextFor,
+  enforceContrast,
+} from "@/lib/palette";
+import { THEME_PRESETS } from "@/lib/presets";
 import { API_BASE } from "@/lib/api/client";
 import { resizeImageToFit, formatBytes } from "@/lib/image";
 
@@ -24,14 +30,22 @@ function colorLabel(key: string): string {
   return key.replace(/^--color-/, "").replace(/-/g, " ");
 }
 
-/** Aplica un mapa de colores (y on-accent derivado) a :root. */
+/**
+ * Aplica un mapa de colores a :root pasando por el mismo guard de contraste y
+ * los mismos derivados (on-accent, accent-text) que la app real, para que el
+ * preview sea fiel a lo que se verá tras guardar.
+ */
 function applyColors(colors: Record<string, string>) {
   const root = document.documentElement;
-  for (const [key, value] of Object.entries(colors)) {
+  const safe = enforceContrast(colors);
+  for (const [key, value] of Object.entries(safe)) {
     if (key.startsWith("--color-") && value) root.style.setProperty(key, value);
   }
-  const accent = colors["--color-accent"];
+  const accent = safe["--color-accent"];
+  const bg = safe["--color-bg"];
   if (accent) root.style.setProperty("--color-on-accent", onAccentFor(accent));
+  if (accent && bg)
+    root.style.setProperty("--color-accent-text", accentTextFor(accent, bg));
 }
 
 /**
@@ -68,6 +82,9 @@ export function ThemeSettings() {
   }
 
   const colorKeys = useMemo(() => Object.keys(colors), [colors]);
+  // Muestras: el resultado real tras el guard, para que el admin vea lo que se
+  // aplicará (no el valor crudo que pudo quedar ilegible).
+  const previewColors = useMemo(() => enforceContrast(colors), [colors]);
 
   // Preview en vivo.
   useEffect(() => {
@@ -210,6 +227,49 @@ export function ThemeSettings() {
           </Button>
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-text-subtle">
+            Temas accesibles (un clic para partir de uno):
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {THEME_PRESETS.map((preset) => {
+              const active =
+                primary.toLowerCase() === preset.primary.toLowerCase() &&
+                secondary.toLowerCase() === preset.secondary.toLowerCase();
+              return (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() =>
+                    applySeed({
+                      primary: preset.primary,
+                      secondary: preset.secondary,
+                    })
+                  }
+                  title={preset.name}
+                  className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs transition-colors ${
+                    active
+                      ? "border-accent text-text"
+                      : "border-border text-text-muted hover:bg-bg-hover"
+                  }`}
+                >
+                  <span className="flex">
+                    <span
+                      className="h-3.5 w-3.5 rounded-full border border-border"
+                      style={{ backgroundColor: preset.secondary }}
+                    />
+                    <span
+                      className="-ml-1 h-3.5 w-3.5 rounded-full border border-border"
+                      style={{ backgroundColor: preset.primary }}
+                    />
+                  </span>
+                  {preset.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="flex items-center gap-2 rounded-md border border-border bg-bg px-2 py-1.5">
             <input
@@ -247,9 +307,9 @@ export function ThemeSettings() {
           {colorKeys.map((key) => (
             <span
               key={key}
-              title={`${colorLabel(key)} ${colors[key]}`}
+              title={`${colorLabel(key)} ${previewColors[key]}`}
               className="h-6 w-6 rounded border border-border"
-              style={{ backgroundColor: colors[key] }}
+              style={{ backgroundColor: previewColors[key] }}
             />
           ))}
         </div>

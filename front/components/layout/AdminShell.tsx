@@ -34,7 +34,7 @@ export function AdminShell({
             <Link href="/admin" className="flex items-center gap-2">
               <AppLogo className="h-9 w-9" />
               <span className="text-base font-bold tracking-tight">
-                {appName} <span className="text-accent">admin</span>
+                {appName} <span className="text-accent-text">admin</span>
               </span>
             </Link>
             <nav className="flex items-center gap-1">

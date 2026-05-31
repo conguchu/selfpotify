@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
             <Link key={item.label} href={item.href} className="block">
               <Card className="flex flex-col gap-3 transition-colors hover:border-accent">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent-soft text-accent">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent-soft text-accent-text">
                     <Icon className="h-5 w-5" />
                   </div>
                   <CardTitle className="text-sm font-medium uppercase tracking-wide text-text-muted">

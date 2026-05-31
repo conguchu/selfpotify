@@ -195,7 +195,7 @@ export default function EditProfilePage() {
         </div>
         <p className="flex items-center gap-1.5 text-xs text-text-muted">
           {isAdmin ? (
-            <Shield className="h-3.5 w-3.5 text-accent" aria-hidden />
+            <Shield className="h-3.5 w-3.5 text-accent-text" aria-hidden />
           ) : (
             <UserIcon className="h-3.5 w-3.5" aria-hidden />
           )}

@@ -43,7 +43,7 @@ export function PlaylistCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/30 to-bg-card text-accent-hover">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/30 to-bg-card text-accent-text">
             <ListMusic className="h-14 w-14" />
           </div>
         )}

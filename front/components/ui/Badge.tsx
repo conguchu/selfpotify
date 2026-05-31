@@ -4,7 +4,7 @@ type Variant = "neutral" | "accent" | "success" | "danger";
 
 const VARIANT: Record<Variant, string> = {
   neutral: "bg-bg-hover text-text-muted border-border",
-  accent: "bg-accent-soft text-accent-hover border-accent-active",
+  accent: "bg-accent-soft text-accent-text border-accent-active",
   success: "bg-success/10 text-success border-success/30",
   danger: "bg-danger/10 text-danger border-danger/30",
 };

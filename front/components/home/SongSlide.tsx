@@ -94,7 +94,7 @@ export function SongSlide({
           className={cn(
             "truncate text-base font-semibold",
             isCurrent
-              ? "text-accent-hover"
+              ? "text-accent-text"
               : isCenter
                 ? "text-text"
                 : "text-text-muted",

@@ -98,7 +98,7 @@ function FollowRow({
           @{user.username}
         </p>
         {isAdmin ? (
-          <p className="mt-1 inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-accent-hover">
+          <p className="mt-1 inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-accent-text">
             <Shield className="h-3 w-3" aria-hidden />
             Admin
           </p>

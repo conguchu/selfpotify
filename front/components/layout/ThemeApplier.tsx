@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePublicConfig } from "@/lib/query/hooks";
-import { onAccentFor } from "@/lib/palette";
+import { onAccentFor, accentTextFor, enforceContrast } from "@/lib/palette";
 
 /**
  * Aplica el branding guardado en el servidor: sobrescribe las variables
@@ -20,15 +20,22 @@ export function ThemeApplier() {
   useEffect(() => {
     if (!colors) return;
     const root = document.documentElement;
-    for (const [key, value] of Object.entries(colors)) {
+    // Red de seguridad: cualquier color de texto ilegible (p. ej. editado a mano
+    // en "Avanzado") se corrige al tono legible más cercano antes de pintar.
+    const safe = enforceContrast(colors);
+    for (const [key, value] of Object.entries(safe)) {
       if (key.startsWith("--color-") && value) {
         root.style.setProperty(key, value);
       }
     }
-    // on-accent se calcula siempre desde el acento aplicado (no se almacena),
-    // para que el texto sobre botones sea legible con cualquier paleta.
-    const accent = colors["--color-accent"];
+    // on-accent y accent-text se calculan siempre desde el acento/fondo aplicados
+    // (no se almacenan): el primero hace legible el texto SOBRE botones, el
+    // segundo el acento usado como texto/icono SOBRE el fondo.
+    const accent = safe["--color-accent"];
+    const bg = safe["--color-bg"];
     if (accent) root.style.setProperty("--color-on-accent", onAccentFor(accent));
+    if (accent && bg)
+      root.style.setProperty("--color-accent-text", accentTextFor(accent, bg));
   }, [colors]);
 
   useEffect(() => {

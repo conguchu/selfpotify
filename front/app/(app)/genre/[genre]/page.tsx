@@ -90,7 +90,7 @@ export default function GenrePage({
           action={
             <Link
               href="/home"
-              className="text-sm text-accent-hover hover:underline"
+              className="text-sm text-accent-text hover:underline"
             >
               Volver al inicio
             </Link>

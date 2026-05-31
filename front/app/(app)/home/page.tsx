@@ -57,7 +57,7 @@ export default function HomePage() {
         </header>
 
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-accent" />
+          <Sparkles className="h-5 w-5 text-accent-text" />
           <h2 className="text-xl font-bold tracking-tight">
             Tus descubrimientos diarios
           </h2>
@@ -102,7 +102,7 @@ export default function HomePage() {
         className="flex h-full w-full snap-start snap-always flex-col gap-6 px-6 py-6"
       >
         <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-accent" />
+          <Users className="h-5 w-5 text-accent-text" />
           <h2 className="text-xl font-bold tracking-tight">
             Artistas recomendados para ti
           </h2>
