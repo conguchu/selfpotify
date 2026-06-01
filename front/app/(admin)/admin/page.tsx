@@ -50,10 +50,10 @@ export default function AdminDashboardPage() {
       label: "Canciones",
       icon: Music2,
       query: songs,
-      href: "/admin/music",
+      href: "/admin/songs",
     },
-    { label: "Artistas", icon: Disc3, query: artists, href: "/admin/music" },
-    { label: "Álbumes", icon: Disc3, query: albums, href: "/admin/music" },
+    { label: "Artistas", icon: Disc3, query: artists, href: "/admin/songs" },
+    { label: "Álbumes", icon: Disc3, query: albums, href: "/admin/songs" },
     { label: "Usuarios", icon: Users, query: users, href: "/admin/users" },
     { label: "Mis playlists", icon: ListMusic, query: playlists, href: "/home" },
   ];
@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
         </CardDescription>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/admin/music"
+            href="/admin/songs"
             className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             <Music2 className="h-4 w-4" />

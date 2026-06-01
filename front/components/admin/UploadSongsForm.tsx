@@ -30,7 +30,7 @@ interface DraftRow extends SongDraft {
   artistLabel: string; // nombre mostrado (existente elegido o el extraído)
 }
 
-export function UploadSongsForm() {
+export function UploadSongsForm({ onDone }: { onDone?: () => void } = {}) {
   const config = useServerConfig();
   const stage = useUploadSongsToStaging();
   const commit = useCommitSongs();
@@ -128,6 +128,7 @@ export function UploadSongsForm() {
         `Importadas ${result.length} canci${result.length === 1 ? "ón" : "ones"}`,
       );
       setDrafts(null);
+      onDone?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al confirmar");
     }

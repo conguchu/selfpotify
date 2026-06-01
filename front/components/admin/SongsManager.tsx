@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Pencil, Trash2, Music, Search } from "lucide-react";
+import { Pencil, Trash2, Music, Search, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import { UploadSongsForm } from "@/components/admin/UploadSongsForm";
 import { useDeleteSong, useSongs } from "@/lib/query/hooks";
 import { formatDuration } from "@/lib/utils";
 import type { SongDTO } from "@/lib/types";
@@ -20,6 +21,7 @@ export function SongsManager() {
   const deleteSong = useDeleteSong();
   const [query, setQuery] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<SongDTO | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const songs = songsQuery.data ?? [];
   const filtered = useMemo(() => {
@@ -62,14 +64,22 @@ export function SongsManager() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por título, artista o género"
-          className="pl-9"
-        />
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por título, artista o género"
+            className="pl-9"
+          />
+        </div>
+        <Button
+          onClick={() => setUploadOpen(true)}
+          leftIcon={<UploadCloud className="h-4 w-4" />}
+        >
+          Subir audios
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -78,7 +88,7 @@ export function SongsManager() {
           title={songs.length === 0 ? "No hay canciones" : "Sin resultados"}
           description={
             songs.length === 0
-              ? "Sube audios o importa una carpeta desde la sección Música."
+              ? 'Usa el botón "Subir audios" para añadir canciones por arrastrar y soltar.'
               : "Ninguna canción coincide con la búsqueda."
           }
         />
@@ -161,6 +171,16 @@ export function SongsManager() {
           Solo se elimina la canción del catálogo; el archivo de audio en disco no
           se borra.
         </p>
+      </Modal>
+
+      <Modal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        title="Subir audios (drag & drop)"
+        description="Arrastra archivos .mp3/.wav, revisa sus datos y añádelos a la biblioteca. Se guardan en una carpeta selfpotify_added del servidor."
+        className="max-w-3xl max-h-[85vh] overflow-y-auto"
+      >
+        <UploadSongsForm onDone={() => setUploadOpen(false)} />
       </Modal>
     </div>
   );
