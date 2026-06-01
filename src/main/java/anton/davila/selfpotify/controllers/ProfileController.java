@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -144,12 +146,23 @@ public class ProfileController {
             int size = Math.min(original.getWidth(), original.getHeight());
             int x = (original.getWidth() - size) / 2;
             int y = (original.getHeight() - size) / 2;
-            BufferedImage cropped = original.getSubimage(x, y, size, size);
+            // Recorte centrado aplanado a RGB sobre fondo blanco: el codificador JPEG
+            // no sabe escribir canal alfa y, si la imagen subida es un PNG/WebP con
+            // transparencia, ImageIO.write(...) devuelve false sin escribir nada.
+            BufferedImage cropped = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = cropped.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, size, size);
+            g.drawImage(original, 0, 0, size, size, x, y, x + size, y + size, null);
+            g.dispose();
 
             Path avatarsDir = configService.assetsDir().resolve("avatars");
             Files.createDirectories(avatarsDir);
             Path target = avatarsDir.resolve(sha256 + ".jpg");
-            ImageIO.write(cropped, "jpg", target.toFile());
+            if (!ImageIO.write(cropped, "jpg", target.toFile())) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("No se pudo codificar la imagen como JPEG");
+            }
 
             Profile profile = ensureProfile(user);
             profile.setPictureUrl("/assets/avatars/" + sha256 + ".jpg");

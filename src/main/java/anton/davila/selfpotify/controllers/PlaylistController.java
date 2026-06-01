@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -180,14 +182,25 @@ public class PlaylistController {
                         int size = Math.min(originalImage.getWidth(), originalImage.getHeight());
                         int x = (originalImage.getWidth() - size) / 2;
                         int y = (originalImage.getHeight() - size) / 2;
-                        BufferedImage croppedImage = originalImage.getSubimage(x, y, size, size);
+                        // Recorte centrado aplanado a RGB sobre fondo blanco: el codificador
+                        // JPEG no sabe escribir canal alfa y, si la imagen subida es un PNG/WebP
+                        // con transparencia, ImageIO.write(...) devuelve false sin escribir nada.
+                        BufferedImage croppedImage = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+                        Graphics2D g = croppedImage.createGraphics();
+                        g.setColor(Color.WHITE);
+                        g.fillRect(0, 0, size, size);
+                        g.drawImage(originalImage, 0, 0, size, size, x, y, x + size, y + size, null);
+                        g.dispose();
 
                         Path assetsDir = configService.assetsDir();
                         Path playlistCoversDir = assetsDir.resolve("playlist-covers");
                         Files.createDirectories(playlistCoversDir);
 
                         Path targetFile = playlistCoversDir.resolve(sha256 + ".jpg");
-                        ImageIO.write(croppedImage, "jpg", targetFile.toFile());
+                        if (!ImageIO.write(croppedImage, "jpg", targetFile.toFile())) {
+                            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                    .body("No se pudo codificar la imagen como JPEG");
+                        }
 
                         String pictureUrl = "/assets/playlist-covers/" + sha256 + ".jpg";
                         playlist.setPictureUrl(pictureUrl);
