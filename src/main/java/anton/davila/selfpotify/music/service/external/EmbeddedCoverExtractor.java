@@ -86,6 +86,28 @@ public class EmbeddedCoverExtractor {
         }
     }
 
+    /**
+     * Variante por ruta: extrae la carátula embebida del audio en {@code songPath}
+     * y la vuelca a {@code assets/covers}. Devuelve la URL {@code /assets/covers/...}
+     * o {@code null} si no hay carátula. Conveniencia para la subida desde el panel.
+     */
+    public String extractAndStore(String songPath) {
+        if (songPath == null || songPath.isBlank()) return null;
+        return extractToAsset(new File(songPath)).orElse(null);
+    }
+
+    /**
+     * Guarda una imagen ARBITRARIA (p.ej. una carátula subida desde el panel) en el
+     * MISMO almacén que las embebidas: {@code assets/covers/<sha256>.<ext>}. El
+     * nombrado por hash hace la operación idempotente. Devuelve {@code /assets/covers/...}.
+     */
+    public String storeImageBytes(byte[] data, String mime) throws IOException {
+        if (data == null || data.length == 0) {
+            throw new IOException("Imagen vacía");
+        }
+        return writeCover(data, extensionFor(mime));
+    }
+
     /** Escribe los bytes en {@code covers/<sha256>.<ext>} (idempotente). */
     private String writeCover(byte[] data, String ext) throws IOException {
         Path coversDir = configService.assetsDir().resolve(COVERS_SUBDIR);

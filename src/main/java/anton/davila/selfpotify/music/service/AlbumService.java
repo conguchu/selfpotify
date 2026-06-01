@@ -32,12 +32,21 @@ public class AlbumService {
         return albumRepository.findById(id);
     }
 
+    /**
+     * Edición manual de un álbum desde el panel: solo nombre y portada. No usa
+     * {@link Album#copy(Album)} a propósito, porque ese método sobrescribe también
+     * las asociaciones (artistas, canciones) y un body parcial las dejaría a null,
+     * borrando el vínculo {@code album_artist}.
+     */
     @Transactional
-    public Album update(long id, Album albumData) {
+    public Album updateMeta(long id, String name, String photoUrl) {
         log.info("Actualizando álbum con ID: {}", id);
         Album album = albumRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("No se encontró el álbum con ID " + id));
-        album.copy(albumData);
+        if (name != null && !name.isBlank()) {
+            album.setName(name.trim());
+        }
+        album.setPicture_url(photoUrl);
         return album;
     }
 

@@ -28,8 +28,8 @@ export default function AdminUsersPage() {
       <Card>
         <CardTitle className="mb-1">Usuarios del sistema</CardTitle>
         <CardDescription className="mb-4">
-          Cambiar el rol de un usuario existente no está soportado por el
-          backend; bórralo y vuelve a crearlo si necesitas hacerlo.
+          Da de alta y baja, cambia contraseñas y alterna el rol de administrador
+          con el interruptor. No es posible degradar al último administrador.
         </CardDescription>
         <UserTable />
       </Card>

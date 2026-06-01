@@ -15,7 +15,9 @@ services:
       WEB_ORIGIN: http://localhost
     volumes:
       - selfpotify-data:/data/selfpotify
-      - ${MUSIC_LIBRARY_PATH:?Define MUSIC_LIBRARY_PATH en .env apuntando a la carpeta del host con tu música}:/music:ro
+      # Montaje de lectura/escritura: además de escanear la música del host, el
+      # panel guarda los audios subidos en /music/selfpotify_added (drag & drop).
+      - ${MUSIC_LIBRARY_PATH:?Define MUSIC_LIBRARY_PATH en .env apuntando a la carpeta del host con tu música}:/music
     ports:
       - "8080:8080"
     restart: unless-stopped

@@ -36,7 +36,7 @@ export function PlaylistItem({
         />
       )}
       {!playlist.pictureUrl && (
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-bg-elevated text-accent-hover">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-bg-elevated text-accent-text">
           <ListMusic className="h-5 w-5" />
         </div>
       )}

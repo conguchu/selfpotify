@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Shield, Users } from "lucide-react";
+import { Disc3, ListMusic, Settings, Shield, Users } from "lucide-react";
 import { ProfileMenu } from "./ProfileMenu";
 import { AppLogo } from "./AppLogo";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -12,7 +12,9 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/admin", label: "Resumen", icon: Shield, exact: true },
   { href: "/admin/users", label: "Usuarios", icon: Users },
-  { href: "/admin/music", label: "Música", icon: Music2 },
+  { href: "/admin/songs", label: "Canciones", icon: ListMusic },
+  { href: "/admin/artists", label: "Artistas", icon: Disc3 },
+  { href: "/admin/settings", label: "Ajustes", icon: Settings },
 ];
 
 export function AdminShell({
@@ -32,7 +34,7 @@ export function AdminShell({
             <Link href="/admin" className="flex items-center gap-2">
               <AppLogo className="h-9 w-9" />
               <span className="text-base font-bold tracking-tight">
-                {appName} <span className="text-accent">admin</span>
+                {appName} <span className="text-accent-text">admin</span>
               </span>
             </Link>
             <nav className="flex items-center gap-1">

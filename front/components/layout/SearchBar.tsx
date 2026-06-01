@@ -325,7 +325,7 @@ export function SearchBar() {
                 <Link
                   href={`/search?q=${encodeURIComponent(trimmed)}`}
                   onClick={() => setFocused(false)}
-                  className="block rounded-md px-2 py-2 text-center text-xs font-medium text-accent-hover transition-colors hover:bg-bg-hover"
+                  className="block rounded-md px-2 py-2 text-center text-xs font-medium text-accent-text transition-colors hover:bg-bg-hover"
                 >
                   Ver todos los resultados para "{trimmed}"
                 </Link>
@@ -358,7 +358,7 @@ function PreviewSection({
 /** Cuadrado neutro para entidades sin imagen (playlists sin portada, géneros). */
 function PreviewIcon({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-bg-hover text-accent-hover">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-bg-hover text-accent-text">
       {children}
     </div>
   );

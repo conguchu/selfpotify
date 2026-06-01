@@ -14,7 +14,13 @@ import Image from "next/image";
 import { usePublicConfig, useUsers, queryKeys } from "@/lib/query/hooks";
 import { updateBranding, uploadLogo, setupServer } from "@/lib/api/config";
 import { createUser } from "@/lib/api/users";
-import { derivePalette, onAccentFor } from "@/lib/palette";
+import {
+  derivePalette,
+  onAccentFor,
+  accentTextFor,
+  enforceContrast,
+} from "@/lib/palette";
+import { THEME_PRESETS } from "@/lib/presets";
 import { API_BASE } from "@/lib/api/client";
 import { resizeImageToFit, formatBytes } from "@/lib/image";
 
@@ -77,16 +83,24 @@ export default function SetupWizard() {
 
   const colorKeys = useMemo(() => Object.keys(colors), [colors]);
 
-  // Preview en vivo: aplica la paleta editada a toda la pantalla (WYSIWYG).
+  // Muestras: el resultado real tras el guard de contraste (lo que se aplicará).
+  const previewColors = useMemo(() => enforceContrast(colors), [colors]);
+
+  // Preview en vivo: aplica la paleta editada a toda la pantalla (WYSIWYG),
+  // pasando por el mismo guard y derivados (on-accent, accent-text) que la app.
   useEffect(() => {
     const root = document.documentElement;
-    for (const [key, value] of Object.entries(colors)) {
+    const safe = enforceContrast(colors);
+    for (const [key, value] of Object.entries(safe)) {
       if (key.startsWith("--color-") && value) {
         root.style.setProperty(key, value);
       }
     }
-    const accent = colors["--color-accent"];
+    const accent = safe["--color-accent"];
+    const bg = safe["--color-bg"];
     if (accent) root.style.setProperty("--color-on-accent", onAccentFor(accent));
+    if (accent && bg)
+      root.style.setProperty("--color-accent-text", accentTextFor(accent, bg));
   }, [colors]);
 
   // Preview del logo: el archivo recién elegido o, si no, el ya guardado.
@@ -181,6 +195,24 @@ export default function SetupWizard() {
       setStep(1);
       return;
     }
+    // Incluye un usuario tecleado pero no "Añadido": al finalizar sin pulsar
+    // "Añadir usuario", esos datos se perdían silenciosamente y la cuenta no se
+    // creaba. Si los campos están rellenos y no es un duplicado, se crea igual.
+    const pendingUser = uUser.trim();
+    const effectiveUsers = [...users];
+    if (pendingUser && uPass) {
+      const dup =
+        effectiveUsers.some((x) => x.username === pendingUser) ||
+        (existingUsers.data ?? []).some((x) => x.username === pendingUser);
+      if (!dup) {
+        effectiveUsers.push({
+          username: pendingUser,
+          password: uPass,
+          isAdmin: uAdmin,
+        });
+      }
+    }
+
     setSubmitting(true);
     try {
       // 1) Branding (nombre + colores) — antes del commit final.
@@ -190,7 +222,7 @@ export default function SetupWizard() {
         await uploadLogo(logoFile);
       }
       // 3) Usuarios — se crean mientras el gate sigue abierto.
-      for (const u of users) {
+      for (const u of effectiveUsers) {
         await createUser(u);
       }
       // 4) Commit final: persiste biblioteca y marca setupComplete=true.
@@ -313,6 +345,51 @@ export default function SetupWizard() {
                 </Button>
               </div>
 
+              {/* Presets accesibles: semillas curadas, accesibles por construcción. */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-text-subtle">
+                  Temas accesibles (un clic para partir de uno):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {THEME_PRESETS.map((preset) => {
+                    const active =
+                      primary.toLowerCase() === preset.primary.toLowerCase() &&
+                      secondary.toLowerCase() ===
+                        preset.secondary.toLowerCase();
+                    return (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() =>
+                          applySeed({
+                            primary: preset.primary,
+                            secondary: preset.secondary,
+                          })
+                        }
+                        title={preset.name}
+                        className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs transition-colors ${
+                          active
+                            ? "border-accent text-text"
+                            : "border-border text-text-muted hover:bg-bg-hover"
+                        }`}
+                      >
+                        <span className="flex">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full border border-border"
+                            style={{ backgroundColor: preset.secondary }}
+                          />
+                          <span
+                            className="-ml-1 h-3.5 w-3.5 rounded-full border border-border"
+                            style={{ backgroundColor: preset.primary }}
+                          />
+                        </span>
+                        {preset.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Modo básico: solo primario + secundario, el resto se autocompleta. */}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="flex items-center gap-2 rounded-md border border-border bg-bg px-2 py-1.5">
@@ -352,9 +429,9 @@ export default function SetupWizard() {
                 {colorKeys.map((key) => (
                   <span
                     key={key}
-                    title={`${colorLabel(key)} ${colors[key]}`}
+                    title={`${colorLabel(key)} ${previewColors[key]}`}
                     className="h-6 w-6 rounded border border-border"
-                    style={{ backgroundColor: colors[key] }}
+                    style={{ backgroundColor: previewColors[key] }}
                   />
                 ))}
               </div>
@@ -490,7 +567,7 @@ export default function SetupWizard() {
                       href="https://www.last.fm/api/account/create"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-accent hover:underline"
+                      className="text-accent-text hover:underline"
                     >
                       last.fm/api
                     </a>
@@ -535,9 +612,35 @@ export default function SetupWizard() {
         {step === 2 && (
           <div className="flex flex-col gap-5">
             <p className="text-sm text-text-muted">
-              Crea las cuentas iniciales. Ya existe un administrador por defecto
-              (<code>admin/admin</code>); aquí puedes añadir cuentas adicionales.
+              Crea las cuentas iniciales del servidor.
             </p>
+
+            {(existingUsers.data ?? []).length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Cuentas ya existentes</Label>
+                <ul className="flex flex-col gap-1.5">
+                  {(existingUsers.data ?? []).map((u) => (
+                    <li
+                      key={u.id}
+                      className="flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-text">
+                        {u.username}
+                      </span>
+                      {u.type === "ADMIN" && (
+                        <span className="rounded bg-accent/30 px-1.5 py-0.5 text-xs text-text">
+                          admin
+                        </span>
+                      )}
+                      <span className="ml-auto text-xs text-text-subtle">
+                        en el servidor
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3 rounded-md border border-border bg-bg p-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="u-user">Usuario</Label>

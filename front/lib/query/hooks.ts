@@ -36,25 +36,50 @@ import {
 } from "@/lib/api/follow";
 import {
   listSongs,
+  getSong,
   importFolder,
   createSong,
   deleteSong,
+  updateSong,
+  uploadSongsToStaging,
+  commitSongs,
+  uploadSongCover,
+  setSongArtists,
   getGenreTopSongs,
 } from "@/lib/api/songs";
-import { listArtists, getArtist, getArtistTopTracks } from "@/lib/api/artists";
+import {
+  listArtists,
+  getArtist,
+  getArtistTopTracks,
+  createArtist,
+  updateArtist,
+  deleteArtist,
+  splitArtist,
+  mergeArtists,
+  fetchArtistPhoto,
+} from "@/lib/api/artists";
 import {
   getHomeFeed,
   getRecentGenres,
   getDailyDiscoveries,
 } from "@/lib/api/feed";
-import { getAlbum, listAlbums } from "@/lib/api/albums";
+import { getAlbum, listAlbums, updateAlbum } from "@/lib/api/albums";
 import { search as searchApi } from "@/lib/api/search";
-import { getPublicConfig, rescanLibrary } from "@/lib/api/config";
+import {
+  getPublicConfig,
+  getServerConfig,
+  rescanLibrary,
+  updateServerConfig,
+  addScanPath,
+  removeScanPath,
+  resetServer,
+} from "@/lib/api/config";
 import {
   createUser,
   deleteUser,
   listUsers,
   updateUserPassword,
+  changeUserRole,
 } from "@/lib/api/users";
 import type {
   CreateSongPayload,
@@ -62,6 +87,9 @@ import type {
   ImportFolderPayload,
   PlaylistInput,
   SearchType,
+  SongCommitPayload,
+  UpdateConfigPayload,
+  UpdateSongPayload,
 } from "@/lib/types";
 
 export const queryKeys = {
@@ -81,6 +109,8 @@ export const queryKeys = {
   playlistCollaborators: (id: number) =>
     ["playlists", id, "collaborators"] as const,
   users: ["users"] as const,
+  song: (id: number) => ["songs", id] as const,
+  serverConfig: ["config", "server"] as const,
   me: ["me"] as const,
   publicProfile: (id: number) => ["users", "public", id] as const,
   publicProfilePlaylists: (id: number) =>
@@ -184,6 +214,23 @@ export function useSongs(enabled = true) {
   });
 }
 
+export function useSong(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.song(id),
+    queryFn: () => getSong(id),
+    enabled: enabled && Number.isFinite(id),
+  });
+}
+
+/** Config completa del servidor (solo admin): branding, scan paths, features, contexto Docker. */
+export function useServerConfig(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.serverConfig,
+    queryFn: getServerConfig,
+    enabled,
+  });
+}
+
 export function useArtists(enabled = true) {
   return useQuery({
     queryKey: queryKeys.artists,
@@ -205,6 +252,24 @@ export function useAlbum(id: number, enabled = true) {
     queryKey: queryKeys.album(id),
     queryFn: () => getAlbum(id),
     enabled: enabled && Number.isFinite(id),
+  });
+}
+
+/** Edita nombre/portada de un álbum. Invalida la lista y el álbum concreto. */
+export function useUpdateAlbum() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { name: string; photoUrl: string | null };
+    }) => updateAlbum(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+      qc.invalidateQueries({ queryKey: queryKeys.album(vars.id) });
+    },
   });
 }
 
@@ -393,6 +458,183 @@ export function useDeleteSong() {
   });
 }
 
+export function useUpdateSong() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateSongPayload }) =>
+      updateSong(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.song(vars.id) });
+    },
+  });
+}
+
+/** Fase 1: sube audios a staging y devuelve borradores editables. No persiste nada. */
+export function useUploadSongsToStaging() {
+  return useMutation({
+    mutationFn: (files: File[]) => uploadSongsToStaging(files),
+  });
+}
+
+/** Fase 2: confirma los borradores y persiste las canciones. Invalida biblioteca. */
+export function useCommitSongs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SongCommitPayload) => commitSongs(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+    },
+  });
+}
+
+/** Sube una carátula (imagen) y devuelve su URL en /assets/covers. */
+export function useUploadSongCover() {
+  return useMutation({
+    mutationFn: (file: File) => uploadSongCover(file),
+  });
+}
+
+/** Crea un artista nuevo por nombre. Invalida la lista de artistas. */
+export function useCreateArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => createArtist(name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+    },
+  });
+}
+
+/** Edita nombre/foto de un artista. Invalida la lista y el artista concreto. */
+export function useUpdateArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { name: string; photoUrl: string | null };
+    }) => updateArtist(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.artist(vars.id) });
+    },
+  });
+}
+
+/**
+ * Busca automáticamente una foto para el artista (Deezer). No invalida nada: el
+ * formulario de edición fija la URL devuelta y la guarda al confirmar.
+ */
+export function useFetchArtistPhoto() {
+  return useMutation({
+    mutationFn: (id: number) => fetchArtistPhoto(id),
+  });
+}
+
+/** Borra un artista. Invalida artistas, canciones y álbumes (cambian atribuciones). */
+export function useDeleteArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteArtist(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+    },
+  });
+}
+
+/** Separa un artista en varios. Invalida artistas, canciones y álbumes. */
+export function useSplitArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, names }: { id: number; names: string[] }) =>
+      splitArtist(id, names),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+    },
+  });
+}
+
+/** Une varios artistas en uno. Invalida artistas, canciones y álbumes. */
+export function useMergeArtists() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      ids: number[];
+      survivorId: number;
+      name?: string;
+    }) => mergeArtists(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+    },
+  });
+}
+
+/** Reasigna los artistas de una canción. Invalida la canción y la biblioteca. */
+export function useSetSongArtists() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, artistIds }: { id: number; artistIds: number[] }) =>
+      setSongArtists(id, artistIds),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.song(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+    },
+  });
+}
+
+/** Actualiza branding/features/intervalo. Invalida la config pública (retematiza) y la de admin. */
+export function useUpdateServerConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateConfigPayload) => updateServerConfig(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+      qc.invalidateQueries({ queryKey: queryKeys.publicConfig });
+    },
+  });
+}
+
+export function useAddScanPath() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => addScanPath(path),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+    },
+  });
+}
+
+export function useRemoveScanPath() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => removeScanPath(path),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.serverConfig });
+    },
+  });
+}
+
+/** Reset total del servidor. No invalida caché: el llamante desloguea tras éxito. */
+export function useResetServer() {
+  return useMutation({
+    mutationFn: () => resetServer(),
+  });
+}
+
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
@@ -407,6 +649,17 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deleteUser(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+export function useChangeUserRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isAdmin }: { id: number; isAdmin: boolean }) =>
+      changeUserRole(id, isAdmin),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.users });
     },

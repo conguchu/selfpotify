@@ -1,6 +1,7 @@
 package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.controllers.dto.AlbumDTO;
+import anton.davila.selfpotify.controllers.dto.AlbumUpdateRequest;
 import anton.davila.selfpotify.music.entity.Album;
 import anton.davila.selfpotify.music.service.AlbumService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,11 +41,16 @@ public class AlbumController {
         return convertToDTO(albumService.add(album));
     }
 
+    /**
+     * Edición manual de un álbum: nombre y portada. La portada puede ser una ruta
+     * {@code /assets/...} (subida con {@code POST /api/songs/cover}) o una URL externa.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AlbumDTO> update(@PathVariable Long id, @RequestBody Album albumDetails) {
+    public ResponseEntity<AlbumDTO> update(@PathVariable Long id, @RequestBody AlbumUpdateRequest request) {
         try {
-            return ResponseEntity.ok(convertToDTO(albumService.update(id, albumDetails)));
+            return ResponseEntity.ok(convertToDTO(
+                    albumService.updateMeta(id, request.getName(), request.getPhotoUrl())));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

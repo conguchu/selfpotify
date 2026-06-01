@@ -16,6 +16,7 @@ public class AppProperties {
     private Lastfm lastfm = new Lastfm();
     private Library library = new Library();
     private Logo logo = new Logo();
+    private Upload upload = new Upload();
     private CoverArt coverArt = new CoverArt();
 
     @Getter
@@ -48,9 +49,17 @@ public class AppProperties {
     @Getter
     @Setter
     public static class Logo {
-        /** Tamaño máximo del logo subido (LOGO_MAX_FILE_SIZE). Debe coincidir con
-         *  spring.servlet.multipart.max-file-size. */
+        /** Tamaño máximo del logo subido (LOGO_MAX_FILE_SIZE). Validado a nivel de
+         *  aplicación; el límite global de multipart es el de {@link Upload}. */
         private DataSize maxFileSize = DataSize.ofMegabytes(2);
+    }
+
+    @Getter
+    @Setter
+    public static class Upload {
+        /** Tamaño máximo por archivo de audio subido vía drag&drop
+         *  (SONG_UPLOAD_MAX_FILE_SIZE). Debe ser <= el límite global de multipart. */
+        private DataSize maxFileSize = DataSize.ofMegabytes(50);
     }
 
     @Getter

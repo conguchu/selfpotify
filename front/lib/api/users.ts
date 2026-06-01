@@ -26,3 +26,11 @@ export function deleteUser(id: number) {
     parse: "none",
   });
 }
+
+/** Cambia el rol de un usuario (admin <-> usuario). El backend impide degradar al último admin. */
+export function changeUserRole(id: number, isAdmin: boolean) {
+  return apiFetch<AdminUser>(`/api/users/${id}/role`, {
+    method: "PUT",
+    body: { isAdmin },
+  });
+}

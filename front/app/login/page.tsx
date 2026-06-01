@@ -51,10 +51,6 @@ export default function LoginPage() {
             </TabsContent>
           </Tabs>
         </Card>
-        <p className="mt-6 text-center text-xs text-text-subtle">
-          Datos de prueba: <code>user / password</code> ·{" "}
-          <code>admin / admin123</code>
-        </p>
       </div>
     </div>
   );

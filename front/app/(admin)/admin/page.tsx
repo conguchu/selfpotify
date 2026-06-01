@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { DangerZone } from "@/components/admin/DangerZone";
 import { ApiError } from "@/lib/api/client";
 import {
   useAlbums,
@@ -49,10 +50,10 @@ export default function AdminDashboardPage() {
       label: "Canciones",
       icon: Music2,
       query: songs,
-      href: "/admin/music",
+      href: "/admin/songs",
     },
-    { label: "Artistas", icon: Disc3, query: artists, href: "/admin/music" },
-    { label: "Álbumes", icon: Disc3, query: albums, href: "/admin/music" },
+    { label: "Artistas", icon: Disc3, query: artists, href: "/admin/artists" },
+    { label: "Álbumes", icon: Disc3, query: albums, href: "/admin/songs" },
     { label: "Usuarios", icon: Users, query: users, href: "/admin/users" },
     { label: "Mis playlists", icon: ListMusic, query: playlists, href: "/home" },
   ];
@@ -73,7 +74,7 @@ export default function AdminDashboardPage() {
             <Link key={item.label} href={item.href} className="block">
               <Card className="flex flex-col gap-3 transition-colors hover:border-accent">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent-soft text-accent">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent-soft text-accent-text">
                     <Icon className="h-5 w-5" />
                   </div>
                   <CardTitle className="text-sm font-medium uppercase tracking-wide text-text-muted">
@@ -96,11 +97,11 @@ export default function AdminDashboardPage() {
       <Card>
         <CardTitle className="mb-2">Acciones rápidas</CardTitle>
         <CardDescription className="mb-4">
-          Crea contenido o importa una carpeta del disco.
+          Sube música, gestiona el catálogo o re-escanea la biblioteca.
         </CardDescription>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/admin/music"
+            href="/admin/songs"
             className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             <Music2 className="h-4 w-4" />
@@ -123,6 +124,8 @@ export default function AdminDashboardPage() {
           </Button>
         </div>
       </Card>
+
+      <DangerZone />
     </div>
   );
 }

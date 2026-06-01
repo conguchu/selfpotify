@@ -17,4 +17,7 @@ public class ServerConfigDTO {
     private List<String> scanPaths;
     private long scanIntervalSeconds;
     private long lastScanEpochSec;
+    // Contexto de ejecución para el panel. El destino de las subidas se elige
+    // siempre entre las scanPaths (la subcarpeta selfpotify_added se crea dentro).
+    private boolean runningInDocker;
 }

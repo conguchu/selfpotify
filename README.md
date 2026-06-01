@@ -81,10 +81,12 @@ Como se comentó antes, Selfpotify es un monorepo y ofrece la posibilidad de **d
 
 **Este proyecto está pensado para usuarios técnicos** que quieren reemplazar Spotify por una tecnología similar, accesible y sobre todo más económica y libre, por lo que será su responsabilidad montar y mantener el servidor, así como la mía facilitar lo máximo posible la instalación, configuración y set-up de la estructura de red para permitir el acceso desde internet.
 
-Por esto, en el **primer arranque** el servidor entra en **modo setup** y la web sirve un **wizard de configuración inicial al que se accede sin login**: mientras la instalación no esté completada, cualquier acceso al cliente web redirige siempre a este wizard. En él, el administrador deja el servidor operativo de una pasada — **branding** (nombre, colores y logo de la app), **biblioteca musical** (directorios a escanear e intervalo de escaneo) y **usuarios** (cuentas iniciales). El wizard funciona sin autenticación porque, en modo setup, el backend reabre temporalmente los endpoints que necesita (`POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, `POST /api/users`); el control real lo ejerce un guard dinámico (`@setupGuard.inSetupMode()`) ligado al flag `features.setupComplete`.
+Por esto, en el **primer arranque** el servidor entra en **modo setup** y la web sirve un **wizard de configuración inicial al que se accede sin login**: mientras la instalación no esté completada, cualquier acceso al cliente web redirige siempre a este wizard. En él, el administrador deja el servidor operativo de una pasada — **branding** (nombre, **colores del tema** y logo de la app), **biblioteca musical** (directorios a escanear e intervalo de escaneo) y **usuarios** (cuentas iniciales). El wizard funciona sin autenticación porque, en modo setup, el backend reabre temporalmente los endpoints que necesita (`POST /api/config/setup`, `PUT /api/config`, `POST /api/config/logo`, `POST /api/users`); el control real lo ejerce un guard dinámico (`@setupGuard.inSetupMode()`) ligado al flag `features.setupComplete`.
 
 
 El estado del wizard se persiste en un fichero YAML externo gestionado por `ConfigService`, con el flag `features.setupComplete` como interruptor entre "primer arranque" y "servidor ya operativo". Al confirmar el wizard, `POST /api/config/setup` marca `setupComplete=true`: el wizard queda **inaccesible** (el cliente deja de redirigir a él) y esos endpoints vuelven a exigir rol `ADMIN`. El endpoint `POST /api/config/reset` permite al admin devolver el servidor al mismo estado en que arrancaría tras un primer despliegue: vacía la BBDD y la config, y reproduce los bootstraps de arranque — reseedea el admin desde `ADMIN_USERNAME`/`ADMIN_PASSWORD` del `.env` (si no están definidos no se crea ningún usuario) y reañade la librería musical del `.env` a `scan.paths` (si está configurada y accesible). Tras el reset, el wizard se vuelve a forzar en el siguiente acceso.
+
+**Decisión de diseño: el selector de colores no deja elegir combinaciones inaccesibles.** Tanto en el wizard como en los ajustes del panel (`ThemeSettings`), el branding de color se controla con **dos semillas** —primario (acento) y secundario (fondo)— de las que se **deriva la paleta completa de 14 colores** en el espacio HCT de Material (`lib/palette.ts`, `derivePalette`), calculando los textos por **contraste WCAG real** (AAA/AA) contra el fondo. Encima hay una galería de **presets accesibles** (semillas curadas) para arrancar de un tema válido con un clic. El color del texto sobre botones (`--color-on-accent`) y el del acento usado como texto/icono sobre el fondo (`--color-accent-text`) **no se almacenan**: se recalculan siempre al aplicar, de modo que sigan al acento/fondo aunque se editen a mano. El **modo avanzado** permite editar los 14 colores uno a uno, pero pasa por una **red de seguridad** (`enforceContrast`) que, tanto en el preview como al pintar la app real, empuja cualquier color de texto ilegible al tono legible más cercano conservando su matiz. Así, ninguna combinación —ni siquiera una editada a mano o heredada de una config antigua— puede dejar textos o iconos invisibles.
 
 Además del wizard, se pueden tocar otras configuraciones que no están ahí (normalmente porque son más técnicas) en el envfile (ver sección "Variables clave del .env").
 
@@ -170,6 +172,20 @@ La biblioteca musical será gestionada por los admins, que tendrán la posibilid
 
 El escaneo lo dispara `SchedulingConfig` mediante un `PeriodicTrigger` que **relee el intervalo configurado en cada tick**, de forma que los cambios en `scan.intervalSeconds` realizados vía `PUT /api/config` se aplican en caliente sin reiniciar el servidor. La concurrencia se protege con un `ReentrantLock` en `ScanService`: si llega un tick (o un `POST /api/config/scan/run` manual) mientras hay otro escaneo activo, se descarta. Al añadir una ruta nueva vía `POST /api/config/scan-paths` se lanza además un escaneo inicial asíncrono solo de esa carpeta para no esperar al siguiente tick.
 
+#### Subida de audios desde el panel (drag & drop)
+
+Además de registrar carpetas del servidor, el panel admin permite **subir audios sueltos** (`POST /api/songs/upload`, gestionado por `SongUploadService`). La decisión de diseño clave es **dónde** se escriben: el volumen de música se monta **read-only** en Docker (`/music:ro`), así que los audios subidos no pueden ir ahí. Se guardan en una carpeta `selfpotify_added` **escribible**:
+
+- **En Docker**, dentro del volumen de datos persistente (`/data/selfpotify/selfpotify_added`), el mismo que ya guarda `config.yml` y los assets. El panel no deja elegir ruta porque solo ese volumen es escribible.
+- **En local**, dentro de la ruta de música que elija el admin de entre las ya configuradas (`<ruta>/selfpotify_added`) o, por defecto, la carpeta de datos (`~/.selfpotify/selfpotify_added`).
+
+La subida ocurre en **dos fases** (`SongUploadService`) para que el admin revise y ajuste los metadatos **antes** de incorporar la canción, pero pasando por las mismas APIs externas que cualquier otra importación:
+
+- **Staging** (`POST /api/songs/upload`): el audio se guarda en una carpeta temporal `selfpotify_staging/<token>` que **no** está en las rutas de escaneo (para que el escaneo periódico no la importe a medias). Se extraen los metadatos ID3 y, antes de devolver el borrador editable (`SongDraftDTO`), se **enriquece con las mismas fuentes externas que el escaneo** para que el admin vea los datos ya completos en la pantalla de edición previa: **nombre canónico del artista** (Last.fm), **género** si falta (Last.fm) y **carátula** si el audio no traía embebida (Cover Art Archive → iTunes → Deezer).
+- **Commit** (`POST /api/songs/commit`): con los metadatos ya ajustados, el audio se mueve a la carpeta `selfpotify_added` **escribible** y se persiste la canción. El artista se resuelve **por MBID** (Last.fm), igual que en el escaneo; tras guardar se rellenan de forma **idempotente** el género/carátula que aún falten y la **foto del artista** (Deezer), que no se ve en la pantalla de edición.
+
+La carpeta `selfpotify_added` **no** se registra como ruta de escaneo: el commit ya persiste cada canción con su `songPath` definitivo y el barrido de disponibilidad del escaneo la mantiene mientras el fichero exista. Así una canción subida es indistinguible de una escaneada del disco. La resolución de identidad del artista (limpieza del nombre, consulta a Last.fm y emparejamiento por MBID) es lógica compartida en `ArtistResolver`, usada tanto por el escaneo como por el commit.
+
 #### Flujo del escaneo periódico
 
 ```mermaid
@@ -199,7 +215,7 @@ La decisión es **no fiarse del string del tag y resolver cada artista contra un
 
 Durante el escaneo, `SongService.resolveArtist` limpia el nombre de adornos, lo consulta en Last.fm (`artist.getInfo` con `autocorrect=1`) y obtiene el **nombre canónico** y el **MBID** (MusicBrainz ID, identificador estable). El emparejamiento pasa a hacerse por MBID —no por nombre—, persistido en la columna `Artist.mbid`. Si una fila ya existía sin MBID, se le rellena. Si Last.fm no está configurado o no reconoce al artista, se cae al emparejamiento por nombre limpio, que ya unifica los casos triviales (espacios, mayúsculas). Una caché por lote evita repetir llamadas HTTP dentro del mismo escaneo.
 
-Esta estrategia previene **nuevos** duplicados; los ya existentes en BD requieren una limpieza puntual (o un futuro endpoint de merge para admin).
+Esta estrategia previene **nuevos** duplicados; los ya existentes en BD se limpian a mano desde el panel con las operaciones de **separar** y **juntar** artistas (ver [Gestión de artistas desde el panel](#gestión-de-artistas-desde-el-panel-edición-separar-y-juntar)).
 
 ```mermaid
 flowchart TD
@@ -215,6 +231,58 @@ flowchart TD
     ByName2 -- existe --> Reuse
     ByName2 -- no --> CreatePlain[Crear artista<br/>solo con nombre]
     Backfill --> Reuse
+```
+
+### Gestión de artistas desde el panel (edición, separar y juntar)
+
+El panel de administración incluye una pestaña **Artistas** (vista de lista) para gestionar el catálogo de artistas más allá de lo que resuelve el escaneo automático. Cada artista se puede **editar** (nombre y foto) en una página aparte, y la lista ofrece dos operaciones de limpieza de duplicados/etiquetas: **separar** y **juntar**.
+
+**Decisión de diseño: la edición y la subida de foto reutilizan la infraestructura existente.** La foto del artista se sube por drag&drop al mismo almacén que las carátulas (`POST /api/songs/cover` → `/assets/covers/<sha256>`) y su URL se guarda en `Artist.picture_path` vía `PUT /api/artists/{id}`. No se añade ni endpoint de imagen ni almacén nuevos: es el mismo patrón que la carátula de canción. La página de edición ofrece además un botón **«Conseguir foto automáticamente»** (`POST /api/artists/{id}/fetch-photo`) que busca la foto en Deezer por el nombre y la propone en el formulario sin persistirla (se guarda al confirmar), respetando `app.cover-art.enabled`. El `PUT` solo toca **nombre y foto**; el `MBID` no se edita a mano porque es identidad resuelta automáticamente (un nombre editado a mano sobrevive a futuros escaneos, que emparejan por MBID sin renombrar las filas existentes).
+
+**Separar un artista (split).** Resuelve el caso de un único tag que en realidad son varios artistas (p. ej. `Ill Pekeño / Ergo Pro`). El admin teclea los nombres reales (mínimo dos) y `POST /api/artists/{id}/split`:
+
+1. Resuelve **cada nombre con el mismo `ArtistResolver` que el escaneo** (Last.fm → nombre canónico + MBID), reutilizando un artista existente si ya estaba. Se eligió reusar el resolver —en vez de crear filas planas por el nombre tecleado— para mantener la coherencia con la decisión de identidad de artistas: los artistas resultantes nacen ya con su MBID. En la UI cada campo tiene un **buscador con lupa** sobre la BBDD para localizar y reutilizar un artista que ya exista.
+2. **Atribuye todas las canciones y álbumes del original a TODOS los resultantes** (no las reparte: cada canción pasa a tener a los dos/tres artistas).
+3. **Rellena la foto** (Deezer) de los resultantes que aún no la tengan —los recién creados—, reutilizando `CoverApiService` igual que el escaneo y **respetando `app.cover-art.enabled`**: si la resolución online de carátulas está desactivada en config, no se consulta nada.
+4. **Borra el artista original.**
+
+**Juntar artistas (merge).** Resuelve los duplicados que ya están en BD (p. ej. `El alfa` y `El Alfa`, que el escaneo creó como filas distintas antes de tener MBID). El admin selecciona dos o más artistas y elige un **superviviente**; `POST /api/artists/merge`:
+
+1. El superviviente **conserva su id y su MBID**.
+2. Absorbe las canciones y álbumes del resto (sin duplicar atribuciones).
+3. **Borra los demás**; opcionalmente se renombra al superviviente.
+
+Se eligió el modelo **superviviente** (en lugar de crear un artista nuevo y borrar todos) para **preservar un id estable** —cualquier referencia existente al superviviente sigue siendo válida— y el **MBID ya resuelto**, evitando además una llamada extra a Last.fm. Es la "limpieza puntual" de duplicados que anticipaba la sección de resolución de identidad.
+
+**Soltar las FKs antes de borrar.** Un artista está referenciado por tres tablas cruzadas: `song_artist`, `album_artist` y la de `recommendedArtists` del feed. Tanto separar como juntar (y el borrado individual) **desligan al artista de esas tres** antes de eliminar su fila, para no chocar con las restricciones de clave foránea. Para el feed basta con quitar la referencia: el feed se **regenera en el siguiente acceso al home**, así que no hace falta repuntar nada. Borrar un artista nunca borra sus canciones ni sus álbumes: solo dejan de atribuírsele.
+
+**Edición de álbumes desde el artista.** Desde la página de un artista se accede a la lista de sus álbumes (`/admin/artists/{id}/albums`), donde cada álbum se edita (nombre y portada) con `PUT /api/albums/{id}`. Ese `PUT` pasó a recibir solo **nombre y portada** (`AlbumUpdateRequest`) en lugar de la entidad `Album` completa: un body parcial sobre la entidad habría puesto a `null` las asociaciones (`album_artist`, canciones) al copiarlas, borrando el vínculo con el artista.
+
+```mermaid
+flowchart TD
+    subgraph Split[Separar artista]
+        S0([POST /api/artists/id/split<br/>names]) --> S1{¿≥2 nombres?}
+        S1 -- no --> SErr[400 Bad Request]
+        S1 -- sí --> S2[Resolver cada nombre<br/>con ArtistResolver<br/>Last.fm → nombre + MBID]
+        S2 --> S3{¿≥2 artistas distintos<br/>del original?}
+        S3 -- no --> SErr
+        S3 -- sí --> S4[Atribuir TODAS las canciones<br/>y álbumes del original<br/>a TODOS los resultantes]
+        S4 --> SPhoto[Rellenar foto de los nuevos<br/>Deezer · si cover-art enabled]
+        SPhoto --> S5[Soltar FKs del original:<br/>song_artist · album_artist · feed]
+        S5 --> S6[Borrar el original]
+        S6 --> SOk([200 OK · artistas resultantes])
+    end
+
+    subgraph Merge[Juntar artistas]
+        M0([POST /api/artists/merge<br/>ids · survivorId · name]) --> M1{¿≥2 ids y survivor<br/>entre ellos?}
+        M1 -- no --> MErr[400 Bad Request]
+        M1 -- sí --> M2[Por cada absorbido:<br/>mover canciones y álbumes<br/>al superviviente sin duplicar]
+        M2 --> M3[Soltar FKs del absorbido<br/>y borrarlo]
+        M3 --> M4{¿quedan absorbidos?}
+        M4 -- sí --> M2
+        M4 -- no --> M5[Renombrar superviviente<br/>si llega name]
+        M5 --> MOk([200 OK · superviviente])
+    end
 ```
 
 ### Conteo de escuchas derivado de la base de datos
@@ -782,25 +850,32 @@ classDiagram
 
 ## Diagramas de casos de uso
 
-### UC1 — Añadir carpeta al path
+### UC1 — Incorporar música a la biblioteca (carpeta o subida)
 
 ```mermaid
 graph LR
     Admin["👤 Administrador"]
 
     subgraph Sistema Self-Potify
-        UC1("Añadir carpeta al path")
+        UC1("Incorporar música a la biblioteca")
+        UC1f("Añadir carpeta al path<br/>(POST /api/config/scan-paths)")
+        UC1g("Subir audios drag & drop<br/>(POST /api/songs/upload → staging,<br/>POST /api/songs/commit → selfpotify_added)")
         UC1a("Leer etiquetas ID3")
-        UC1b("Crear / actualizar Artista")
+        UC1b("Crear / actualizar Artista<br/>(canónico + MBID vía Last.fm)")
         UC1c("Crear / actualizar Álbum")
         UC1d("Persistir Canción")
+        UC1e("Autocompletar género (Last.fm)<br/>y carátulas/foto de artista<br/>(Cover Art Archive, iTunes, Deezer)")
     end
 
     Admin --> UC1
-    UC1 -.->|include| UC1a
+    UC1 -.->|include| UC1f
+    UC1 -.->|include| UC1g
+    UC1f -.->|include| UC1a
+    UC1g -.->|include| UC1a
     UC1a -.->|include| UC1b
     UC1a -.->|include| UC1c
     UC1a -.->|include| UC1d
+    UC1a -.->|include| UC1e
 ```
 
 ### UC2 — Crear playlist, añadir canciones y compartir
@@ -934,7 +1009,7 @@ graph LR
 
     subgraph Sistema Self-Potify
         UC8("Actualizar branding")
-        UC8a("Validar appName / colores hex")
+        UC8a("Validar appName / colores hex<br/>y derivar paleta con contraste WCAG")
         UC8b("Subir logo (PNG/JPG/SVG/WebP, ≤2MB)")
         UC8c("Persistir en YAML y servir vía /assets/**")
     end
@@ -1090,6 +1165,50 @@ graph LR
     UC11a -.->|include| UC11c
     UC11a -.->|include| UC11d
     UC11 -.->|include| UC11e
+```
+
+### UC12 — Gestionar el catálogo de canciones
+
+```mermaid
+graph LR
+    Admin["👤 Administrador"]
+
+    subgraph Sistema Self-Potify
+        UC12("Gestionar catálogo de canciones")
+        UC12a("Subir audios drag & drop<br/>(POST /api/songs/upload)")
+        UC12e("Autocompletar en staging<br/>género/artista/carátula (Last.fm,<br/>Cover Art Archive/iTunes/Deezer)<br/>antes de mostrar la edición previa")
+        UC12b("Editar metadatos<br/>(PUT /api/songs/{id}:<br/>title, género, BPM, duración, carátula)")
+        UC12c("Eliminar canción<br/>(DELETE /api/songs/{id})")
+        UC12d("Conservar songPath<br/>(la edición no toca la ruta física)")
+    end
+
+    Admin --> UC12
+    UC12 -.->|include| UC12a
+    UC12 -.->|include| UC12b
+    UC12 -.->|include| UC12c
+    UC12a -.->|include| UC12e
+    UC12b -.->|include| UC12d
+```
+
+### UC13 — Cambiar el rol de un usuario
+
+```mermaid
+graph LR
+    Admin["👤 Administrador"]
+
+    subgraph Sistema Self-Potify
+        UC13("Cambiar rol de usuario")
+        UC13a("Reasignar discriminador users.type<br/>(PUT /api/users/{id}/role)")
+        UC13b{"¿Es el último ADMIN<br/>y se intenta degradar?"}
+        UC13c("Rechazar con 400<br/>(no degradar al último admin)")
+        UC13d("Refrescar contexto<br/>y devolver usuario actualizado")
+    end
+
+    Admin --> UC13
+    UC13 -.->|include| UC13a
+    UC13a --> UC13b
+    UC13b -- sí --> UC13c
+    UC13b -- no --> UC13d
 ```
 
 ## Diagrama de arquitectura

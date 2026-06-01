@@ -53,7 +53,7 @@ export function SongCard({
         <p
           className={cn(
             "truncate text-sm font-semibold",
-            isCurrent ? "text-accent-hover" : "text-text",
+            isCurrent ? "text-accent-text" : "text-text",
           )}
           title={song.title}
         >
