@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ListMusic, Settings, Shield, Users } from "lucide-react";
+import { Disc3, ListMusic, Settings, Shield, Users } from "lucide-react";
 import { ProfileMenu } from "./ProfileMenu";
 import { AppLogo } from "./AppLogo";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/admin", label: "Resumen", icon: Shield, exact: true },
   { href: "/admin/users", label: "Usuarios", icon: Users },
   { href: "/admin/songs", label: "Canciones", icon: ListMusic },
+  { href: "/admin/artists", label: "Artistas", icon: Disc3 },
   { href: "/admin/settings", label: "Ajustes", icon: Settings },
 ];
 

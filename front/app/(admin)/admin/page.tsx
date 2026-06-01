@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
       query: songs,
       href: "/admin/songs",
     },
-    { label: "Artistas", icon: Disc3, query: artists, href: "/admin/songs" },
+    { label: "Artistas", icon: Disc3, query: artists, href: "/admin/artists" },
     { label: "Álbumes", icon: Disc3, query: albums, href: "/admin/songs" },
     { label: "Usuarios", icon: Users, query: users, href: "/admin/users" },
     { label: "Mis playlists", icon: ListMusic, query: playlists, href: "/home" },

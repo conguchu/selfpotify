@@ -148,10 +148,20 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 | GET | `/api/artists/{id}` | USER/ADMIN | — | `ArtistDTO` o `404` |
 | GET | `/api/artists/{id}/top-10-tracks` | USER/ADMIN | — | `Top10ArtistTracksDTO` o `404` |
 | POST | `/api/artists` | ADMIN | `Artist` | `ArtistDTO` |
-| PUT | `/api/artists/{id}` | ADMIN | `Artist` | `ArtistDTO` o `404` |
+| PUT | `/api/artists/{id}` | ADMIN | `ArtistUpdateRequest` | `ArtistDTO` o `404` |
+| POST | `/api/artists/{id}/split` | ADMIN | `SplitArtistRequest` | `List<ArtistDTO>` o `400`/`404` |
+| POST | `/api/artists/merge` | ADMIN | `MergeArtistsRequest` | `ArtistDTO` o `400`/`404` |
 | DELETE | `/api/artists/{id}` | ADMIN | — | `204` o `404` |
 
 Nota: `ArtistDTO.biography` está declarado pero el `convertToDTO` actual no lo rellena; siempre será `null`.
+
+Nota: `PUT /api/artists/{id}` (edición manual desde el panel) recibe `ArtistUpdateRequest` = `{ "name": string, "photoUrl": string }` y solo actualiza nombre y foto. La foto suele subirse antes con `POST /api/songs/cover` (devuelve `{ "url": "/assets/covers/..." }`) y su URL se manda en `photoUrl`; también admite una URL externa. El `mbid` no se edita por aquí (es identidad resuelta automáticamente).
+
+Nota: `POST /api/artists/{id}/split` separa un artista mal etiquetado en varios reales. Body `SplitArtistRequest` = `{ "names": List<String> }` (mínimo dos). Cada nombre se resuelve con `ArtistResolver` (Last.fm → nombre canónico + MBID, reutilizando un artista existente si ya lo había); **todas** las canciones y álbumes del original se atribuyen a **todos** los resultantes y el original se borra. Devuelve los artistas resultantes. `400` si llegan menos de dos nombres o no se resuelven al menos dos artistas distintos del original; `404` si el artista no existe.
+
+Nota: `POST /api/artists/merge` une varios artistas duplicados en uno. Body `MergeArtistsRequest` = `{ "ids": List<Long>, "survivorId": Long, "name": String }`. El superviviente (`survivorId`, que debe estar en `ids`) conserva su id y su MBID, absorbe las canciones y álbumes del resto (sin duplicar atribuciones) y el resto se borra; si `name` no viene vacío, se renombra al superviviente. Devuelve el `ArtistDTO` del superviviente. `400` si hay menos de dos ids o el superviviente no está entre ellos; `404` si algún artista no existe.
+
+Nota: `DELETE /api/artists/{id}` desliga primero al artista de `song_artist`, `album_artist` y de los feeds que lo recomiendan, y luego borra la fila. Las canciones y álbumes **no** se borran: solo dejan de atribuirse a ese artista.
 
 Nota: `GET /api/artists/{id}/top-10-tracks` devuelve `{ "tracks": List<SongDTO> }` con las 10 canciones del artista más escuchadas, **derivadas** de `user_song_listen`. Cada track es un `SongDTO` con su campo `listeners` (popularidad derivada) resuelto mediante una única consulta agrupada, igual que el resto de listados.
 
@@ -164,10 +174,12 @@ Nota: `GET /api/artists/{id}/top-10-tracks` devuelve `{ "tracks": List<SongDTO> 
 | GET | `/api/albums` | USER/ADMIN | — | `List<AlbumDTO>` |
 | GET | `/api/albums/{id}` | USER/ADMIN | — | `AlbumDTO` o `404` |
 | POST | `/api/albums` | ADMIN | `Album` | `AlbumDTO` |
-| PUT | `/api/albums/{id}` | ADMIN | `Album` | `AlbumDTO` o `404` |
+| PUT | `/api/albums/{id}` | ADMIN | `AlbumUpdateRequest` | `AlbumDTO` o `404` |
 | DELETE | `/api/albums/{id}` | ADMIN | — | `204` o `404` |
 
 Nota: `AlbumDTO.releaseDate` y `AlbumDTO.artistId` están declarados pero el `convertToDTO` no los rellena; siempre serán `null`.
+
+Nota: `PUT /api/albums/{id}` (edición manual desde el panel) recibe `AlbumUpdateRequest` = `{ "name": string, "photoUrl": string }` y solo actualiza nombre y portada (no toca las asociaciones de artistas/canciones, que un body parcial sobre la entidad `Album` habría puesto a `null`). La portada suele subirse antes con `POST /api/songs/cover`; también admite una URL externa.
 
 ---
 

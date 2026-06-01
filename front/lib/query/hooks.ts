@@ -52,13 +52,17 @@ import {
   getArtist,
   getArtistTopTracks,
   createArtist,
+  updateArtist,
+  deleteArtist,
+  splitArtist,
+  mergeArtists,
 } from "@/lib/api/artists";
 import {
   getHomeFeed,
   getRecentGenres,
   getDailyDiscoveries,
 } from "@/lib/api/feed";
-import { getAlbum, listAlbums } from "@/lib/api/albums";
+import { getAlbum, listAlbums, updateAlbum } from "@/lib/api/albums";
 import { search as searchApi } from "@/lib/api/search";
 import {
   getPublicConfig,
@@ -247,6 +251,24 @@ export function useAlbum(id: number, enabled = true) {
     queryKey: queryKeys.album(id),
     queryFn: () => getAlbum(id),
     enabled: enabled && Number.isFinite(id),
+  });
+}
+
+/** Edita nombre/portada de un álbum. Invalida la lista y el álbum concreto. */
+export function useUpdateAlbum() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { name: string; photoUrl: string | null };
+    }) => updateAlbum(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+      qc.invalidateQueries({ queryKey: queryKeys.album(vars.id) });
+    },
   });
 }
 
@@ -482,6 +504,68 @@ export function useCreateArtist() {
     mutationFn: (name: string) => createArtist(name),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.artists });
+    },
+  });
+}
+
+/** Edita nombre/foto de un artista. Invalida la lista y el artista concreto. */
+export function useUpdateArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { name: string; photoUrl: string | null };
+    }) => updateArtist(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.artist(vars.id) });
+    },
+  });
+}
+
+/** Borra un artista. Invalida artistas, canciones y álbumes (cambian atribuciones). */
+export function useDeleteArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteArtist(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+    },
+  });
+}
+
+/** Separa un artista en varios. Invalida artistas, canciones y álbumes. */
+export function useSplitArtist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, names }: { id: number; names: string[] }) =>
+      splitArtist(id, names),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
+    },
+  });
+}
+
+/** Une varios artistas en uno. Invalida artistas, canciones y álbumes. */
+export function useMergeArtists() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      ids: number[];
+      survivorId: number;
+      name?: string;
+    }) => mergeArtists(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.artists });
+      qc.invalidateQueries({ queryKey: queryKeys.songs });
+      qc.invalidateQueries({ queryKey: queryKeys.albums });
     },
   });
 }

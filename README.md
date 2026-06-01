@@ -215,7 +215,7 @@ La decisión es **no fiarse del string del tag y resolver cada artista contra un
 
 Durante el escaneo, `SongService.resolveArtist` limpia el nombre de adornos, lo consulta en Last.fm (`artist.getInfo` con `autocorrect=1`) y obtiene el **nombre canónico** y el **MBID** (MusicBrainz ID, identificador estable). El emparejamiento pasa a hacerse por MBID —no por nombre—, persistido en la columna `Artist.mbid`. Si una fila ya existía sin MBID, se le rellena. Si Last.fm no está configurado o no reconoce al artista, se cae al emparejamiento por nombre limpio, que ya unifica los casos triviales (espacios, mayúsculas). Una caché por lote evita repetir llamadas HTTP dentro del mismo escaneo.
 
-Esta estrategia previene **nuevos** duplicados; los ya existentes en BD requieren una limpieza puntual (o un futuro endpoint de merge para admin).
+Esta estrategia previene **nuevos** duplicados; los ya existentes en BD se limpian a mano desde el panel con las operaciones de **separar** y **juntar** artistas (ver [Gestión de artistas desde el panel](#gestión-de-artistas-desde-el-panel-edición-separar-y-juntar)).
 
 ```mermaid
 flowchart TD
@@ -231,6 +231,56 @@ flowchart TD
     ByName2 -- existe --> Reuse
     ByName2 -- no --> CreatePlain[Crear artista<br/>solo con nombre]
     Backfill --> Reuse
+```
+
+### Gestión de artistas desde el panel (edición, separar y juntar)
+
+El panel de administración incluye una pestaña **Artistas** (vista de lista) para gestionar el catálogo de artistas más allá de lo que resuelve el escaneo automático. Cada artista se puede **editar** (nombre y foto) en una página aparte, y la lista ofrece dos operaciones de limpieza de duplicados/etiquetas: **separar** y **juntar**.
+
+**Decisión de diseño: la edición y la subida de foto reutilizan la infraestructura existente.** La foto del artista se sube por drag&drop al mismo almacén que las carátulas (`POST /api/songs/cover` → `/assets/covers/<sha256>`) y su URL se guarda en `Artist.picture_path` vía `PUT /api/artists/{id}`. No se añade ni endpoint de imagen ni almacén nuevos: es el mismo patrón que la carátula de canción. El `PUT` solo toca **nombre y foto**; el `MBID` no se edita a mano porque es identidad resuelta automáticamente (un nombre editado a mano sobrevive a futuros escaneos, que emparejan por MBID sin renombrar las filas existentes).
+
+**Separar un artista (split).** Resuelve el caso de un único tag que en realidad son varios artistas (p. ej. `Ill Pekeño / Ergo Pro`). El admin teclea los nombres reales (mínimo dos) y `POST /api/artists/{id}/split`:
+
+1. Resuelve **cada nombre con el mismo `ArtistResolver` que el escaneo** (Last.fm → nombre canónico + MBID), reutilizando un artista existente si ya estaba. Se eligió reusar el resolver —en vez de crear filas planas por el nombre tecleado— para mantener la coherencia con la decisión de identidad de artistas: los artistas resultantes nacen ya con su MBID.
+2. **Atribuye todas las canciones y álbumes del original a TODOS los resultantes** (no las reparte: cada canción pasa a tener a los dos/tres artistas).
+3. **Borra el artista original.**
+
+**Juntar artistas (merge).** Resuelve los duplicados que ya están en BD (p. ej. `El alfa` y `El Alfa`, que el escaneo creó como filas distintas antes de tener MBID). El admin selecciona dos o más artistas y elige un **superviviente**; `POST /api/artists/merge`:
+
+1. El superviviente **conserva su id y su MBID**.
+2. Absorbe las canciones y álbumes del resto (sin duplicar atribuciones).
+3. **Borra los demás**; opcionalmente se renombra al superviviente.
+
+Se eligió el modelo **superviviente** (en lugar de crear un artista nuevo y borrar todos) para **preservar un id estable** —cualquier referencia existente al superviviente sigue siendo válida— y el **MBID ya resuelto**, evitando además una llamada extra a Last.fm. Es la "limpieza puntual" de duplicados que anticipaba la sección de resolución de identidad.
+
+**Soltar las FKs antes de borrar.** Un artista está referenciado por tres tablas cruzadas: `song_artist`, `album_artist` y la de `recommendedArtists` del feed. Tanto separar como juntar (y el borrado individual) **desligan al artista de esas tres** antes de eliminar su fila, para no chocar con las restricciones de clave foránea. Para el feed basta con quitar la referencia: el feed se **regenera en el siguiente acceso al home**, así que no hace falta repuntar nada. Borrar un artista nunca borra sus canciones ni sus álbumes: solo dejan de atribuírsele.
+
+**Edición de álbumes desde el artista.** Desde la página de un artista se accede a la lista de sus álbumes (`/admin/artists/{id}/albums`), donde cada álbum se edita (nombre y portada) con `PUT /api/albums/{id}`. Ese `PUT` pasó a recibir solo **nombre y portada** (`AlbumUpdateRequest`) en lugar de la entidad `Album` completa: un body parcial sobre la entidad habría puesto a `null` las asociaciones (`album_artist`, canciones) al copiarlas, borrando el vínculo con el artista.
+
+```mermaid
+flowchart TD
+    subgraph Split[Separar artista]
+        S0([POST /api/artists/id/split<br/>names]) --> S1{¿≥2 nombres?}
+        S1 -- no --> SErr[400 Bad Request]
+        S1 -- sí --> S2[Resolver cada nombre<br/>con ArtistResolver<br/>Last.fm → nombre + MBID]
+        S2 --> S3{¿≥2 artistas distintos<br/>del original?}
+        S3 -- no --> SErr
+        S3 -- sí --> S4[Atribuir TODAS las canciones<br/>y álbumes del original<br/>a TODOS los resultantes]
+        S4 --> S5[Soltar FKs del original:<br/>song_artist · album_artist · feed]
+        S5 --> S6[Borrar el original]
+        S6 --> SOk([200 OK · artistas resultantes])
+    end
+
+    subgraph Merge[Juntar artistas]
+        M0([POST /api/artists/merge<br/>ids · survivorId · name]) --> M1{¿≥2 ids y survivor<br/>entre ellos?}
+        M1 -- no --> MErr[400 Bad Request]
+        M1 -- sí --> M2[Por cada absorbido:<br/>mover canciones y álbumes<br/>al superviviente sin duplicar]
+        M2 --> M3[Soltar FKs del absorbido<br/>y borrarlo]
+        M3 --> M4{¿quedan absorbidos?}
+        M4 -- sí --> M2
+        M4 -- no --> M5[Renombrar superviviente<br/>si llega name]
+        M5 --> MOk([200 OK · superviviente])
+    end
 ```
 
 ### Conteo de escuchas derivado de la base de datos

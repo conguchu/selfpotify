@@ -61,18 +61,17 @@ public class AlbumServiceTest {
 
     @Test
     void testUpdate_Success() {
-        Album newData = new Album();
-        newData.setName("Updated Album Name");
         when(albumRepository.findById(1L)).thenReturn(Optional.of(albumOriginal));
-        
-        Album updated = albumService.update(1L, newData);
+
+        Album updated = albumService.updateMeta(1L, "Updated Album Name", "/assets/covers/x.jpg");
         assertEquals("Updated Album Name", updated.getName());
+        assertEquals("/assets/covers/x.jpg", updated.getPicture_url());
     }
 
     @Test
     void testUpdate_NotFound() {
         when(albumRepository.findById(1L)).thenReturn(Optional.empty());
-        assertThrows(RuntimeException.class, () -> albumService.update(1L, new Album()));
+        assertThrows(RuntimeException.class, () -> albumService.updateMeta(1L, "x", null));
     }
 
     @Test

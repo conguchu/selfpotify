@@ -1,6 +1,9 @@
 package anton.davila.selfpotify.controllers;
 
+import anton.davila.selfpotify.controllers.dto.ArtistUpdateRequest;
+import anton.davila.selfpotify.controllers.dto.MergeArtistsRequest;
 import anton.davila.selfpotify.controllers.dto.SongDTO;
+import anton.davila.selfpotify.controllers.dto.SplitArtistRequest;
 import anton.davila.selfpotify.controllers.dto.Top10ArtistTracksDTO;
 import anton.davila.selfpotify.controllers.dto.ArtistDTO;
 import anton.davila.selfpotify.music.entity.Artist;
@@ -65,14 +68,49 @@ public class ArtistController {
         return convertToDTO(artistService.add(artist));
     }
 
+    /**
+     * Edición manual de un artista desde el panel: nombre y foto. El MBID no se
+     * toca (es identidad resuelta automáticamente). La foto puede ser una ruta
+     * {@code /assets/...} (subida con {@code POST /api/songs/cover}) o una URL externa.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ArtistDTO> update(@PathVariable Long id, @RequestBody Artist artistDetails) {
+    public ResponseEntity<ArtistDTO> update(@PathVariable Long id, @RequestBody ArtistUpdateRequest request) {
         try {
-            return ResponseEntity.ok(convertToDTO(artistService.update(id, artistDetails)));
+            Artist details = new Artist();
+            details.setName(request.getName());
+            details.setPicture_path(request.getPhotoUrl());
+            return ResponseEntity.ok(convertToDTO(artistService.update(id, details)));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    /**
+     * Separa un artista mal etiquetado (p. ej. "Ill Pekeño / Ergo Pro") en los
+     * artistas reales que indique el admin, atribuyéndoles todas las canciones y
+     * álbumes del original y borrando este último. Ver {@link ArtistService#split}.
+     */
+    @PostMapping("/{id}/split")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ArtistDTO> split(@PathVariable Long id, @RequestBody SplitArtistRequest request) {
+        return artistService.split(id, request == null ? null : request.getNames()).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Une varios artistas duplicados (p. ej. "El alfa" y "El Alfa") en uno solo:
+     * el superviviente absorbe todo y el resto se borra. Ver {@link ArtistService#merge}.
+     */
+    @PostMapping("/merge")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ArtistDTO merge(@RequestBody MergeArtistsRequest request) {
+        Artist survivor = artistService.merge(
+                request == null ? null : request.getIds(),
+                request == null ? null : request.getSurvivorId(),
+                request == null ? null : request.getName());
+        return convertToDTO(survivor);
     }
 
     @DeleteMapping("/{id}")
