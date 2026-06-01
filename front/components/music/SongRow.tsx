@@ -26,19 +26,16 @@ export function SongRow({
   const isCurrent = current?.id === song.id;
   const showPause = isCurrent && isPlaying;
 
-  // "Artista - Género" bajo el título; se omite la parte que falte. Los
-  // artistas son enlaces a su página; el `title` usa texto plano para el tooltip.
   const artistLabel = song.artistNames?.length
     ? song.artistNames.join(", ")
     : "";
   const hasArtists = (song.artistNames?.length ?? 0) > 0;
   const subtitleText =
     [artistLabel, song.genre].filter(Boolean).join(" - ") || "—";
-
   return (
     <div
       className={cn(
-        "group grid grid-cols-[2.5rem_1fr_5rem_8rem_2.5rem_3rem] items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-bg-hover",
+        "group grid grid-cols-[2.5rem_1fr_5rem_2.5rem_3rem] items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-bg-hover",
         className,
       )}
     >
@@ -87,9 +84,6 @@ export function SongRow({
       <div className="flex items-center justify-end gap-1.5 text-xs text-text-muted tabular-nums">
         <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
         {song.listeners ?? 0}
-      </div>
-      <div className="text-xs text-text-muted">
-        {song.bpm > 0 ? `${song.bpm} BPM` : ""}
       </div>
       <div className="flex justify-center">
         <AddToPlaylistButton

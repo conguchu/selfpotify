@@ -75,6 +75,12 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Acceso:** `ROLE_USER` o `ROLE_ADMIN`.
 - **Respuesta:** `200 OK SongDTO` o `404 Not Found`.
 
+### `GET /api/songs/random` — Canciones aleatorias
+- **Acceso:** `ROLE_USER` o `ROLE_ADMIN`.
+- **Query params:** `count` (entero, opcional, por defecto `10`, máximo `50`).
+- **Comportamiento:** devuelve hasta `count` canciones disponibles elegidas completamente al azar (sin semilla por usuario ni por fecha). Cada llamada puede devolver un conjunto distinto. Usado por el cliente para el scroll infinito de descubrimientos diarios.
+- **Respuesta `200 OK`:** `List<SongDTO>` (puede estar vacía si no hay canciones disponibles).
+
 ### `GET /api/songs/{genre}/top` — Top 10 canciones de un género
 - **Acceso:** `ROLE_USER` o `ROLE_ADMIN`.
 - **Comportamiento:** devuelve las 10 canciones disponibles del género ordenadas por escuchas (desc), **derivadas** de `user_song_listen`.

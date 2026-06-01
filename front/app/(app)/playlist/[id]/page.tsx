@@ -152,10 +152,11 @@ export default function PlaylistPage({
 
       {songsInPlaylist.length > 0 ? (
         <div className="flex flex-col">
-          <div className="grid grid-cols-[2.5rem_1fr_8rem_3rem] gap-3 px-3 py-2 text-xs uppercase tracking-wide text-text-subtle">
+          <div className="grid grid-cols-[2.5rem_1fr_5rem_2.5rem_3rem] gap-3 px-3 py-2 text-xs uppercase tracking-wide text-text-subtle">
             <span>#</span>
             <span>Título</span>
-            <span>BPM</span>
+            <span className="text-right">Oyentes</span>
+            <span />
             <span className="text-right">Dur.</span>
           </div>
           {songsInPlaylist.map((song, i) => (

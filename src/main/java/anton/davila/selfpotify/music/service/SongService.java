@@ -25,11 +25,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -400,6 +403,18 @@ public class SongService {
     public List<Song> getTop10ByGenre(String genre) {
         log.info("Recuperando las 10 canciones más escuchadas del género: {}", genre);
         return userSongListenRepository.findSongsByGenreOrderByGlobalListensDesc(genre, PageRequest.of(0, 10));
+    }
+
+    /**
+     * Devuelve hasta {@code count} canciones disponibles elegidas al azar.
+     * El muestreo se hace en memoria sobre los IDs disponibles para evitar
+     * consultas nativas y mantenerse compatible con cualquier dialecto SQL.
+     */
+    public List<Song> getRandomSongs(int count) {
+        List<Long> allIds = new ArrayList<>(songRepository.findAvailableSongIds());
+        Collections.shuffle(allIds);
+        List<Long> picked = allIds.stream().limit(count).collect(Collectors.toList());
+        return songRepository.findAllById(picked);
     }
 
     /**

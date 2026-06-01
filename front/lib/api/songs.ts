@@ -95,3 +95,8 @@ export function setSongArtists(id: number, artistIds: number[]) {
     body: { artistIds },
   });
 }
+
+/** Devuelve `count` canciones completamente aleatorias del catálogo disponible. */
+export function getRandomSongs(count = 10) {
+  return apiFetch<SongDTO[]>(`/api/songs/random?count=${count}`);
+}

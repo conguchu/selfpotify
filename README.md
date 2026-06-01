@@ -502,6 +502,14 @@ feed de artistas se regenera en cada acceso. Las 9 canciones se devuelven
 el catálogo es demasiado pequeño para llenar los tres bloques sin repetir, se
 completa con canciones aleatorias hasta llegar a 9 (o menos, si no hay más).
 
+**Scroll infinito.** El carrusel de descubrimientos diarios es desplazable de forma
+ilimitada. Cuando el usuario llega a las dos últimas canciones cargadas, el cliente
+llama a `GET /api/songs/random?count=10` para obtener 10 canciones totalmente
+aleatorias (sin semilla, distintas en cada llamada) y las añade al final del
+carrusel. Mientras se carga el siguiente lote se muestra un spinner de espera.
+Esto combina la lista diaria estable (personalizada y determinista) con la
+posibilidad de explorar el catálogo sin límite desde la misma pantalla.
+
 ```mermaid
 flowchart TD
     Get([GET /api/feed/daily-discoveries]) --> Seed[Sembrar Random<br/>con userId + fecha]
@@ -518,6 +526,9 @@ flowchart TD
     Pad --> Shuffle
     Shuffle --> Map[Mapear a SongDTO<br/>con escuchas derivadas]
     Map --> Render([Cliente renderiza<br/>el deslizable de descubrimientos])
+    Render -- usuario llega al penúltimo slide --> Random([GET /api/songs/random?count=10])
+    Random --> Append[Añadir al final del carrusel]
+    Append --> Render
 ```
 
 ### Búsqueda global

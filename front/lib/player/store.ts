@@ -8,12 +8,14 @@ interface PlayerState {
   current: SongDTO | null;
   queue: SongDTO[];
   isPlaying: boolean;
+  loop: boolean;
   volume: number;
   positionMs: number;
   durationMs: number;
 
   playSong: (song: SongDTO, queue?: SongDTO[]) => void;
   togglePlay: () => void;
+  toggleLoop: () => void;
   pause: () => void;
   resume: () => void;
   next: () => void;
@@ -30,6 +32,7 @@ export const usePlayerStore = create<PlayerState>()(
       current: null,
       queue: [],
       isPlaying: false,
+      loop: false,
       volume: 0.8,
       positionMs: 0,
       durationMs: 0,
@@ -42,6 +45,7 @@ export const usePlayerStore = create<PlayerState>()(
           positionMs: 0,
         }),
       togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+      toggleLoop: () => set((s) => ({ loop: !s.loop })),
       pause: () => set({ isPlaying: false }),
       resume: () => set({ isPlaying: true }),
       next: () => {

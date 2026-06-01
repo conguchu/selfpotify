@@ -85,6 +85,15 @@ public class SongController {
         return ResponseEntity.ok(new Top10GenreSongsDTO(genre, top));
     }
 
+    @GetMapping("/random")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public List<SongDTO> getRandomSongs(@RequestParam(defaultValue = "10") int count) {
+        Map<Long, Long> listenCounts = songService.getListenCountsBySong();
+        return songService.getRandomSongs(Math.min(count, 50)).stream()
+                .map(song -> convertToDTO(song, listenCounts.getOrDefault(song.getId(), 0L)))
+                .collect(Collectors.toList());
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public SongDTO createSong(@RequestBody Song song) {

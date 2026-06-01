@@ -1,204 +1,348 @@
 "use client";
 
 import * as React from "react";
-import useEmblaCarousel from "embla-carousel-react";
 import { cn } from "@/lib/utils";
+
+const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
 interface CoverflowProps<T> {
   items: T[];
-  /** Render del contenido del slide. `isCenter` marca el slide activo (central). */
-  renderItem: (
-    item: T,
-    state: { isCenter: boolean; index: number },
-  ) => React.ReactNode;
+  renderItem: (item: T, state: { isCenter: boolean; index: number }) => React.ReactNode;
   getKey: (item: T, index: number) => React.Key;
-  /** Se invoca al hacer click/Enter sobre el slide central ya seleccionado. */
   onActivateCenter?: (item: T, index: number) => void;
+  onIndexChange?: (index: number) => void;
+  /** Mantenida por compatibilidad; el scroll nativo no implementa bucle infinito. */
+  loop?: boolean;
   ariaLabel?: string;
   className?: string;
 }
 
-const clamp = (n: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, n));
-
 /**
- * Carrusel horizontal estilo Cover Flow (macOS / Virtual DJ): el slide central
- * se muestra grande y nítido, mientras los laterales se encogen, se atenúan y
- * rotan en 3D hacia atrás. El efecto 3D se aplica a un wrapper externo a cada
- * slide para no romper el `position: relative` que necesita `<Image fill>`.
+ * Carrusel estilo Cover Flow sin dependencias externas.
  *
- * Interacción: click en un lateral lo centra; click (o Enter/Espacio) en el
- * central dispara `onActivateCenter`. Respeta `prefers-reduced-motion`.
+ * Motor: scroll nativo con scroll-snap (CSS) y scrollIntoView para la
+ * navegación programática. scrollIntoView actualiza el destino al vuelo
+ * si se llama varias veces seguidas, por lo que el hover rápido siempre
+ * alcanza el slide correcto sin cascadas ni llamadas ignoradas.
+ *
+ * 3D: transforms calculados frame a frame vía getBoundingClientRect + RAF.
+ * Drag de ratón: pointer events con setPointerCapture sobre el track.
+ * Adición dinámica de slides: solo requiere añadir el elemento al DOM.
  */
 export function Coverflow<T>({
   items,
   renderItem,
   getKey,
   onActivateCenter,
+  onIndexChange,
   ariaLabel,
   className,
 }: CoverflowProps<T>) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: "center",
-    // `loop: true` resuelve a la vez los dos extremos: como no hay principio ni
-    // fin, TODAS las carátulas pueden centrarse (sus controles play/+ solo
-    // aparecen en la central) y siempre hay una carátula vecina a cada lado,
-    // sin el hueco negro que dejaban los extremos sin bucle.
-    loop: true,
-    // Con pocas carátulas Embla desactiva el bucle automáticamente; sin esto
-    // caería en su default `"trimSnaps"`, que alinea la primera a la izquierda.
-    // Forzamos `false` para que el respaldo también la centre y todos los
-    // carruseles arranquen igual.
-    containScroll: false,
-    skipSnaps: false,
-  });
-  const [selectedIndex, setSelectedIndex] = React.useState(0);
-  const reducedMotion = useReducedMotion();
+  const outerRef = React.useRef<HTMLDivElement>(null);
+  const trackRef = React.useRef<HTMLDivElement>(null);
   const slideRefs = React.useRef<(HTMLDivElement | null)[]>([]);
-  // Posición del puntero al pulsar, para distinguir un click de un arrastre.
-  const pointerDownRef = React.useRef<{ x: number; y: number } | null>(null);
+  const innerRefs = React.useRef<(HTMLDivElement | null)[]>([]);
 
-  // Aplica las transformaciones 3D a cada slide según su distancia al snap activo.
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const selectedIndexRef = React.useRef(0);
+
+  // Refs estables para evitar re-crear callbacks cuando cambian las props.
+  const onIndexChangeRef = React.useRef(onIndexChange);
+  React.useEffect(() => { onIndexChangeRef.current = onIndexChange; }, [onIndexChange]);
+  const onActivateCenterRef = React.useRef(onActivateCenter);
+  React.useEffect(() => { onActivateCenterRef.current = onActivateCenter; }, [onActivateCenter]);
+
+  const reducedMotion = useReducedMotion();
+  const reducedMotionRef = React.useRef(reducedMotion);
+  React.useEffect(() => { reducedMotionRef.current = reducedMotion; }, [reducedMotion]);
+
+  const pointerDownRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragRef = React.useRef({ active: false, startX: 0, scrollLeft: 0 });
+  const rafIdRef = React.useRef<number | null>(null);
+  const isScrollingRef = React.useRef(false);
+  // Limpieza de los listeners globales del drag; se llama al soltar o al desmontar.
+  const dragCleanupRef = React.useRef<(() => void) | null>(null);
+
+  // ── 3D transforms ─────────────────────────────────────────────────────────
+
   const applyStyles = React.useCallback(() => {
-    if (!emblaApi) return;
-    const progress = emblaApi.scrollProgress();
-    const snaps = emblaApi.scrollSnapList();
-    snaps.forEach((snap, i) => {
-      const node = slideRefs.current[i];
-      if (!node) return;
-      // Con `loop`, el progreso envuelve en [0,1): la distancia al snap se
-      // normaliza al rango [-0.5, 0.5] para que la carátula que da la vuelta se
-      // trate como vecina inmediata y no como la más lejana.
-      let diff = snap - progress;
-      if (diff > 0.5) diff -= 1;
-      else if (diff < -0.5) diff += 1;
+    const outer = outerRef.current;
+    if (!outer) return;
+    const containerRect = outer.getBoundingClientRect();
+    const centerX = containerRect.left + containerRect.width / 2;
+
+    slideRefs.current.forEach((slide, i) => {
+      if (!slide) return;
+      const inner = innerRefs.current[i];
+      if (!inner) return;
+      const rect = slide.getBoundingClientRect();
+      const slideCenter = rect.left + rect.width / 2;
+      const diff = clamp((slideCenter - centerX) / containerRect.width, -1.5, 1.5);
       const abs = Math.min(Math.abs(diff), 1);
-      // El contenedor de slides usa `preserve-3d`, donde el `z-index` se ignora:
-      // el apilado lo decide la posición Z. Las columnas (hijas directas) están
-      // todas en Z=0, así que una columna posterior en el DOM tapa los controles
-      // (play, +) de la columna central, que dejan de recibir clicks tras
-      // desplazar. Elevamos la columna activa en Z para que gane el sorteo 3D.
-      const column = node.parentElement;
-      if (column) column.style.transform = `translateZ(${(1 - abs) * 2}px)`;
-      if (reducedMotion) {
-        node.style.transform = "none";
-        node.style.opacity = abs > 0.5 ? "0.55" : "1";
-        node.style.zIndex = String(Math.round((1 - abs) * 100));
+
+      // z-index 2D para que el slide central quede encima sin oclusión 3D.
+      // Los slides son flex items: z-index funciona sin position:relative.
+      slide.style.zIndex = String(Math.round((1 - abs) * 10));
+
+      if (reducedMotionRef.current) {
+        inner.style.transform = "none";
+        inner.style.opacity = abs > 0.5 ? "0.55" : "1";
         return;
       }
-      const scale = 1 - abs * 0.35;
-      const rotateY = clamp(diff * -45, -55, 55);
-      const translateZ = -abs * 120;
-      const opacity = 1 - abs * 0.5;
-      node.style.transform = `translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`;
-      node.style.opacity = String(opacity);
-      node.style.zIndex = String(Math.round((1 - abs) * 100));
+      inner.style.transform = `translateZ(${-abs * 120}px) rotateY(${clamp(diff * -45, -55, 55)}deg) scale(${1 - abs * 0.35})`;
+      inner.style.opacity = String(1 - abs * 0.5);
     });
-  }, [emblaApi, reducedMotion]);
+  }, []);
 
-  React.useEffect(() => {
-    if (!emblaApi) return;
-    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
-    onSelect();
-    applyStyles();
-    emblaApi.on("select", onSelect);
-    emblaApi.on("scroll", applyStyles);
-    emblaApi.on("reInit", applyStyles);
-    emblaApi.on("reInit", onSelect);
-    return () => {
-      emblaApi.off("select", onSelect);
-      emblaApi.off("scroll", applyStyles);
-      emblaApi.off("reInit", applyStyles);
-      emblaApi.off("reInit", onSelect);
+  const startRAF = React.useCallback(() => {
+    isScrollingRef.current = true;
+    if (rafIdRef.current) return;
+    const tick = () => {
+      applyStyles();
+      if (isScrollingRef.current) {
+        rafIdRef.current = requestAnimationFrame(tick);
+      } else {
+        rafIdRef.current = null;
+        applyStyles(); // frame final tras detener el scroll
+      }
     };
-  }, [emblaApi, applyStyles]);
+    rafIdRef.current = requestAnimationFrame(tick);
+  }, [applyStyles]);
 
-  // Re-inicializa cuando cambian los datos (llegan de forma asíncrona).
+  const stopRAF = React.useCallback(() => {
+    isScrollingRef.current = false;
+  }, []);
+
+  // ── detección del slide central ───────────────────────────────────────────
+
+  const detectCenter = React.useCallback(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const trackCenter = track.scrollLeft + track.clientWidth / 2;
+    let closest = 0;
+    let minDist = Infinity;
+    slideRefs.current.forEach((slide, i) => {
+      if (!slide) return;
+      const dist = Math.abs(slide.offsetLeft + slide.clientWidth / 2 - trackCenter);
+      if (dist < minDist) { minDist = dist; closest = i; }
+    });
+    if (closest !== selectedIndexRef.current) {
+      selectedIndexRef.current = closest;
+      setSelectedIndex(closest);
+      onIndexChangeRef.current?.(closest);
+    }
+  }, []);
+
+  // Limpia listeners de drag si el componente se desmonta en medio de un gesto.
+  React.useEffect(() => () => { dragCleanupRef.current?.(); }, []);
+
+  // ── inicialización y cambios en items ────────────────────────────────────
+
   React.useEffect(() => {
-    if (emblaApi) emblaApi.reInit();
-  }, [emblaApi, items.length]);
+    const track = trackRef.current;
+    if (!track) return;
+    // Gestión imperativa para poder alternar durante el drag sin conflicto
+    // con la prop style de React.
+    track.style.scrollSnapType = "x mandatory";
+    applyStyles();
+  }, [applyStyles]);
 
-  // Click en cualquier carátula: la centra (si no lo estaba) y la activa
-  // —reproduce o navega, según el consumidor—. Si hubo arrastre, no activa.
-  const handleSlideClick = (e: React.MouseEvent, index: number) => {
-    if (!emblaApi) return;
-    const down = pointerDownRef.current;
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
-    if (index !== selectedIndex) emblaApi.scrollTo(index, reducedMotion);
-    onActivateCenter?.(items[index], index);
+  React.useEffect(() => {
+    slideRefs.current = slideRefs.current.slice(0, items.length);
+    innerRefs.current = innerRefs.current.slice(0, items.length);
+    applyStyles();
+  }, [items.length, applyStyles]);
+
+  // ── eventos de scroll ─────────────────────────────────────────────────────
+
+  React.useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    let fallbackTimer: ReturnType<typeof setTimeout>;
+
+    const onScroll = () => {
+      startRAF();
+      detectCenter();
+      // Fallback para navegadores sin soporte de scrollend (< Safari 17.4).
+      clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => { stopRAF(); detectCenter(); }, 150);
+    };
+    const onScrollEnd = () => {
+      clearTimeout(fallbackTimer);
+      stopRAF();
+      detectCenter();
+    };
+
+    track.addEventListener("scroll", onScroll, { passive: true });
+    track.addEventListener("scrollend", onScrollEnd, { passive: true });
+    return () => {
+      track.removeEventListener("scroll", onScroll);
+      track.removeEventListener("scrollend", onScrollEnd);
+      clearTimeout(fallbackTimer);
+    };
+  }, [startRAF, stopRAF, detectCenter]);
+
+  // ── navegación ────────────────────────────────────────────────────────────
+
+  const goTo = React.useCallback((index: number) => {
+    const slide = slideRefs.current[index];
+    if (!slide) return;
+    // block: nearest evita scroll vertical si el componente no está 100% visible.
+    slide.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, []);
+
+  // ── drag de ratón ─────────────────────────────────────────────────────────
+  //
+  // NO usamos setPointerCapture porque redirige todos los pointerUp al track,
+  // impidiendo que useTapAction (play, +playlist) y los onClick de los slides
+  // reciban sus eventos.
+  //
+  // En su lugar instalamos listeners globales en el documento:
+  //   - pointermove: fase bubble (no hay stopPropagation en onPointerMove)
+  //   - pointerup:   fase CAPTURE → corre antes del stopPropagation de useTapAction,
+  //                  así siempre limpiamos el estado de drag aunque el botón absorba
+  //                  el evento en la fase de burbuja.
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownRef.current = { x: e.clientX, y: e.clientY };
+    if (e.pointerType !== "mouse") return;
+    const track = trackRef.current;
+    if (!track) return;
+
+    // Cancela cualquier drag anterior sin terminar.
+    dragCleanupRef.current?.();
+
+    const startX = e.clientX;
+    const scrollLeft = track.scrollLeft;
+    dragRef.current = { active: true, startX, scrollLeft };
+    let dragged = false; // true en cuanto el movimiento supera el umbral
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerType !== "mouse") return;
+      const dx = ev.clientX - startX;
+      if (!dragged && Math.abs(dx) < 5) return;
+      if (!dragged) {
+        dragged = true;
+        track.style.scrollSnapType = "none";
+      }
+      track.scrollLeft = scrollLeft - dx;
+    };
+
+    const onUp = () => {
+      dragRef.current.active = false;
+      dragCleanupRef.current = null;
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp, true);
+      if (dragged) {
+        track.style.scrollSnapType = "x mandatory";
+        detectCenter();
+        goTo(selectedIndexRef.current);
+      }
+    };
+
+    dragCleanupRef.current = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp, true);
+    };
+
+    document.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("pointerup", onUp, { capture: true });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!emblaApi) return;
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      emblaApi.scrollNext();
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      emblaApi.scrollPrev();
-    } else if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onActivateCenter?.(items[selectedIndex], selectedIndex);
+  // ── interacciones de slide ────────────────────────────────────────────────
+
+  const handleSlideClick = (e: React.MouseEvent, i: number) => {
+    const down = pointerDownRef.current;
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+    if (i !== selectedIndexRef.current) {
+      goTo(i);
+    } else {
+      onActivateCenterRef.current?.(items[i], i);
     }
   };
 
+  const handleSlidePointerEnter = (e: React.PointerEvent, i: number) => {
+    if (e.pointerType !== "mouse" || e.buttons !== 0) return;
+    if (i !== selectedIndexRef.current) goTo(i);
+  };
+
+  // ── teclado ───────────────────────────────────────────────────────────────
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      goTo(Math.min(selectedIndexRef.current + 1, items.length - 1));
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      goTo(Math.max(selectedIndexRef.current - 1, 0));
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onActivateCenterRef.current?.(items[selectedIndexRef.current], selectedIndexRef.current);
+    }
+  };
+
+  // ── render ────────────────────────────────────────────────────────────────
+
   return (
     <div
-      ref={emblaRef}
+      ref={outerRef}
       className={cn("h-full w-full overflow-hidden", className)}
       style={{ perspective: "1200px" }}
       role="listbox"
       aria-label={ariaLabel}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      onPointerDownCapture={(e) => {
-        pointerDownRef.current = { x: e.clientX, y: e.clientY };
-      }}
     >
       <div
-        className="flex h-full items-center"
-        style={{ transformStyle: "preserve-3d" }}
+        ref={trackRef}
+        className="flex h-full w-full cursor-grab items-center overflow-x-auto active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onPointerDown={handlePointerDown}
       >
-        {items.map((item, i) => {
-          const isCenter = i === selectedIndex;
-          return (
-            <div
-              key={getKey(item, i)}
-              role="option"
-              aria-selected={isCenter}
-              onClick={(e) => handleSlideClick(e, i)}
-              // Al pasar el ratón por encima, la carátula se centra sola para
-              // una navegación más fluida. Solo con ratón (no en táctil) y sin
-              // ningún botón pulsado, para no interferir con un arrastre.
-              onPointerEnter={(e) => {
-                if (e.pointerType !== "mouse" || e.buttons !== 0) return;
-                if (i !== selectedIndex) emblaApi?.scrollTo(i, reducedMotion);
-              }}
-              // El click vive en este contenedor (sin transformar): cada columna
-              // ocupa su carril sin solaparse, así cualquier carátula visible es
-              // pulsable. El contenido interno lleva las transformaciones 3D y se
-              // marca `pointer-events-none` para que no robe los clicks por su
-              // escala/zIndex; los controles internos (botón +) reactivan los
-              // eventos con `pointer-events-auto`.
-              className="relative flex min-w-0 shrink-0 grow-0 basis-[78%] cursor-pointer select-none items-center justify-center px-3 sm:basis-[58%] md:basis-[46%] lg:basis-[36%] xl:basis-[30%]"
-            >
+        {/*
+          Espaciadores para que el primer y el último slide puedan centrarse.
+          Ancho = (100% - ancho_del_slide) / 2, sincronizado con los breakpoints
+          de los slides (78% → 58% → 46% → 36% → 30%).
+        */}
+        <div
+          className="w-[11%] shrink-0 sm:w-[21%] md:w-[27%] lg:w-[32%] xl:w-[35%]"
+          aria-hidden
+        />
+
+        {items.map((item, i) => (
+          <div
+            key={getKey(item, i)}
+            ref={(el) => { slideRefs.current[i] = el; }}
+            className="w-[78%] shrink-0 cursor-pointer select-none px-3 sm:w-[58%] md:w-[46%] lg:w-[36%] xl:w-[30%]"
+            style={{ scrollSnapAlign: "center" }}
+            role="option"
+            aria-selected={i === selectedIndex}
+            onClick={(e) => handleSlideClick(e, i)}
+            onPointerEnter={(e) => handleSlidePointerEnter(e, i)}
+          >
+            {/* Perspectiva local por slide: cada carátula tiene su propio
+                punto de fuga sin compartir contexto 3D con los vecinos,
+                lo que evita la oclusión 3D en los hit-tests de puntero. */}
+            <div style={{ perspective: "1200px" }}>
               <div
-                ref={(el) => {
-                  slideRefs.current[i] = el;
-                }}
+                ref={(el) => { innerRefs.current[i] = el; }}
                 className="w-full transform-gpu [backface-visibility:hidden] [pointer-events:none] [will-change:transform]"
               >
-                {renderItem(item, { isCenter, index: i })}
+                {renderItem(item, { isCenter: i === selectedIndex, index: i })}
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
+
+        <div
+          className="w-[11%] shrink-0 sm:w-[21%] md:w-[27%] lg:w-[32%] xl:w-[35%]"
+          aria-hidden
+        />
       </div>
     </div>
   );
 }
 
-/** `true` si el usuario ha pedido reducir el movimiento en su sistema. */
 function useReducedMotion() {
   const [reduced, setReduced] = React.useState(false);
   React.useEffect(() => {
