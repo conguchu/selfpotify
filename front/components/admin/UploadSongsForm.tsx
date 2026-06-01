@@ -38,12 +38,17 @@ export function UploadSongsForm() {
 
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [target, setTarget] = useState<string>(""); // "" = carpeta de datos
+  const [target, setTarget] = useState<string>("");
+  const [seeded, setSeeded] = useState(false);
   const [drafts, setDrafts] = useState<DraftRow[] | null>(null);
   const [pickerFor, setPickerFor] = useState<number | null>(null);
 
   const scanPaths = config.data?.scanPaths ?? [];
-  const addedSongsDir = config.data?.addedSongsDir ?? "selfpotify_added";
+  // Destino por defecto: la primera carpeta de música configurada.
+  if (!seeded && config.data) {
+    setTarget(scanPaths[0] ?? "");
+    setSeeded(true);
+  }
 
   const addFiles = (incoming: FileList | File[]) => {
     const accepted: File[] = [];
@@ -245,30 +250,34 @@ export function UploadSongsForm() {
   // ---- Fase 1: elegir destino y archivos ----------------------------------
   return (
     <div className="flex flex-col gap-4">
-      {/* Selector de volumen / carpeta destino (siempre visible) */}
+      {/* Carpeta de música destino (una de las configuradas) */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="upload-target">Carpeta de destino</Label>
-        <select
-          id="upload-target"
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          className={cn(
-            "h-10 w-full rounded-md border border-border bg-bg-card px-3 text-sm text-text",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent",
-          )}
-        >
-          <option value="">Carpeta de datos (por defecto)</option>
-          {scanPaths.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+        <Label htmlFor="upload-target">Carpeta de música destino</Label>
+        {scanPaths.length === 0 ? (
+          <p className="rounded-md border border-border bg-bg px-3 py-2 text-sm text-text-muted">
+            No hay carpetas de música configuradas. Añade una en{" "}
+            <span className="text-text">Ajustes → Biblioteca</span> antes de subir.
+          </p>
+        ) : (
+          <select
+            id="upload-target"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className={cn(
+              "h-10 w-full rounded-md border border-border bg-bg-card px-3 text-sm text-text",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent",
+            )}
+          >
+            {scanPaths.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        )}
         <p className="text-xs text-text-subtle">
-          Se creará una subcarpeta <code>selfpotify_added</code> dentro del destino.
-          La opción por defecto usa la carpeta de datos del servidor (
-          <code>{addedSongsDir}</code>). En Docker el volumen de música es de solo
-          lectura: elige la carpeta de datos.
+          Las canciones subidas se guardan en una subcarpeta{" "}
+          <code>selfpotify_added</code> dentro de la carpeta elegida.
         </p>
       </div>
 
