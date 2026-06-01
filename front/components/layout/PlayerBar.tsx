@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { CoverArt } from "@/components/music/CoverArt";
+import { ArtistLinks } from "@/components/music/ArtistLinks";
 import { AddToPlaylistButton } from "@/components/music/AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
 import { Slider } from "@/components/ui/Slider";
@@ -89,14 +90,17 @@ export function PlayerBar() {
                 {current.title}
               </p>
               <p className="truncate text-xs text-text-muted">
-                {[
-                  current.artistNames?.length
-                    ? current.artistNames.join(", ")
-                    : null,
-                  current.genre,
-                ]
-                  .filter(Boolean)
-                  .join(" - ") || "—"}
+                {current.artistNames?.length ? (
+                  <>
+                    <ArtistLinks
+                      artistIds={current.artistIds}
+                      artistNames={current.artistNames}
+                    />
+                    {current.genre ? ` - ${current.genre}` : ""}
+                  </>
+                ) : (
+                  current.genre || "—"
+                )}
               </p>
             </div>
             <AddToPlaylistButton songId={current.id} size="sm" className="shrink-0" />

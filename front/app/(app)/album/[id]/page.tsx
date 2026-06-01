@@ -72,11 +72,16 @@ export default function AlbumPage({
   const totalMs = tracks.reduce((acc, s) => acc + (s.duration_ms ?? 0), 0);
   // El nombre del artista no viaja en AlbumDTO; lo deducimos de las canciones
   // (todas las del álbum suelen compartir el mismo artista principal).
-  const artistNames = Array.from(
-    new Set(
-      tracks.flatMap((s) => s.artistNames ?? []).filter((n) => n && n.trim()),
-    ),
-  );
+  const artists = (() => {
+    const seen = new Map<string, { id: number | null; name: string }>();
+    for (const s of tracks) {
+      (s.artistNames ?? []).forEach((name, i) => {
+        if (!name || !name.trim() || seen.has(name)) return;
+        seen.set(name, { id: s.artistIds?.[i] ?? null, name });
+      });
+    }
+    return Array.from(seen.values());
+  })();
 
   const playAll = () => {
     if (tracks.length > 0) playSong(tracks[0], tracks);
@@ -106,12 +111,26 @@ export default function AlbumPage({
           </span>
           <h1 className="text-5xl font-bold tracking-tight">{album.name}</h1>
           <p className="text-sm text-text-muted">
-            {artistNames.length > 0 ? (
+            {artists.length > 0 ? (
               <span className="font-medium text-text">
-                {artistNames.join(", ")}
+                {artists.map((a, i) => (
+                  <span key={`${a.id}-${i}`}>
+                    {i > 0 && ", "}
+                    {a.id != null ? (
+                      <Link
+                        href={`/artist/${a.id}`}
+                        className="hover:underline"
+                      >
+                        {a.name}
+                      </Link>
+                    ) : (
+                      a.name
+                    )}
+                  </span>
+                ))}
               </span>
             ) : null}
-            {artistNames.length > 0 ? " · " : ""}
+            {artists.length > 0 ? " · " : ""}
             {tracks.length}{" "}
             {pluralize(tracks.length, "canción", "canciones")}
             {totalMs > 0 ? ` · ${formatDuration(totalMs)}` : ""}

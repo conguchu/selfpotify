@@ -2,6 +2,7 @@
 
 import { Pause, Play } from "lucide-react";
 import { CoverArt } from "./CoverArt";
+import { ArtistLinks } from "./ArtistLinks";
 import { AddToPlaylistButton } from "./AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
 import { usePlayerStore } from "@/lib/player/store";
@@ -25,11 +26,13 @@ export function SongRow({
   const isCurrent = current?.id === song.id;
   const showPause = isCurrent && isPlaying;
 
-  // "Artista - Género" bajo el título; se omite la parte que falte.
+  // "Artista - Género" bajo el título; se omite la parte que falte. Los
+  // artistas son enlaces a su página; el `title` usa texto plano para el tooltip.
   const artistLabel = song.artistNames?.length
     ? song.artistNames.join(", ")
     : "";
-  const subtitle =
+  const hasArtists = (song.artistNames?.length ?? 0) > 0;
+  const subtitleText =
     [artistLabel, song.genre].filter(Boolean).join(" - ") || "—";
 
   return (
@@ -66,8 +69,18 @@ export function SongRow({
           >
             {song.title}
           </p>
-          <p className="truncate text-xs text-text-muted" title={subtitle}>
-            {subtitle}
+          <p className="truncate text-xs text-text-muted" title={subtitleText}>
+            {hasArtists ? (
+              <>
+                <ArtistLinks
+                  artistIds={song.artistIds}
+                  artistNames={song.artistNames}
+                />
+                {song.genre ? ` - ${song.genre}` : ""}
+              </>
+            ) : (
+              subtitleText
+            )}
           </p>
         </div>
       </div>
