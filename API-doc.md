@@ -149,6 +149,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 | GET | `/api/artists/{id}/top-10-tracks` | USER/ADMIN | — | `Top10ArtistTracksDTO` o `404` |
 | POST | `/api/artists` | ADMIN | `Artist` | `ArtistDTO` |
 | PUT | `/api/artists/{id}` | ADMIN | `ArtistUpdateRequest` | `ArtistDTO` o `404` |
+| POST | `/api/artists/{id}/fetch-photo` | ADMIN | — | `{ "url": string }` o `404` |
 | POST | `/api/artists/{id}/split` | ADMIN | `SplitArtistRequest` | `List<ArtistDTO>` o `400`/`404` |
 | POST | `/api/artists/merge` | ADMIN | `MergeArtistsRequest` | `ArtistDTO` o `400`/`404` |
 | DELETE | `/api/artists/{id}` | ADMIN | — | `204` o `404` |
@@ -156,6 +157,8 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 Nota: `ArtistDTO.biography` está declarado pero el `convertToDTO` actual no lo rellena; siempre será `null`.
 
 Nota: `PUT /api/artists/{id}` (edición manual desde el panel) recibe `ArtistUpdateRequest` = `{ "name": string, "photoUrl": string }` y solo actualiza nombre y foto. La foto suele subirse antes con `POST /api/songs/cover` (devuelve `{ "url": "/assets/covers/..." }`) y su URL se manda en `photoUrl`; también admite una URL externa. El `mbid` no se edita por aquí (es identidad resuelta automáticamente).
+
+Nota: `POST /api/artists/{id}/fetch-photo` busca una foto del artista (Deezer, vía `CoverApiService`) por su nombre y devuelve `{ "url": "..." }` **sin persistirla**: el panel la fija en el formulario de edición y se guarda con el `PUT`. Respeta `app.cover-art.enabled`; si no se encuentra (o la resolución online está desactivada) responde `404`.
 
 Nota: `POST /api/artists/{id}/split` separa un artista mal etiquetado en varios reales. Body `SplitArtistRequest` = `{ "names": List<String> }` (mínimo dos). Cada nombre se resuelve con `ArtistResolver` (Last.fm → nombre canónico + MBID, reutilizando un artista existente si ya lo había); **todas** las canciones y álbumes del original se atribuyen a **todos** los resultantes y el original se borra. A los resultantes que aún no tengan foto se les rellena (Deezer) reutilizando `CoverApiService`, **respetando `app.cover-art.enabled`** (si la resolución online está desactivada, no se consulta). Devuelve los artistas resultantes. `400` si llegan menos de dos nombres o no se resuelven al menos dos artistas distintos del original; `404` si el artista no existe.
 

@@ -79,6 +79,21 @@ public class ArtistService {
     }
 
     /**
+     * Busca una foto para el artista (Deezer) y devuelve su URL sin persistirla.
+     * La usa el botón "conseguir foto" de la edición: el cliente la fija en el
+     * formulario y la guarda al confirmar. Respeta {@code app.cover-art.enabled}.
+     *
+     * @param id id del artista
+     * @return URL de la foto si se encontró, o vacío
+     */
+    public Optional<String> fetchPhotoUrl(long id) {
+        Artist artist = artistRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "No se encontró el artista con ID " + id));
+        return coverApiService.fetchArtistImageUrl(artist.getName());
+    }
+
+    /**
      * Top 10 canciones del artista ordenadas por escuchas globales (desc),
      * derivadas de la tabla de eventos {@code user_song_listen}.
      *

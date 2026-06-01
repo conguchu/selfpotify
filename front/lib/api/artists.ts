@@ -28,6 +28,17 @@ export function updateArtist(
   });
 }
 
+/**
+ * Busca automáticamente una foto para el artista (Deezer) y devuelve su URL sin
+ * persistirla. Lanza un `ApiError` 404 si no se encuentra (o si la resolución
+ * online de carátulas está desactivada en config).
+ */
+export function fetchArtistPhoto(id: number) {
+  return apiFetch<{ url: string }>(`/api/artists/${id}/fetch-photo`, {
+    method: "POST",
+  });
+}
+
 /** Borra un artista (sus canciones/álbumes dejan de atribuírsele, no se borran). */
 export function deleteArtist(id: number) {
   return apiFetch<void>(`/api/artists/${id}`, {

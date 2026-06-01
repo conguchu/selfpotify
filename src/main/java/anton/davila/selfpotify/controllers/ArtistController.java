@@ -87,6 +87,20 @@ public class ArtistController {
     }
 
     /**
+     * Busca automáticamente una foto para el artista (Deezer) y devuelve
+     * {@code { "url": ... }}. No la persiste: el panel la fija en el formulario de
+     * edición y se guarda con el {@code PUT}. Respeta {@code app.cover-art.enabled};
+     * si no se encuentra (o la resolución online está desactivada) responde {@code 404}.
+     */
+    @PostMapping("/{id}/fetch-photo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> fetchPhoto(@PathVariable Long id) {
+        return artistService.fetchPhotoUrl(id)
+                .map(url -> ResponseEntity.ok(Map.of("url", url)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * Separa un artista mal etiquetado (p. ej. "Ill Pekeño / Ergo Pro") en los
      * artistas reales que indique el admin, atribuyéndoles todas las canciones y
      * álbumes del original y borrando este último. Ver {@link ArtistService#split}.

@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Trash2 } from "lucide-react";
+import { ImageDown, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { CoverDropzone } from "@/components/admin/CoverDropzone";
-import { useDeleteArtist, useUpdateArtist } from "@/lib/query/hooks";
+import { ApiError } from "@/lib/api/client";
+import {
+  useDeleteArtist,
+  useFetchArtistPhoto,
+  useUpdateArtist,
+} from "@/lib/query/hooks";
 import type { ArtistDTO } from "@/lib/types";
 
 /**
@@ -23,6 +28,7 @@ export function ArtistEditForm({ artist }: { artist: ArtistDTO }) {
   const router = useRouter();
   const update = useUpdateArtist();
   const remove = useDeleteArtist();
+  const fetchPhoto = useFetchArtistPhoto();
 
   const [name, setName] = useState(artist.name ?? "");
   const [photoUrl, setPhotoUrl] = useState<string | null>(artist.photoUrl ?? null);
@@ -46,6 +52,22 @@ export function ArtistEditForm({ artist }: { artist: ArtistDTO }) {
     }
   };
 
+  const onFetchPhoto = async () => {
+    try {
+      const { url } = await fetchPhoto.mutateAsync(artist.id);
+      setPhotoUrl(url);
+      toast.success("Foto encontrada. Recuerda guardar los cambios.");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        toast.error(
+          "No se encontró foto para este artista (o la resolución online está desactivada en config).",
+        );
+      } else {
+        toast.error(err instanceof Error ? err.message : "No se pudo conseguir la foto");
+      }
+    }
+  };
+
   const onDelete = async () => {
     try {
       await remove.mutateAsync(artist.id);
@@ -61,6 +83,17 @@ export function ArtistEditForm({ artist }: { artist: ArtistDTO }) {
       <div className="flex flex-col gap-1.5">
         <Label>Foto</Label>
         <CoverDropzone value={photoUrl} onChange={setPhotoUrl} />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          leftIcon={<ImageDown className="h-4 w-4" />}
+          loading={fetchPhoto.isPending}
+          onClick={onFetchPhoto}
+        >
+          Conseguir foto automáticamente
+        </Button>
       </div>
 
       <div className="flex flex-col gap-1.5">

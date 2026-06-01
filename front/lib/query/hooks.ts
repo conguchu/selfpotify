@@ -56,6 +56,7 @@ import {
   deleteArtist,
   splitArtist,
   mergeArtists,
+  fetchArtistPhoto,
 } from "@/lib/api/artists";
 import {
   getHomeFeed,
@@ -523,6 +524,16 @@ export function useUpdateArtist() {
       qc.invalidateQueries({ queryKey: queryKeys.artists });
       qc.invalidateQueries({ queryKey: queryKeys.artist(vars.id) });
     },
+  });
+}
+
+/**
+ * Busca automáticamente una foto para el artista (Deezer). No invalida nada: el
+ * formulario de edición fija la URL devuelta y la guarda al confirmar.
+ */
+export function useFetchArtistPhoto() {
+  return useMutation({
+    mutationFn: (id: number) => fetchArtistPhoto(id),
   });
 }
 
