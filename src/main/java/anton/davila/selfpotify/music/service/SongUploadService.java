@@ -173,7 +173,11 @@ public class SongUploadService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "No se pudo crear la carpeta de destino");
         }
-        ensureScanned(addedDir);
+        // NB: NO se registra selfpotify_added como ruta de escaneo. Al confirmar ya
+        // persistimos cada canción en BBDD con su songPath definitivo, así que no
+        // hace falta escanear esa carpeta; el barrido de disponibilidad del escaneo
+        // (sweepAvailability, sobre TODAS las canciones) mantiene el fichero
+        // mientras exista. Añadirla solo ensuciaría la lista de orígenes de música.
 
         List<Song> result = new ArrayList<>();
         List<String> usedTokens = new ArrayList<>();
@@ -271,16 +275,6 @@ public class SongUploadService {
                             + " (en Docker el volumen de música se monta de solo lectura)");
         }
         return base.resolve("selfpotify_added");
-    }
-
-    private void ensureScanned(Path addedDir) {
-        Path normalized = addedDir.toAbsolutePath().normalize();
-        boolean covered = configService.getConfig().getScan().getPaths().stream()
-                .anyMatch(sp -> normalized.startsWith(Paths.get(sp).toAbsolutePath().normalize()));
-        if (!covered) {
-            configService.addScanPath(normalized.toString());
-            log.info("Carpeta de subidas {} añadida a las rutas de escaneo", normalized);
-        }
     }
 
     private void cleanupStaging(String token) {
