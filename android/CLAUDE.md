@@ -88,7 +88,7 @@ El look & feel de referencia en **estructura y navegación** es la app oficial d
   Guárdala en `SharedPreferences` o `DataStore` y reconstruye el cliente Retrofit cuando cambie.
 - Autenticación JWT: el token se obtiene en `POST /api/auth/login` y se adjunta como `Authorization: Bearer <token>` en todas las peticiones mediante un `OkHttp Interceptor`.
 - Para el streaming de audio usa `Media3 ExoPlayer`; el endpoint acepta el token como query param `?token=<jwt>` (necesario porque `<audio>` / ExoPlayer no manda headers en la petición inicial de datos).
-- Referencia de la API: `API-doc.md` en la raíz del monorepo.
+- **Referencia de la API:** consulta siempre `API-doc.md` (raíz del monorepo) antes de hacer ninguna llamada o pregunta sobre endpoints. Si algo no cuadra o falta detalle, inspecciona directamente los controllers y DTOs en `src/main/java/` — nunca preguntes al usuario ni hagas suposiciones cuando la respuesta está en el código.
 
 ---
 
