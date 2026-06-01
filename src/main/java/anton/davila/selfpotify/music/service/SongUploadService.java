@@ -9,7 +9,11 @@ import anton.davila.selfpotify.music.entity.Artist;
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
+import anton.davila.selfpotify.music.service.external.CoverApiService;
+import anton.davila.selfpotify.music.service.external.CoverArtService;
 import anton.davila.selfpotify.music.service.external.EmbeddedCoverExtractor;
+import anton.davila.selfpotify.music.service.external.GenreApiService;
+import anton.davila.selfpotify.music.service.external.LastFmService;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -61,19 +65,34 @@ public class SongUploadService {
     private final ArtistRepository artistRepository;
     private final EmbeddedCoverExtractor coverExtractor;
     private final AppProperties appProperties;
+    private final ArtistResolver artistResolver;
+    private final LastFmService lastFmService;
+    private final CoverArtService coverArtService;
+    private final GenreApiService genreApiService;
+    private final CoverApiService coverApiService;
 
     public SongUploadService(ConfigService configService,
                              MusicLibraryResolver musicLibraryResolver,
                              SongRepository songRepository,
                              ArtistRepository artistRepository,
                              EmbeddedCoverExtractor coverExtractor,
-                             AppProperties appProperties) {
+                             AppProperties appProperties,
+                             ArtistResolver artistResolver,
+                             LastFmService lastFmService,
+                             CoverArtService coverArtService,
+                             GenreApiService genreApiService,
+                             CoverApiService coverApiService) {
         this.configService = configService;
         this.musicLibraryResolver = musicLibraryResolver;
         this.songRepository = songRepository;
         this.artistRepository = artistRepository;
         this.coverExtractor = coverExtractor;
         this.appProperties = appProperties;
+        this.artistResolver = artistResolver;
+        this.lastFmService = lastFmService;
+        this.coverArtService = coverArtService;
+        this.genreApiService = genreApiService;
+        this.coverApiService = coverApiService;
     }
 
     // =====================================================================
@@ -149,12 +168,48 @@ public class SongUploadService {
         }
         // Carátula embebida → /assets/covers (idempotente). Si no hay, queda null.
         d.setPicture_url(coverExtractor.extractAndStore(audioPath.toAbsolutePath().normalize().toString()));
-        // Sugerencia de artista existente por nombre.
+
+        // Enriquecimiento con las mismas fuentes externas que el escaneo, para que
+        // el admin vea los datos ya completos en la pantalla de edición previa.
+        enrichDraft(d);
+
+        // Sugerencia de artista existente por nombre (ya canónico si Last.fm respondió).
         if (d.getArtistName() != null && !d.getArtistName().isBlank()) {
             artistRepository.findByNameIgnoreCase(d.getArtistName().trim())
                     .ifPresent(a -> d.setSuggestedArtistId(a.getId()));
         }
         return d;
+    }
+
+    /**
+     * Completa el borrador con las mismas APIs externas que recorre el escaneo,
+     * de modo que la canción subida pase por el análisis de género y las APIs de
+     * artista <b>antes</b> de mostrarse al admin (que aún puede ajustar todo):
+     * <ol>
+     *   <li><b>Artista canónico</b>: Last.fm (<code>artist.getInfo</code>,
+     *       autocorrección) normaliza el nombre; mejora además el emparejamiento
+     *       por nombre y las búsquedas de género/carátula que vienen después.</li>
+     *   <li><b>Género</b>, sólo si falta: Last.fm a partir de artista + título.</li>
+     *   <li><b>Carátula</b>, sólo si el audio no traía una embebida: fuentes
+     *       keyless (Cover Art Archive → iTunes → Deezer).</li>
+     * </ol>
+     * Cada consulta es tolerante a fallos: si una fuente no responde, el campo se
+     * deja como estaba y el admin lo completa a mano.
+     */
+    private void enrichDraft(SongDraftDTO d) {
+        if (d.getArtistName() != null && !d.getArtistName().isBlank()) {
+            String canonical = artistResolver.canonicalName(d.getArtistName());
+            if (canonical != null && !canonical.isBlank()) {
+                d.setArtistName(canonical);
+            }
+        }
+        if (d.getGenre() == null || d.getGenre().isBlank()) {
+            lastFmService.fetchGenre(d.getArtistName(), d.getTitle()).ifPresent(d::setGenre);
+        }
+        if (d.getPicture_url() == null || d.getPicture_url().isBlank()) {
+            coverArtService.fetchTrackCover(d.getArtistName(), d.getTitle(), null)
+                    .ifPresent(d::setPicture_url);
+        }
     }
 
     // =====================================================================
@@ -213,7 +268,14 @@ public class SongUploadService {
             if (artist != null) {
                 song.setArtists(List.of(artist));
             }
-            result.add(songRepository.save(song));
+            Song saved = songRepository.save(song);
+            // Mismo enriquecimiento idempotente que el escaneo: rellena el género
+            // y la carátula si el admin los dejó vacíos y, sobre todo, la foto del
+            // artista (Deezer), que no se ve en la pantalla de edición. Así la
+            // canción subida queda indistinguible de una escaneada del disco.
+            genreApiService.applyGenreIfMissing(saved);
+            coverApiService.applyCoverIfMissing(saved);
+            result.add(saved);
             usedTokens.add(item.getStagingToken());
         }
 
@@ -236,14 +298,9 @@ public class SongUploadService {
             return artistRepository.findById(artistId).orElse(null);
         }
         if (newArtistName != null && !newArtistName.isBlank()) {
-            String name = newArtistName.trim();
-            return artistRepository.findByNameIgnoreCase(name)
-                    .orElseGet(() -> {
-                        Artist a = new Artist();
-                        a.setName(name);
-                        log.info("Creando artista desde subida del panel: {}", name);
-                        return artistRepository.save(a);
-                    });
+            // Misma resolución por MBID (Last.fm) que el escaneo: empareja variantes
+            // del mismo artista y rellena el MBID, en vez de crear una fila por nombre.
+            return artistResolver.resolve(newArtistName, null);
         }
         return null;
     }

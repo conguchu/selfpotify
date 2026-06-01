@@ -108,8 +108,8 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 ### `POST /api/songs/upload` — Subir audios a staging (fase 1)
 - **Acceso:** `ROLE_ADMIN`.
 - **Content-Type:** `multipart/form-data`. **Campos:** `files` (uno o varios `.mp3`/`.wav`).
-- **Comportamiento:** guarda los audios en una carpeta de staging **no escaneada** (`<dataDir>/selfpotify_staging/<token>`) y devuelve `List<SongDraftDTO>` con los metadatos extraídos (título, artista, género, BPM, duración) y la carátula embebida ya volcada a `/assets/covers`. **No persiste** ninguna canción todavía: el panel los revisa/ajusta y confirma con `/commit`.
-- **`SongDraftDTO`:** `{ stagingToken, fileName, title, artistName, suggestedArtistId, genre, bpm, duration_ms, picture_url }`. `suggestedArtistId` es el id de un artista existente cuyo nombre coincide con el extraído (o null).
+- **Comportamiento:** guarda los audios en una carpeta de staging **no escaneada** (`<dataDir>/selfpotify_staging/<token>`) y devuelve `List<SongDraftDTO>` con los metadatos extraídos (título, artista, género, BPM, duración) y la carátula embebida ya volcada a `/assets/covers`. Antes de devolver el borrador lo **enriquece con las mismas APIs externas que el escaneo**, para que el admin vea los datos ya completos en la pantalla de edición previa: **nombre canónico del artista** (Last.fm `artist.getInfo`, autocorrección), **género** si falta (Last.fm a partir de artista + título) y **carátula** si el audio no traía embebida (fuentes keyless: Cover Art Archive → iTunes → Deezer). Cada consulta es tolerante a fallos: si una fuente no responde, el campo queda como estaba. **No persiste** ninguna canción todavía: el panel los revisa/ajusta y confirma con `/commit`.
+- **`SongDraftDTO`:** `{ stagingToken, fileName, title, artistName, suggestedArtistId, genre, bpm, duration_ms, picture_url }`. `artistName` es ya el nombre canónico si Last.fm lo resolvió; `suggestedArtistId` es el id de un artista existente cuyo nombre coincide con el extraído (o null).
 - **Límites:** `SONG_UPLOAD_MAX_FILE_SIZE` por archivo (def. 50MB), `SONG_UPLOAD_MAX_REQUEST_SIZE` por petición (def. 500MB).
 - **Errores:** `415` (formato no admitido), `413` (excede tamaño).
 
@@ -125,7 +125,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
     ]
   }
   ```
-- **Comportamiento:** mueve cada audio de staging a `<targetPath>/selfpotify_added` y persiste la canción con los metadatos finales. El artista se resuelve por `artistId`; si es null y hay `newArtistName`, se crea (o se reutiliza por nombre). **No** se registra la carpeta como ruta de escaneo (el commit ya persiste cada canción con su `songPath`). Devuelve `List<SongDTO>`.
+- **Comportamiento:** mueve cada audio de staging a `<targetPath>/selfpotify_added` y persiste la canción con los metadatos finales. El artista se resuelve por `artistId`; si es null y hay `newArtistName`, se resuelve/crea **por MBID vía Last.fm** (misma deduplicación que el escaneo: empareja variantes del mismo artista y rellena el MBID). Tras persistir, completa de forma **idempotente** (solo si faltan) el género (Last.fm) y las **carátulas** (`CoverApiService`): `Song.picture_url`, `Album.picture_url` y la **foto del artista** (`ArtistDTO.photoUrl`, Deezer) — esta última no se ve en la pantalla de edición pero deja la canción subida indistinguible de una escaneada del disco. **No** se registra la carpeta como ruta de escaneo (el commit ya persiste cada canción con su `songPath`). Devuelve `List<SongDTO>`.
   - **Destino (`targetPath`):** **obligatorio**. Debe ser una de las rutas de escaneo configuradas (`scan.paths`) y escribible. En Docker el volumen de música se monta en lectura/escritura (`/music`, sin `:ro`), así que `/music` es un destino válido.
 - **Errores:** `400` (sin canciones, `targetPath` ausente / no configurada / no escribible, o staging expirado).
 

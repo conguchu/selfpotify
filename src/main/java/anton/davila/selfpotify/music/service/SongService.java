@@ -9,7 +9,6 @@ import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.external.CoverApiService;
 import anton.davila.selfpotify.music.service.external.GenreApiService;
 import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
-import anton.davila.selfpotify.music.service.external.LastFmService;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
@@ -53,7 +52,7 @@ public class SongService {
     private ArtistRepository artistRepository;
 
     @Autowired
-    private LastFmService lastFmService;
+    private ArtistResolver artistResolver;
 
     @Autowired
     private AlbumRepository albumRepository;
@@ -331,7 +330,7 @@ public class SongService {
         Artist artist = null;
         String artistName = (tagArtist != null && !tagArtist.isBlank()) ? tagArtist : fromFileName.artist();
         if (artistName != null && !artistName.isBlank()) {
-            artist = resolveArtist(artistName.trim(), artistCache);
+            artist = artistResolver.resolve(artistName.trim(), artistCache);
             song.setArtists(List.of(artist));
         } else {
             log.warn("No se pudo determinar el artista del archivo '{}': no tiene tag ARTIST " +
@@ -345,95 +344,6 @@ public class SongService {
         }
 
         return song;
-    }
-
-    /**
-     * Resuelve la entidad {@link Artist} de un nombre detectado en los metadatos.
-     * <p>
-     * El nombre crudo del tag ID3 es inconsistente entre archivos (emojis,
-     * espacios sobrantes, alias, mayúsculas...), de modo que el mismo artista
-     * acaba en varias filas. Para evitarlo:
-     * <ol>
-     *   <li>Se limpia el nombre de adornos ({@link #cleanArtistName}).</li>
-     *   <li>Se consulta Last.fm para obtener el nombre canónico y el MBID
-     *       (identificador estable de MusicBrainz).</li>
-     *   <li>Se empareja primero por MBID y, en su defecto, por nombre. Si una
-     *       fila existente no tenía MBID, se le rellena (backfill).</li>
-     * </ol>
-     * Si Last.fm no está configurado o no reconoce al artista, se cae a la
-     * búsqueda por nombre limpio, que ya unifica los casos triviales (espacios,
-     * mayúsculas). Usa una caché por lote para no repetir consultas.
-     */
-    private Artist resolveArtist(String rawName, Map<String, Artist> artistCache) {
-        String cleaned = cleanArtistName(rawName);
-        if (cleaned.isBlank()) {
-            cleaned = rawName.trim();
-        }
-        String cacheKey = cleaned.toLowerCase();
-        Artist cached = artistCache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        Optional<LastFmService.ArtistIdentity> identity = lastFmService.resolveArtist(cleaned);
-        Artist artist;
-
-        if (identity.isPresent() && identity.get().mbid() != null) {
-            String mbid = identity.get().mbid();
-            String canonicalName = identity.get().name();
-            artist = artistRepository.findByMbid(mbid)
-                    .orElseGet(() -> artistRepository.findByNameIgnoreCase(canonicalName)
-                            .map(existing -> backfillMbid(existing, mbid))
-                            .orElseGet(() -> createArtist(canonicalName, mbid)));
-        } else {
-            String name = identity.map(LastFmService.ArtistIdentity::name).orElse(cleaned);
-            artist = artistRepository.findByNameIgnoreCase(name)
-                    .orElseGet(() -> createArtist(name, null));
-        }
-
-        artistCache.put(cacheKey, artist);
-        // También por nombre canónico: otras variantes del mismo lote que
-        // resuelvan a este nombre reusan la entrada sin re-consultar Last.fm.
-        artistCache.putIfAbsent(artist.getName().toLowerCase(), artist);
-        return artist;
-    }
-
-    /** Rellena el MBID de un artista existente que aún no lo tenía. */
-    private Artist backfillMbid(Artist artist, String mbid) {
-        if (artist.getMbid() == null || artist.getMbid().isBlank()) {
-            artist.setMbid(mbid);
-            log.info("Asignado MBID '{}' al artista existente '{}' (id={}).",
-                    mbid, artist.getName(), artist.getId());
-            return artistRepository.save(artist);
-        }
-        return artist;
-    }
-
-    private Artist createArtist(String name, String mbid) {
-        Artist artist = new Artist();
-        artist.setName(name);
-        artist.setMbid(mbid);
-        log.info("Creando nuevo artista detectado en el escaneo: '{}' (mbid={}).", name, mbid);
-        return artistRepository.save(artist);
-    }
-
-    /**
-     * Limpia el nombre del artista de adornos que impiden emparejar variantes:
-     * emojis, símbolos y espacios redundantes. Conserva letras, dígitos,
-     * espacios y la puntuación habitual en nombres ('&', '-', '.', '\'', '()').
-     */
-    private String cleanArtistName(String raw) {
-        if (raw == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder(raw.length());
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            if (Character.isLetterOrDigit(c) || Character.isWhitespace(c) || "&-.'()/".indexOf(c) >= 0) {
-                sb.append(c);
-            }
-        }
-        return sb.toString().replaceAll("\\s+", " ").trim();
     }
 
     /**

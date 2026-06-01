@@ -179,7 +179,12 @@ Además de registrar carpetas del servidor, el panel admin permite **subir audio
 - **En Docker**, dentro del volumen de datos persistente (`/data/selfpotify/selfpotify_added`), el mismo que ya guarda `config.yml` y los assets. El panel no deja elegir ruta porque solo ese volumen es escribible.
 - **En local**, dentro de la ruta de música que elija el admin de entre las ya configuradas (`<ruta>/selfpotify_added`) o, por defecto, la carpeta de datos (`~/.selfpotify/selfpotify_added`).
 
-Tras copiar los ficheros, la carpeta `selfpotify_added` se registra como ruta de escaneo (salvo que ya quede cubierta por una ruta padre) y se reutiliza `SongService.rescanFolder`, de modo que la subida recorre exactamente el mismo camino idempotente que cualquier otra importación: extracción de metadatos ID3, resolución de artista/álbum y autocompletado de género/carátula. Así una canción subida es indistinguible de una escaneada del disco, y los re-escaneos posteriores la mantienen sin duplicarla.
+La subida ocurre en **dos fases** (`SongUploadService`) para que el admin revise y ajuste los metadatos **antes** de incorporar la canción, pero pasando por las mismas APIs externas que cualquier otra importación:
+
+- **Staging** (`POST /api/songs/upload`): el audio se guarda en una carpeta temporal `selfpotify_staging/<token>` que **no** está en las rutas de escaneo (para que el escaneo periódico no la importe a medias). Se extraen los metadatos ID3 y, antes de devolver el borrador editable (`SongDraftDTO`), se **enriquece con las mismas fuentes externas que el escaneo** para que el admin vea los datos ya completos en la pantalla de edición previa: **nombre canónico del artista** (Last.fm), **género** si falta (Last.fm) y **carátula** si el audio no traía embebida (Cover Art Archive → iTunes → Deezer).
+- **Commit** (`POST /api/songs/commit`): con los metadatos ya ajustados, el audio se mueve a la carpeta `selfpotify_added` **escribible** y se persiste la canción. El artista se resuelve **por MBID** (Last.fm), igual que en el escaneo; tras guardar se rellenan de forma **idempotente** el género/carátula que aún falten y la **foto del artista** (Deezer), que no se ve en la pantalla de edición.
+
+La carpeta `selfpotify_added` **no** se registra como ruta de escaneo: el commit ya persiste cada canción con su `songPath` definitivo y el barrido de disponibilidad del escaneo la mantiene mientras el fichero exista. Así una canción subida es indistinguible de una escaneada del disco. La resolución de identidad del artista (limpieza del nombre, consulta a Last.fm y emparejamiento por MBID) es lógica compartida en `ArtistResolver`, usada tanto por el escaneo como por el commit.
 
 #### Flujo del escaneo periódico
 
@@ -802,11 +807,12 @@ graph LR
     subgraph Sistema Self-Potify
         UC1("Incorporar música a la biblioteca")
         UC1f("Añadir carpeta al path<br/>(POST /api/config/scan-paths)")
-        UC1g("Subir audios drag & drop<br/>(POST /api/songs/upload<br/>→ carpeta selfpotify_added)")
+        UC1g("Subir audios drag & drop<br/>(POST /api/songs/upload → staging,<br/>POST /api/songs/commit → selfpotify_added)")
         UC1a("Leer etiquetas ID3")
-        UC1b("Crear / actualizar Artista")
+        UC1b("Crear / actualizar Artista<br/>(canónico + MBID vía Last.fm)")
         UC1c("Crear / actualizar Álbum")
         UC1d("Persistir Canción")
+        UC1e("Autocompletar género (Last.fm)<br/>y carátulas/foto de artista<br/>(Cover Art Archive, iTunes, Deezer)")
     end
 
     Admin --> UC1
@@ -817,6 +823,7 @@ graph LR
     UC1a -.->|include| UC1b
     UC1a -.->|include| UC1c
     UC1a -.->|include| UC1d
+    UC1a -.->|include| UC1e
 ```
 
 ### UC2 — Crear playlist, añadir canciones y compartir
@@ -1117,6 +1124,7 @@ graph LR
     subgraph Sistema Self-Potify
         UC12("Gestionar catálogo de canciones")
         UC12a("Subir audios drag & drop<br/>(POST /api/songs/upload)")
+        UC12e("Autocompletar en staging<br/>género/artista/carátula (Last.fm,<br/>Cover Art Archive/iTunes/Deezer)<br/>antes de mostrar la edición previa")
         UC12b("Editar metadatos<br/>(PUT /api/songs/{id}:<br/>title, género, BPM, duración, carátula)")
         UC12c("Eliminar canción<br/>(DELETE /api/songs/{id})")
         UC12d("Conservar songPath<br/>(la edición no toca la ruta física)")
@@ -1126,6 +1134,7 @@ graph LR
     UC12 -.->|include| UC12a
     UC12 -.->|include| UC12b
     UC12 -.->|include| UC12c
+    UC12a -.->|include| UC12e
     UC12b -.->|include| UC12d
 ```
 
