@@ -8,6 +8,7 @@ import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
 import anton.davila.selfpotify.music.service.ArtistResolver;
 import anton.davila.selfpotify.music.service.ArtistService;
+import anton.davila.selfpotify.music.service.external.CoverApiService;
 import anton.davila.selfpotify.user.feed.repository.UserFeedRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,10 @@ public class ArtistMergeSplitTest {
 
     @MockitoBean
     private UserFeedRepository userFeedRepository;
+
+    // Evita que el relleno de foto al separar haga llamadas de red (Deezer) en test.
+    @MockitoBean
+    private CoverApiService coverApiService;
 
     private Artist artist(long id, String name) {
         Artist a = new Artist();

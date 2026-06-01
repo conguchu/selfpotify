@@ -241,9 +241,10 @@ El panel de administración incluye una pestaña **Artistas** (vista de lista) p
 
 **Separar un artista (split).** Resuelve el caso de un único tag que en realidad son varios artistas (p. ej. `Ill Pekeño / Ergo Pro`). El admin teclea los nombres reales (mínimo dos) y `POST /api/artists/{id}/split`:
 
-1. Resuelve **cada nombre con el mismo `ArtistResolver` que el escaneo** (Last.fm → nombre canónico + MBID), reutilizando un artista existente si ya estaba. Se eligió reusar el resolver —en vez de crear filas planas por el nombre tecleado— para mantener la coherencia con la decisión de identidad de artistas: los artistas resultantes nacen ya con su MBID.
+1. Resuelve **cada nombre con el mismo `ArtistResolver` que el escaneo** (Last.fm → nombre canónico + MBID), reutilizando un artista existente si ya estaba. Se eligió reusar el resolver —en vez de crear filas planas por el nombre tecleado— para mantener la coherencia con la decisión de identidad de artistas: los artistas resultantes nacen ya con su MBID. En la UI cada campo tiene un **buscador con lupa** sobre la BBDD para localizar y reutilizar un artista que ya exista.
 2. **Atribuye todas las canciones y álbumes del original a TODOS los resultantes** (no las reparte: cada canción pasa a tener a los dos/tres artistas).
-3. **Borra el artista original.**
+3. **Rellena la foto** (Deezer) de los resultantes que aún no la tengan —los recién creados—, reutilizando `CoverApiService` igual que el escaneo y **respetando `app.cover-art.enabled`**: si la resolución online de carátulas está desactivada en config, no se consulta nada.
+4. **Borra el artista original.**
 
 **Juntar artistas (merge).** Resuelve los duplicados que ya están en BD (p. ej. `El alfa` y `El Alfa`, que el escaneo creó como filas distintas antes de tener MBID). El admin selecciona dos o más artistas y elige un **superviviente**; `POST /api/artists/merge`:
 
@@ -266,7 +267,8 @@ flowchart TD
         S2 --> S3{¿≥2 artistas distintos<br/>del original?}
         S3 -- no --> SErr
         S3 -- sí --> S4[Atribuir TODAS las canciones<br/>y álbumes del original<br/>a TODOS los resultantes]
-        S4 --> S5[Soltar FKs del original:<br/>song_artist · album_artist · feed]
+        S4 --> SPhoto[Rellenar foto de los nuevos<br/>Deezer · si cover-art enabled]
+        SPhoto --> S5[Soltar FKs del original:<br/>song_artist · album_artist · feed]
         S5 --> S6[Borrar el original]
         S6 --> SOk([200 OK · artistas resultantes])
     end

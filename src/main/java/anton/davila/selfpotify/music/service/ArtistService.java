@@ -38,6 +38,9 @@ public class ArtistService {
     @Autowired
     private ArtistResolver artistResolver;
 
+    @Autowired
+    private anton.davila.selfpotify.music.service.external.CoverApiService coverApiService;
+
     public Artist add(Artist a) {
         log.info("Añadiendo nuevo artista: {}", a.getName());
         return artistRepository.save(a);
@@ -138,6 +141,10 @@ public class ArtistService {
 
         List<Artist> targetList = new ArrayList<>(targets.values());
         reassign(source, targetList);
+        // Rellena la foto (Deezer) de los resultantes que aún no la tengan —los
+        // recién creados—, igual que en el escaneo. Respeta app.cover-art.enabled:
+        // si la resolución online está desactivada en config, no consulta nada.
+        coverApiService.applyArtistImagesIfMissing(targetList);
         detachFromFeeds(source);
         artistRepository.delete(source);
         log.info("Artista '{}' (id={}) separado en {} artistas: {}",

@@ -125,6 +125,21 @@ public class CoverApiService {
         }
     }
 
+    /**
+     * Rellena, si falta, la foto de cada artista de la lista (Deezer). Idempotente
+     * y respeta {@code app.cover-art.enabled} (si está desactivado, no consulta
+     * nada). Pensado para reusarse fuera del escaneo —p. ej. al separar un artista
+     * en varios, para que los resultantes nuevos reciban su foto igual que los
+     * escaneados—. Es {@code public} y {@link Transactional} para pasar por el
+     * proxy de Spring y persistir los cambios.
+     *
+     * @param artists artistas gestionados o con id
+     */
+    @Transactional
+    public void applyArtistImagesIfMissing(List<Artist> artists) {
+        applyArtistImageIfMissing(artists);
+    }
+
     /** Rellena la foto de cada artista sin imagen (Deezer). */
     private void applyArtistImageIfMissing(List<Artist> artists) {
         if (artists == null) return;
