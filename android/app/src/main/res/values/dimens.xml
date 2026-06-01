@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espaciado en múltiplos de 8 dp (CLAUDE.md §3.2). -->
+    <dimen name="spacing_xs">4dp</dimen>
+    <dimen name="spacing_s">8dp</dimen>
+    <dimen name="spacing_m">16dp</dimen>
+    <dimen name="spacing_l">24dp</dimen>
+    <dimen name="spacing_xl">32dp</dimen>
+    <dimen name="spacing_xxl">48dp</dimen>
+
+    <!-- Padding lateral de página. -->
+    <dimen name="page_padding">16dp</dimen>
+
+    <!-- Logo de cabecera. -->
+    <dimen name="logo_header_size">96dp</dimen>
+
+    <!-- Altura de los botones principales (estilo Spotify). -->
+    <dimen name="button_height">52dp</dimen>
+</resources>
