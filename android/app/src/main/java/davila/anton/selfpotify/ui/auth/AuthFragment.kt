@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -13,6 +14,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import davila.anton.selfpotify.R
 import davila.anton.selfpotify.databinding.FragmentAuthBinding
+import davila.anton.selfpotify.ui.theme.BrandingColors
+import davila.anton.selfpotify.ui.theme.ThemeViewModel
+import davila.anton.selfpotify.ui.theme.applyBranding
+import davila.anton.selfpotify.ui.theme.applyFilled
+import davila.anton.selfpotify.ui.theme.applyText
 import kotlinx.coroutines.launch
 
 /** Pantalla 2: login / registro. Al autenticarse, el JWT queda guardado y se navega al home. */
@@ -22,6 +28,9 @@ class AuthFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: AuthViewModel by viewModels()
+    private val themeViewModel: ThemeViewModel by activityViewModels()
+
+    private var colors: BrandingColors = BrandingColors.fallback()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -48,6 +57,12 @@ class AuthFragment : Fragment() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { viewModel.state.collect(::render) }
                 launch {
+                    themeViewModel.colors.collect {
+                        colors = it
+                        applyColors()
+                    }
+                }
+                launch {
                     viewModel.navigateToHome.collect {
                         findNavController().navigate(R.id.action_auth_to_home)
                     }
@@ -59,6 +74,19 @@ class AuthFragment : Fragment() {
                 }
             }
         }
+    }
+
+    /** Aplica la paleta del servidor a las vistas de la pantalla. */
+    private fun applyColors() {
+        binding.root.setBackgroundColor(colors.background)
+        binding.title.setTextColor(colors.textPrimary)
+        binding.usernameLayout.applyBranding(colors)
+        binding.passwordLayout.applyBranding(colors)
+        binding.errorText.setTextColor(colors.error)
+        binding.progress.applyBranding(colors)
+        binding.submitButton.applyFilled(colors)
+        binding.toggleButton.applyText(colors)
+        binding.changeServerButton.applyText(colors, colors.textSecondary)
     }
 
     private fun render(state: AuthUiState) {

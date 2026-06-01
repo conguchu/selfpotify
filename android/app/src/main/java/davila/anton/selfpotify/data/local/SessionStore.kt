@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -27,6 +29,8 @@ class SessionStore(context: Context) {
         val JWT = stringPreferencesKey("jwt_token")
         val JWT_SERVER = stringPreferencesKey("jwt_server_url")
         val USERNAME = stringPreferencesKey("username")
+        // Tokens de color de marca del servidor (branding.colors) serializados a JSON.
+        val BRANDING_COLORS = stringPreferencesKey("branding_colors")
     }
 
     data class Session(
@@ -53,8 +57,28 @@ class SessionStore(context: Context) {
 
     suspend fun current(): Session = session.first()
 
+    /**
+     * Paleta de marca del servidor (mapa de tokens CSS). Pertenece al servidor, no a la
+     * sesión: sobrevive al logout y solo se borra al cambiar de servidor ([clearAll]).
+     */
+    val brandingColors: Flow<Map<String, String>?> = store.data.map { p ->
+        p[Keys.BRANDING_COLORS]?.let { json ->
+            runCatching { gson.fromJson<Map<String, String>>(json, COLORS_TYPE) }.getOrNull()
+        }
+    }
+
+    suspend fun currentBrandingColors(): Map<String, String>? = brandingColors.first()
+
     suspend fun saveServer(canonicalUrl: String) {
         store.edit { it[Keys.SERVER_URL] = canonicalUrl }
+    }
+
+    /** Persiste (o borra, si es null/vacío) los tokens de color del servidor. */
+    suspend fun saveBrandingColors(colors: Map<String, String>?) {
+        store.edit {
+            if (colors.isNullOrEmpty()) it.remove(Keys.BRANDING_COLORS)
+            else it[Keys.BRANDING_COLORS] = gson.toJson(colors)
+        }
     }
 
     /** Guarda el JWT atándolo al servidor que lo emitió. */
@@ -75,8 +99,13 @@ class SessionStore(context: Context) {
         }
     }
 
-    /** Cambiar de servidor: borra el servidor y cualquier JWT asociado. */
+    /** Cambiar de servidor: borra el servidor, su JWT y su paleta de marca. */
     suspend fun clearAll() {
         store.edit { it.clear() }
+    }
+
+    private companion object {
+        val gson = Gson()
+        val COLORS_TYPE = object : TypeToken<Map<String, String>>() {}.type
     }
 }

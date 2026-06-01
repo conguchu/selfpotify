@@ -1,10 +1,12 @@
 package davila.anton.selfpotify.ui
 
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.fragment.NavHostFragment
 import davila.anton.selfpotify.R
 import davila.anton.selfpotify.data.local.SessionStore
+import davila.anton.selfpotify.ui.theme.BrandingColors
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -24,8 +26,15 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host) as NavHostFragment
         val navController = navHost.navController
 
-        // Lectura puntual de la sesión al arrancar para elegir el destino inicial.
-        val session = runBlocking { SessionStore(this@MainActivity).current() }
+        // Lectura puntual de la sesión y la paleta al arrancar.
+        val store = SessionStore(this@MainActivity)
+        val session = runBlocking { store.current() }
+
+        // Aplica el fondo del servidor a la ventana y barras del sistema desde el primer frame.
+        val colors = BrandingColors.from(runBlocking { store.currentBrandingColors() })
+        window.setBackgroundDrawable(ColorDrawable(colors.background))
+        window.statusBarColor = colors.background
+        window.navigationBarColor = colors.background
         val graph = navController.navInflater.inflate(R.navigation.nav_graph)
         graph.setStartDestination(
             when {

@@ -38,6 +38,7 @@ class ServerSetupViewModel(app: Application) : AndroidViewModel(app) {
 
     private var address: String = ""
     private var validateJob: Job? = null
+    private var validatedColors: Map<String, String>? = null
 
     /** Se llama mientras el usuario escribe; valida con debounce cuando deja de escribir. */
     fun onAddressChanged(raw: String) {
@@ -49,10 +50,14 @@ class ServerSetupViewModel(app: Application) : AndroidViewModel(app) {
         validateJob = viewModelScope.launch {
             delay(DEBOUNCE_MS)
             _state.value = ServerUiState.Validating
+            validatedColors = null
             val result = repo.validateServer(raw)
             if (address != raw) return@launch // el texto cambió: descartar resultado obsoleto
             _state.value = result.fold(
-                onSuccess = { ServerUiState.Valid(it.branding?.appName.orEmpty()) },
+                onSuccess = {
+                    validatedColors = it.branding?.colors
+                    ServerUiState.Valid(it.branding?.appName.orEmpty())
+                },
                 onFailure = {
                     val error = if (it is NotSelfpotifyServerException) {
                         ServerError.NOT_SELFPOTIFY
@@ -70,6 +75,8 @@ class ServerSetupViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value !is ServerUiState.Valid) return
         viewModelScope.launch {
             repo.saveServer(address)
+            // Adopta la paleta del servidor ya desde el login, antes de autenticarse.
+            repo.saveBranding(validatedColors)
             _navigateToAuth.emit(Unit)
         }
     }

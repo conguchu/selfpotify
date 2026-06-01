@@ -35,6 +35,11 @@ class AuthRepository(private val session: SessionStore) {
         session.saveServer(ServerUrl.canonical(rawUrl))
     }
 
+    /** Guarda la paleta de marca del servidor (tokens de `branding.colors`). */
+    suspend fun saveBranding(colors: Map<String, String>?) {
+        session.saveBrandingColors(colors)
+    }
+
     /** Inicia sesión contra el servidor guardado y persiste el JWT asociado a él. */
     suspend fun login(username: String, password: String): Result<JwtResponse> =
         withContext(Dispatchers.IO) {
@@ -42,6 +47,7 @@ class AuthRepository(private val session: SessionStore) {
                 val server = currentServer()
                 val resp = ApiProvider.api(server).login(LoginRequest(username, password))
                 session.saveSession(resp.token, server, resp.username)
+                refreshBranding(server)
                 resp
             }
         }
@@ -54,9 +60,20 @@ class AuthRepository(private val session: SessionStore) {
                 ApiProvider.api(server).signup(LoginRequest(username, password)).close()
                 val resp = ApiProvider.api(server).login(LoginRequest(username, password))
                 session.saveSession(resp.token, server, resp.username)
+                refreshBranding(server)
                 resp
             }
         }
+
+    /**
+     * Refresca la paleta de marca desde la config pública del servidor al iniciar sesión,
+     * por si cambió desde la validación inicial. Best-effort: un fallo no aborta el login.
+     */
+    private suspend fun refreshBranding(server: String) {
+        runCatching { ApiProvider.api(server).getPublicConfig().branding?.colors }
+            .getOrNull()
+            ?.let { session.saveBrandingColors(it) }
+    }
 
     /** Logout: borra el JWT, conserva el servidor. */
     suspend fun logout() = session.clearSession()
