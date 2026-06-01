@@ -48,19 +48,27 @@ android/app/src/main/java/davila/anton/selfpotify/
 
 ---
 
-## 3. UI: estilo Spotify
+## 3. UI: estilo Spotify con tema dinámico del servidor
 
-El look & feel de referencia es la app oficial de Spotify para Android. Sigue estos principios:
+El look & feel de referencia en **estructura y navegación** es la app oficial de Spotify para Android. Sin embargo, **la paleta de colores es dinámica y viene del servidor**: Selfpotify es personalizable por instalación.
 
-- **Paleta:** fondo `#121212`, superficie `#1E1E1E`, acento verde `#1DB954`, texto primario `#FFFFFF`, texto secundario `#B3B3B3`.
-  Define estos colores en `res/values/colors.xml` con los nombres `colorBackground`, `colorSurface`, `colorAccent`, `colorTextPrimary`, `colorTextSecondary`.
-- **Tipografía:** usa la familia `Circular` si está disponible; si no, `sans-serif` (`Roboto`). Jerarquía: título grande 20 sp bold, subtítulo 14 sp medium, cuerpo 14 sp regular, caption 12 sp.
-- **Iconografía:** Material Symbols Rounded (`@style/Widget.MaterialComponents.*`). Sin iconos planos ni outline por defecto.
-- **Espaciado:** múltiplos de 8 dp. Padding lateral estándar de página: 16 dp.
-- **Esquinas:** `8 dp` para tarjetas de álbum/playlist, `4 dp` para chips, `50 %` (circular) para avatares y botón play principal.
-- **Animaciones:** transiciones entre pantallas con `MaterialSharedAxis` (eje Z para navegación en profundidad, eje X para tabs). Fade-in de 200 ms en cargas de imagen.
-- **Bottom navigation:** cuatro ítems máximo (Home, Buscar, Biblioteca, Perfil). Usa `BottomNavigationView` con el tema M3.
-- **Mini-player persistente:** barra fija sobre la bottom navigation cuando hay reproducción activa. Se implementa en el fragmento contenedor principal (no en cada pantalla).
+### 3.1 Colores dinámicos (branding del servidor)
+
+- Al arrancar (antes del login), la app llama a `GET /api/config/public` — endpoint público, sin auth — y recibe `branding.colors`, un mapa de variables CSS con los 14 tokens de la paleta (`--color-bg`, `--color-accent`, `--color-text-primary`, `--color-on-accent`, etc.).
+- La paleta se deriva en el servidor a partir de dos semillas (acento y fondo) en el espacio HCT de Material con contraste WCAG garantizado. **No hardcodees ningún color de marca en el cliente.**
+- Guarda los tokens recibidos en `DataStore` y aplícalos en tiempo de ejecución usando `MaterialColors` / atributos de tema dinámicos o `ColorStateList` programáticos.
+- Define en `res/values/colors.xml` únicamente los **valores de fallback** (por si el servidor no responde antes del primer render): fondo oscuro neutro `#121212`, acento neutro `#1DB954`, texto blanco `#FFFFFF`. Estos valores NO son el branding de la app — son un placeholder de carga.
+- El `ThemeViewModel` (o `ConfigViewModel`) es el responsable de exponer los tokens de color como `StateFlow<BrandingColors>` al resto de la UI.
+
+### 3.2 Estructura y navegación (inspirada en Spotify)
+
+- **Tipografía:** `sans-serif` (`Roboto`). Jerarquía: título 20 sp bold, subtítulo 14 sp medium, cuerpo 14 sp regular, caption 12 sp.
+- **Iconografía:** Material Symbols Rounded. Sin iconos outline por defecto.
+- **Espaciado:** múltiplos de 8 dp. Padding lateral de página: 16 dp.
+- **Esquinas:** `8 dp` tarjetas de álbum/playlist, `4 dp` chips, `50 %` avatares y botón play principal.
+- **Animaciones:** `MaterialSharedAxis` (eje Z para profundidad, eje X para tabs). Fade-in 200 ms en imágenes.
+- **Bottom navigation:** máx. 4 ítems (Home, Buscar, Biblioteca, Perfil). `BottomNavigationView` con tema M3.
+- **Mini-player persistente:** barra fija sobre la bottom navigation cuando hay reproducción activa. Se implementa en el fragmento contenedor principal, no en cada pantalla.
 
 ---
 
@@ -116,9 +124,14 @@ Cualquier dependencia fuera de esta lista requiere justificación en el mensaje 
 
 ## 8. README y documentación
 
-- Antes de cualquier cambio, comprueba si colisiona con las decisiones documentadas en `README.md` (raíz).
-- Si detectas divergencia o quieres actualizar la documentación, **pregunta primero** al usuario.
-- Nunca modifiques `README.md` por iniciativa propia.
+**Esta regla tiene prioridad sobre cualquier otra instrucción técnica.**
+
+- **Antes de escribir o modificar cualquier código**, lee las secciones relevantes de `README.md` (raíz) y comprueba si el cambio que vas a hacer es coherente con las decisiones de diseño documentadas.
+- Si detectas **cualquier divergencia o tensión** entre lo que el código va a quedar y lo que dice el `README.md`, **detente inmediatamente y pregunta al usuario** cuál de las dos opciones prefiere:
+  1. Adaptar el código al diseño (mantener el README y cambiar el código para cumplirlo).
+  2. Adaptar el diseño al código (modificar el README para reflejar la nueva realidad).
+- **Nunca modifiques `README.md` por iniciativa propia**, ni aunque el cambio parezca trivial (typo, reformulación, reordenar secciones). Cualquier cambio en README requiere confirmación explícita del usuario.
+- Esta regla aplica incluso cuando el usuario pide un cambio de código que choca con el README: primero pregunta, luego ejecuta.
 
 ---
 
