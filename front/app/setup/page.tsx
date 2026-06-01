@@ -594,9 +594,35 @@ export default function SetupWizard() {
         {step === 2 && (
           <div className="flex flex-col gap-5">
             <p className="text-sm text-text-muted">
-              Crea las cuentas iniciales. Ya existe un administrador por defecto
-              (<code>admin/admin</code>); aquí puedes añadir cuentas adicionales.
+              Crea las cuentas iniciales del servidor.
             </p>
+
+            {(existingUsers.data ?? []).length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Cuentas ya existentes</Label>
+                <ul className="flex flex-col gap-1.5">
+                  {(existingUsers.data ?? []).map((u) => (
+                    <li
+                      key={u.id}
+                      className="flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-text">
+                        {u.username}
+                      </span>
+                      {u.type === "ADMIN" && (
+                        <span className="rounded bg-accent/30 px-1.5 py-0.5 text-xs text-text">
+                          admin
+                        </span>
+                      )}
+                      <span className="ml-auto text-xs text-text-subtle">
+                        en el servidor
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3 rounded-md border border-border bg-bg p-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="u-user">Usuario</Label>
