@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/serverSetupFragment">
+
+    <!-- El destino inicial real se fija en MainActivity según el estado de la sesión. -->
+
+    <fragment
+        android:id="@+id/serverSetupFragment"
+        android:name="davila.anton.selfpotify.ui.server.ServerSetupFragment"
+        android:label="ServerSetup">
+        <action
+            android:id="@+id/action_server_to_auth"
+            app:destination="@id/authFragment"
+            app:popUpTo="@id/serverSetupFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/authFragment"
+        android:name="davila.anton.selfpotify.ui.auth.AuthFragment"
+        android:label="Auth">
+        <action
+            android:id="@+id/action_auth_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/authFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="davila.anton.selfpotify.ui.home.HomeFragment"
+        android:label="Home">
+        <action
+            android:id="@+id/action_home_to_auth"
+            app:destination="@id/authFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_home_to_server"
+            app:destination="@id/serverSetupFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+</navigation>

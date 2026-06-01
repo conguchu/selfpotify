@@ -1,0 +1,35 @@
+<resources>
+    <!-- Common -->
+    <string name="cd_logo">Logo de Selfpotify</string>
+
+    <!-- Pantalla 1: configuración del servidor -->
+    <string name="server_setup_title">Conecta con tu servidor</string>
+    <string name="server_setup_subtitle">Introduce la dirección de tu servidor Selfpotify</string>
+    <string name="server_setup_address_hint">Dirección del servidor</string>
+    <string name="server_setup_address_helper">http://192.168.1.10:8080</string>
+    <string name="server_setup_checking">Comprobando servidor…</string>
+    <string name="server_setup_valid">Conectado a %1$s</string>
+    <string name="server_setup_error_unreachable">No se pudo conectar. Revisa la dirección.</string>
+    <string name="server_setup_error_not_selfpotify">Esa dirección no es un servidor Selfpotify.</string>
+    <string name="server_setup_next">Siguiente</string>
+
+    <!-- Pantalla 2: inicio de sesión / registro -->
+    <string name="auth_login_title">Iniciar sesión</string>
+    <string name="auth_register_title">Crear cuenta</string>
+    <string name="auth_username_hint">Usuario</string>
+    <string name="auth_password_hint">Contraseña</string>
+    <string name="auth_login_button">Iniciar sesión</string>
+    <string name="auth_register_button">Crear cuenta</string>
+    <string name="auth_switch_to_register">¿No tienes cuenta? Regístrate</string>
+    <string name="auth_switch_to_login">¿Ya tienes cuenta? Inicia sesión</string>
+    <string name="auth_error_invalid_credentials">Usuario o contraseña incorrectos.</string>
+    <string name="auth_error_username_taken">Ese nombre de usuario ya está cogido.</string>
+    <string name="auth_error_network">Error de red. Revisa tu conexión.</string>
+    <string name="auth_error_unknown">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="auth_error_empty_fields">Introduce usuario y contraseña.</string>
+
+    <!-- Pantalla 3: home -->
+    <string name="home_greeting">Hola, %1$s</string>
+    <string name="home_logout">Cerrar sesión</string>
+    <string name="home_change_server">Cambiar de servidor</string>
+</resources>

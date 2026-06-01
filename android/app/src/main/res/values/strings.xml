@@ -1,3 +1,37 @@
 <resources>
     <string name="app_name">Selfpotify</string>
+
+    <!-- Common -->
+    <string name="cd_logo">Selfpotify logo</string>
+
+    <!-- Screen 1: server setup -->
+    <string name="server_setup_title">Connect to your server</string>
+    <string name="server_setup_subtitle">Enter the address of your Selfpotify server</string>
+    <string name="server_setup_address_hint">Server address</string>
+    <string name="server_setup_address_helper">http://192.168.1.10:8080</string>
+    <string name="server_setup_checking">Checking server…</string>
+    <string name="server_setup_valid">Connected to %1$s</string>
+    <string name="server_setup_error_unreachable">Couldn\'t reach the server. Check the address.</string>
+    <string name="server_setup_error_not_selfpotify">That address is not a Selfpotify server.</string>
+    <string name="server_setup_next">Next</string>
+
+    <!-- Screen 2: login / register -->
+    <string name="auth_login_title">Log in</string>
+    <string name="auth_register_title">Sign up</string>
+    <string name="auth_username_hint">Username</string>
+    <string name="auth_password_hint">Password</string>
+    <string name="auth_login_button">Log in</string>
+    <string name="auth_register_button">Sign up</string>
+    <string name="auth_switch_to_register">Don\'t have an account? Sign up</string>
+    <string name="auth_switch_to_login">Already have an account? Log in</string>
+    <string name="auth_error_invalid_credentials">Invalid username or password.</string>
+    <string name="auth_error_username_taken">That username is already taken.</string>
+    <string name="auth_error_network">Network error. Check your connection.</string>
+    <string name="auth_error_unknown">Something went wrong. Try again.</string>
+    <string name="auth_error_empty_fields">Enter a username and password.</string>
+
+    <!-- Screen 3: home -->
+    <string name="home_greeting">Hello, %1$s</string>
+    <string name="home_logout">Log out</string>
+    <string name="home_change_server">Change server</string>
 </resources>
