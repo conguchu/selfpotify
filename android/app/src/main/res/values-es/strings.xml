@@ -27,6 +27,7 @@
     <string name="auth_error_network">Error de red. Revisa tu conexión.</string>
     <string name="auth_error_unknown">Algo salió mal. Inténtalo de nuevo.</string>
     <string name="auth_error_empty_fields">Introduce usuario y contraseña.</string>
+    <string name="auth_change_server">Cambiar de servidor</string>
 
     <!-- Pantalla 3: home -->
     <string name="home_greeting">Hola, %1$s</string>

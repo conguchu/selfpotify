@@ -108,5 +108,13 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_s"
             tools:text="@string/auth_switch_to_register" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/change_server_button"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/auth_change_server"
+            android:textColor="@color/fallback_text_secondary" />
     </LinearLayout>
 </ScrollView>

@@ -37,6 +37,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     private val _navigateToHome = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigateToHome: SharedFlow<Unit> = _navigateToHome.asSharedFlow()
 
+    private val _navigateToServer = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val navigateToServer: SharedFlow<Unit> = _navigateToServer.asSharedFlow()
+
     fun toggleMode() {
         _state.update {
             val next = if (it.mode == AuthMode.LOGIN) AuthMode.REGISTER else AuthMode.LOGIN
@@ -46,6 +49,14 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearError() {
         if (_state.value.error != null) _state.update { it.copy(error = null) }
+    }
+
+    /** Cambiar de servidor: borra servidor + JWT y vuelve a la pantalla de servidor. */
+    fun changeServer() {
+        viewModelScope.launch {
+            repo.forgetServer()
+            _navigateToServer.emit(Unit)
+        }
     }
 
     fun submit(username: String, password: String) {

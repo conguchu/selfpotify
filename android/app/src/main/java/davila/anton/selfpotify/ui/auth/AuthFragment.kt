@@ -40,6 +40,7 @@ class AuthFragment : Fragment() {
             )
         }
         binding.toggleButton.setOnClickListener { viewModel.toggleMode() }
+        binding.changeServerButton.setOnClickListener { viewModel.changeServer() }
         binding.username.doAfterTextChanged { viewModel.clearError() }
         binding.password.doAfterTextChanged { viewModel.clearError() }
 
@@ -49,6 +50,11 @@ class AuthFragment : Fragment() {
                 launch {
                     viewModel.navigateToHome.collect {
                         findNavController().navigate(R.id.action_auth_to_home)
+                    }
+                }
+                launch {
+                    viewModel.navigateToServer.collect {
+                        findNavController().navigate(R.id.action_auth_to_server)
                     }
                 }
             }

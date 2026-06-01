@@ -29,6 +29,7 @@
     <string name="auth_error_network">Network error. Check your connection.</string>
     <string name="auth_error_unknown">Something went wrong. Try again.</string>
     <string name="auth_error_empty_fields">Enter a username and password.</string>
+    <string name="auth_change_server">Change server</string>
 
     <!-- Screen 3: home -->
     <string name="home_greeting">Hello, %1$s</string>
