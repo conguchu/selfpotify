@@ -195,6 +195,24 @@ export default function SetupWizard() {
       setStep(1);
       return;
     }
+    // Incluye un usuario tecleado pero no "Añadido": al finalizar sin pulsar
+    // "Añadir usuario", esos datos se perdían silenciosamente y la cuenta no se
+    // creaba. Si los campos están rellenos y no es un duplicado, se crea igual.
+    const pendingUser = uUser.trim();
+    const effectiveUsers = [...users];
+    if (pendingUser && uPass) {
+      const dup =
+        effectiveUsers.some((x) => x.username === pendingUser) ||
+        (existingUsers.data ?? []).some((x) => x.username === pendingUser);
+      if (!dup) {
+        effectiveUsers.push({
+          username: pendingUser,
+          password: uPass,
+          isAdmin: uAdmin,
+        });
+      }
+    }
+
     setSubmitting(true);
     try {
       // 1) Branding (nombre + colores) — antes del commit final.
@@ -204,7 +222,7 @@ export default function SetupWizard() {
         await uploadLogo(logoFile);
       }
       // 3) Usuarios — se crean mientras el gate sigue abierto.
-      for (const u of users) {
+      for (const u of effectiveUsers) {
         await createUser(u);
       }
       // 4) Commit final: persiste biblioteca y marca setupComplete=true.
