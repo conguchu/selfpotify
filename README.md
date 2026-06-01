@@ -721,6 +721,62 @@ flowchart TD
 
 ---
 
+## Android
+
+El cliente Android es una aplicación **nativa en Kotlin** que vive en el directorio `android/` del monorepo y consume la API de Spring **directamente** (`:8080`, sin pasar por Nginx; ver "Empaquetado y arranque con Docker"). Es el primero de los clientes "no web" previstos por la arquitectura de microservicios.
+
+### Arquitectura
+
+La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin saltos entre ellas:
+
+- **`data/model`** — DTOs Kotlin puros que reflejan la forma real de la API (`PublicConfig`, `JwtResponse`, …), tomada de `API-doc.md` y de los controllers.
+- **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
+- **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT y el nombre de usuario.
+- **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
+- **`ui/<feature>`** — una carpeta por pantalla (`server/`, `auth/`, `home/`), cada una con su `Fragment` + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian vistas.
+
+El stack es **View system + Navigation Component** (una sola `Activity` que aloja un `NavHost` con tres destinos) con **ViewBinding**, corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
+
+El look & feel sigue la estética **Spotify (oscuro)**, pero **la paleta de colores es dinámica**: se obtiene del servidor vía `GET /api/config/public` y los colores definidos en el cliente son solo valores de **fallback de carga** (fondo `#121212`, acento `#1DB954`, texto blanco), nunca el branding real de la instalación.
+
+### Flujo de acceso: servidor, login y sesión
+
+Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo primero que hace es **preguntar a qué servidor conectarse**. El acceso son tres pantallas encadenadas:
+
+1. **Configuración de servidor.** El usuario escribe la dirección (con un *helper* que muestra el formato esperado, p. ej. `http://192.168.1.10:8080`). Cuando deja de escribir (con un pequeño *debounce*), la app valida en segundo plano —mostrando un *loader*— que esa dirección es **realmente un servidor Selfpotify**, llamando a su `GET /api/config/public` (endpoint público, sin auth) y comprobando que devuelve un `branding` válido. El botón **Siguiente** permanece deshabilitado hasta que la validación tiene éxito. La dirección se normaliza a una forma canónica (con esquema, sin barra final) y se **guarda en el almacenamiento local del teléfono** para tenerla siempre disponible.
+
+2. **Login / registro.** Misma lógica que la web: el usuario inicia sesión (`POST /api/auth/login`) o crea una cuenta (`POST /api/auth/signup`, que tras registrar inicia sesión automáticamente). El JWT recibido se **guarda asociado al servidor que lo emitió**: la sesión solo se considera válida si el servidor activo coincide con el servidor del token, de modo que **un JWT nunca se reutiliza en un servidor al que no pertenece**. Esta pantalla también ofrece un botón **Cambiar de servidor** que descarta el servidor y su token y vuelve al paso 1.
+
+3. **Home.** Por ahora muestra un saludo "Hola, &lt;usuario&gt;" y dos acciones: **Cerrar sesión** (borra el JWT pero conserva el servidor, devolviendo al paso 2) y **Cambiar de servidor** (borra servidor + JWT, devolviendo al paso 1).
+
+Al arrancar, la app decide la pantalla inicial según el estado persistido: sin servidor → configuración de servidor; con servidor pero sin JWT válido → login; con servidor y JWT válido → home.
+
+```mermaid
+flowchart TD
+    Launch([Arranque de la app]) --> Check{¿Estado<br/>persistido?}
+    Check -- sin servidor --> S1
+    Check -- servidor sin JWT válido --> S2
+    Check -- servidor + JWT válido --> S3
+
+    S1[Pantalla 1: dirección del servidor] --> Validate[GET /api/config/public<br/>loader mientras valida]
+    Validate -- no es Selfpotify / no responde --> S1
+    Validate -- branding válido --> Enable[Activar Siguiente<br/>+ guardar URL en local storage]
+    Enable --> S2
+
+    S2[Pantalla 2: login / registro] -->|Cambiar de servidor| Forget[Borrar servidor + JWT]
+    Forget --> S1
+    S2 --> Auth[POST /api/auth/login<br/>o /signup + login]
+    Auth -- credenciales inválidas --> S2
+    Auth -- 200 OK --> SaveJwt[Guardar JWT atado<br/>al servidor emisor]
+    SaveJwt --> S3
+
+    S3[Pantalla 3: Home -<br/>Hola, usuario] -->|Cerrar sesión| ClrJwt[Borrar JWT<br/>conservar servidor]
+    ClrJwt --> S2
+    S3 -->|Cambiar de servidor| Forget
+```
+
+---
+
 ## Gestión de recursos
 
 Al ser un aplicativo pensado para un uso personal, normalmente con pocos usuarios, el servidor no requiere de grandes prestaciones hardware. 
