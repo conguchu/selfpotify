@@ -125,9 +125,9 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
     ]
   }
   ```
-- **Comportamiento:** mueve cada audio de staging a `selfpotify_added` y persiste la canción con los metadatos finales. El artista se resuelve por `artistId`; si es null y hay `newArtistName`, se crea (o se reutiliza por nombre). La carpeta se registra como ruta de escaneo. Devuelve `List<SongDTO>`.
-  - **Destino (`targetPath`):** si null/blank, la carpeta de datos (`<dataDir>/selfpotify_added`). Si se indica, debe ser una ruta de escaneo configurada y **escribible** (en Docker `/music` es read-only y se rechaza).
-- **Errores:** `400` (sin canciones, `targetPath` no configurada/ no escribible, o staging expirado).
+- **Comportamiento:** mueve cada audio de staging a `<targetPath>/selfpotify_added` y persiste la canción con los metadatos finales. El artista se resuelve por `artistId`; si es null y hay `newArtistName`, se crea (o se reutiliza por nombre). **No** se registra la carpeta como ruta de escaneo (el commit ya persiste cada canción con su `songPath`). Devuelve `List<SongDTO>`.
+  - **Destino (`targetPath`):** **obligatorio**. Debe ser una de las rutas de escaneo configuradas (`scan.paths`) y escribible. En Docker el volumen de música se monta en lectura/escritura (`/music`, sin `:ro`), así que `/music` es un destino válido.
+- **Errores:** `400` (sin canciones, `targetPath` ausente / no configurada / no escribible, o staging expirado).
 
 ### `POST /api/songs/cover` — Subir carátula
 - **Acceso:** `ROLE_ADMIN`. **Content-Type:** `multipart/form-data`, campo `file` (PNG/JPEG/WebP).
@@ -657,8 +657,7 @@ Además, en el primer arranque y solo mientras `setupComplete=false`, la librer�
   "scanPaths": ["/Users/antondavila/Music"],
   "scanIntervalSeconds": 3600,
   "lastScanEpochSec": 0,
-  "runningInDocker": false,
-  "addedSongsDir": "/Users/antondavila/.selfpotify/selfpotify_added"
+  "runningInDocker": false
 }
 ```
 > `runningInDocker` indica si el backend corre en contenedor (los audios subidos van entonces a la carpeta de datos) y `addedSongsDir` es la carpeta `selfpotify_added` por defecto; guían la subida drag & drop del panel (§2, `POST /api/songs/upload`).
