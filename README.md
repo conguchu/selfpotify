@@ -731,13 +731,27 @@ La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin s
 
 - **`data/model`** — DTOs Kotlin puros que reflejan la forma real de la API (`PublicConfig`, `JwtResponse`, …), tomada de `API-doc.md` y de los controllers.
 - **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
-- **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT y el nombre de usuario.
+- **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la paleta de marca del servidor (ver "Colores dinámicos del servidor").
 - **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
 - **`ui/<feature>`** — una carpeta por pantalla (`server/`, `auth/`, `home/`), cada una con su `Fragment` + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian vistas.
 
 El stack es **View system + Navigation Component** (una sola `Activity` que aloja un `NavHost` con tres destinos) con **ViewBinding**, corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
 
 El look & feel sigue la estética **Spotify (oscuro)**, pero **la paleta de colores es dinámica**: se obtiene del servidor vía `GET /api/config/public` y los colores definidos en el cliente son solo valores de **fallback de carga** (fondo `#121212`, acento `#1DB954`, texto blanco), nunca el branding real de la instalación.
+
+### Colores dinámicos del servidor
+
+Cada instalación define su propio branding, así que la app **adopta la paleta del servidor al que se conecta** en lugar de traer colores fijos. El ciclo es:
+
+1. **Origen.** El servidor expone su paleta en `branding.colors` de `GET /api/config/public`: un mapa de tokens CSS (`--color-bg`, `--color-bg-card`, `--color-bg-hover`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-hover`, `--color-danger`, …). El color de texto sobre el acento no lo envía el servidor: se calcula en el cliente (negro o blanco según la luminancia del acento, contraste WCAG).
+
+2. **Captura.** La paleta se obtiene de la misma llamada que ya valida el servidor en la pantalla 1, de modo que la app adopta los colores **antes incluso de iniciar sesión**. Además, al hacer login se **refresca** (best-effort) volviendo a leer la config pública, por si el branding cambió desde entonces.
+
+3. **Almacenamiento.** Los tokens se persisten en **DataStore** (`SessionStore`), serializados a JSON. La paleta pertenece al servidor, no a la sesión: **sobrevive al cierre de sesión** y solo se borra al **cambiar de servidor** (junto con su URL y su JWT).
+
+4. **Exposición.** El `ThemeViewModel` (compartido a nivel de `Activity`) lee los tokens persistidos, los resuelve a un modelo `BrandingColors` (enteros ARGB, con cada token ausente cayendo a su fallback) y los expone como `StateFlow<BrandingColors>`. Mientras no haya paleta guardada emite el fallback de carga.
+
+5. **Aplicación.** En el *View system* no se pueden inyectar colores hex arbitrarios como atributos de tema, así que cada pantalla **observa el `StateFlow` y recolorea sus vistas programáticamente** (fondo, textos, campos, botones) mediante helpers `ColorStateList`. La `MainActivity` aplica además el fondo de la ventana y las barras del sistema desde el primer frame, leyendo la paleta persistida.
 
 ### Flujo de acceso: servidor, login y sesión
 
