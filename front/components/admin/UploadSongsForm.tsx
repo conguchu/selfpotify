@@ -75,6 +75,10 @@ export function UploadSongsForm() {
       toast.error("Añade al menos un archivo");
       return;
     }
+    if (!target) {
+      toast.error("Elige una carpeta de música destino");
+      return;
+    }
     try {
       const result = await stage.mutateAsync(files);
       setDrafts(
@@ -101,7 +105,7 @@ export function UploadSongsForm() {
     if (!drafts || drafts.length === 0) return;
     try {
       const result = await commit.mutateAsync({
-        targetPath: target || undefined,
+        targetPath: target,
         songs: drafts.map((d) => ({
           stagingToken: d.stagingToken,
           fileName: d.fileName,

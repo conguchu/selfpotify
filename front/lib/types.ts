@@ -162,10 +162,8 @@ export interface ServerConfig {
   scanPaths: string[];
   scanIntervalSeconds: number;
   lastScanEpochSec: number;
-  /** Si el backend corre en Docker, los audios subidos van siempre a la carpeta de datos. */
+  /** True si el backend corre dentro de un contenedor Docker. */
   runningInDocker: boolean;
-  /** Carpeta selfpotify_added por defecto (dentro de la carpeta de datos). */
-  addedSongsDir: string;
 }
 
 /** Cuerpo de `PUT /api/config` (branding, features y/o intervalo de escaneo). */

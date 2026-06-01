@@ -227,11 +227,6 @@ public class SongUploadService {
         return result;
     }
 
-    /** Carpeta selfpotify_added por defecto (en la raíz de datos), para mostrar en el panel. */
-    public Path defaultAddedDir() {
-        return configService.addedSongsDir();
-    }
-
     // =====================================================================
     // Helpers
     // =====================================================================
@@ -254,13 +249,15 @@ public class SongUploadService {
     }
 
     /**
-     * Resuelve la carpeta {@code selfpotify_added} destino. Sin targetPath: la
-     * carpeta de datos (siempre escribible). Con targetPath: debe ser una ruta de
-     * escaneo configurada y escribible (en Docker, /music es read-only y falla).
+     * Resuelve la carpeta {@code selfpotify_added} destino dentro de la ruta de
+     * música elegida. {@code targetPath} es obligatorio (el panel siempre manda
+     * una de las {@code scan.paths}); debe ser una ruta de escaneo configurada y
+     * escribible. Las canciones se guardan en {@code <targetPath>/selfpotify_added}.
      */
     private Path resolveAddedDir(String targetPath) {
         if (targetPath == null || targetPath.isBlank()) {
-            return configService.addedSongsDir();
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Selecciona la carpeta de música donde guardar las canciones");
         }
         Path base = Paths.get(targetPath).toAbsolutePath().normalize();
         boolean configured = configService.getConfig().getScan().getPaths().stream()
@@ -271,8 +268,7 @@ public class SongUploadService {
         }
         if (!Files.isDirectory(base) || !Files.isWritable(base)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "La ruta destino no es escribible: " + base
-                            + " (en Docker el volumen de música se monta de solo lectura)");
+                    "La ruta destino no es escribible: " + base);
         }
         return base.resolve("selfpotify_added");
     }

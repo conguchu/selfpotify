@@ -88,11 +88,6 @@ public class ConfigService {
         return configPath.getParent();
     }
 
-    /** Carpeta donde se guardan los audios subidos desde el panel (drag&drop). */
-    public Path addedSongsDir() {
-        return dataDir().resolve("selfpotify_added");
-    }
-
     /** Ruta absoluta del fichero config.yml. */
     public Path configPath() {
         return configPath;
