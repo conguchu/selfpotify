@@ -16,7 +16,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -42,6 +47,14 @@ fun DiscoverScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
 
+    // Cada refresco incrementa este contador; al usarlo como `key` de la lista se recrea su
+    // subárbol y todas las lazy lists (la columna y los carruseles) vuelven a su primer elemento,
+    // para que el contenido recargado no quede a media posición de scroll.
+    var refreshGen by remember { mutableIntStateOf(0) }
+    LaunchedEffect(state.refreshing) {
+        if (state.refreshing) refreshGen++
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when {
             state.loading && state.daily.isEmpty() -> CenterLoader()
@@ -51,54 +64,56 @@ fun DiscoverScreen(
                 onRefresh = { vm.refresh() },
                 modifier = Modifier.fillMaxSize(),
             ) {
-                LazyColumn(
-                    contentPadding = contentPadding,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.l),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.discover_title),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(
-                                horizontal = Spacing.page,
-                                vertical = Spacing.m,
-                            ),
-                        )
-                    }
-
-                    item {
-                        DailyCarousel(
-                            songs = state.daily,
-                            serverUrl = state.serverUrl,
-                            loadingMore = state.loadingMore,
-                            onPlay = { index -> vm.play(state.daily, index) },
-                            onLoadMore = { vm.loadMore() },
-                        )
-                    }
-
-                    if (state.artists.isNotEmpty()) {
+                key(refreshGen) {
+                    LazyColumn(
+                        contentPadding = contentPadding,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.l),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                         item {
-                            ArtistCarousel(
-                                title = stringResource(R.string.discover_artists),
-                                artists = state.artists,
-                                serverUrl = state.serverUrl,
+                            Text(
+                                text = stringResource(R.string.discover_title),
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.padding(
+                                    horizontal = Spacing.page,
+                                    vertical = Spacing.m,
+                                ),
                             )
                         }
-                    }
 
-                    items(state.genres, key = { it.genre }) { section ->
-                        SongCarousel(
-                            icon = Icons.Rounded.Album,
-                            title = section.genre.replaceFirstChar {
-                                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
-                            },
-                            songs = section.songs,
-                            serverUrl = state.serverUrl,
-                            onPlay = { index -> vm.play(section.songs, index) },
-                        )
+                        item {
+                            DailyCarousel(
+                                songs = state.daily,
+                                serverUrl = state.serverUrl,
+                                loadingMore = state.loadingMore,
+                                onPlay = { index -> vm.play(state.daily, index) },
+                                onLoadMore = { vm.loadMore() },
+                            )
+                        }
+
+                        if (state.artists.isNotEmpty()) {
+                            item {
+                                ArtistCarousel(
+                                    title = stringResource(R.string.discover_artists),
+                                    artists = state.artists,
+                                    serverUrl = state.serverUrl,
+                                )
+                            }
+                        }
+
+                        items(state.genres, key = { it.genre }) { section ->
+                            SongCarousel(
+                                icon = Icons.Rounded.Album,
+                                title = section.genre.replaceFirstChar {
+                                    if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                                },
+                                songs = section.songs,
+                                serverUrl = state.serverUrl,
+                                onPlay = { index -> vm.play(section.songs, index) },
+                            )
+                        }
                     }
                 }
             }
