@@ -62,10 +62,50 @@
     <string name="detail_no_tracks">Aún no hay canciones.</string>
     <string name="detail_no_playlists">Aún no hay playlists públicas.</string>
     <string name="cd_play_count">Reproducciones</string>
+    <string name="cd_playlist_edit">Editar playlist</string>
+    <string name="cd_playlist_share">Compartir playlist</string>
+    <string name="cd_playlist_shared">Playlist compartida</string>
+    <string name="cd_remove_from_playlist">Quitar de la playlist</string>
 
-    <!-- Pestañas placeholder -->
+    <!-- Biblioteca -->
     <string name="library_title">Biblioteca</string>
     <string name="coming_soon">Próximamente</string>
+    <string name="library_add_playlist">Nueva playlist</string>
+    <string name="library_my_playlists">Tus playlists</string>
+    <string name="library_shared">Compartidas contigo</string>
+    <string name="library_empty">Todavía no tienes playlists. Crea la primera.</string>
+    <string name="library_error">No se pudo cargar tu biblioteca.</string>
+
+    <!-- Formulario de crear / editar playlist -->
+    <string name="playlist_form_create_title">Nueva playlist</string>
+    <string name="playlist_form_edit_title">Editar playlist</string>
+    <string name="playlist_form_name">Nombre</string>
+    <string name="playlist_form_name_hint">Mi mix</string>
+    <string name="playlist_form_description">Descripción</string>
+    <string name="playlist_form_description_hint">Para conducir, gym…</string>
+    <string name="playlist_form_public">Pública</string>
+    <string name="playlist_form_public_hint">Otros usuarios podrán verla.</string>
+    <string name="playlist_form_cover">Carátula</string>
+    <string name="playlist_form_create">Crear</string>
+    <string name="playlist_form_save">Guardar</string>
+    <string name="playlist_form_cancel">Cancelar</string>
+    <string name="playlist_form_delete">Eliminar</string>
+    <string name="playlist_form_error">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="playlist_delete_confirm_title">¿Eliminar la playlist?</string>
+    <string name="playlist_delete_confirm_message">Esta acción no se puede deshacer.</string>
+    <string name="playlist_delete_confirm">Eliminar</string>
+
+    <!-- Hoja de compartir playlist (magic link) -->
+    <string name="playlist_share_title">Compartir playlist</string>
+    <string name="share_description">Cualquiera con este enlace de un solo uso podrá unirse como colaborador.</string>
+    <string name="share_link_label">Enlace de invitación</string>
+    <string name="share_copy">Copiar</string>
+    <string name="share_copied">Enlace copiado</string>
+    <string name="share_regenerate">Generar otro enlace</string>
+    <string name="share_error">No se pudo generar el enlace.</string>
+    <string name="share_collaborators">Colaboradores</string>
+    <string name="share_no_collaborators">Aún no hay colaboradores.</string>
+    <string name="share_remove_collaborator">Quitar colaborador</string>
 
     <!-- Perfil -->
     <string name="profile_logout">Cerrar sesión</string>

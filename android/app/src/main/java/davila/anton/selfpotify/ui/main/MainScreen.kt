@@ -121,7 +121,9 @@ fun MainScreen(
                     onOpenUser = openUser,
                 )
             }
-            composable(Tab.LIBRARY.route) { LibraryScreen(contentPadding = innerPadding) }
+            composable(Tab.LIBRARY.route) {
+                LibraryScreen(contentPadding = innerPadding, onOpenPlaylist = openPlaylist)
+            }
             composable(Tab.PROFILE.route) {
                 ProfileScreen(
                     contentPadding = innerPadding,
