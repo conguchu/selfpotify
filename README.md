@@ -733,7 +733,7 @@ La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin s
 - **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
 - **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la marca del servidor —paleta de colores y ruta del logo— (ver "Branding dinámico del servidor: colores y logo").
 - **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
-- **`ui/<feature>`** — una carpeta por pantalla (`server/`, `auth/`, `home/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI.
+- **`ui/<feature>`** — una carpeta por pantalla o flujo (`server/`, `auth/`, `main/`, `discover/`, `search/`, `library/`, `profile/`, `player/`, `offline/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI. La reproducción de audio vive aparte en `playback/` (`PlaybackService` + `PlaybackConnection`).
 
 El stack es **Jetpack Compose + Navigation Compose** (una sola `ComponentActivity` que aloja un `NavHost` con los destinos de la app), corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
 
@@ -757,6 +757,16 @@ Cada instalación define su propio branding, así que la app **adopta tanto la p
    - **Colores:** los tokens se proyectan sobre el `ColorScheme` de Material 3 dentro de `SelfpotifyTheme` (Jetpack Compose). Toda la jerarquía de composables hereda el branding vía `MaterialTheme.colorScheme`; los tokens extra (texto secundario, hover del acento…) están disponibles como `LocalBrandingColors.current`. La `MainActivity` también tiñe las barras del sistema con el color de fondo del servidor desde el primer frame, leyendo la paleta persistida.
    - **Logo:** la URL absoluta se publica vía `LocalServerLogoUrl` y la consume el composable común `ServerLogo`, que carga la imagen del servidor con **Coil** (`AsyncImage`). Todas las pantallas del flujo (configuración de servidor, login, home y sin-conexión) usan `ServerLogo` en lugar del recurso local; mientras la imagen llega, si la descarga falla o si el servidor no define logo, `ServerLogo` cae al logo de Selfpotify empaquetado.
 
+### Estructura de navegación principal y reproductor
+
+La app logueada es un `Scaffold` con un `NavHost` anidado para las cuatro pestañas y una `NavigationBar` inferior; sobre la barra vive un **mini-player** persistente (carátula, título/artista, play-pausa y acceso a "añadir a playlist") que solo aparece cuando hay algo cargado. Pulsarlo abre el **reproductor a pantalla completa** (carátula grande, barra de progreso con *seek*, anterior/siguiente, play-pausa y **loop**), que se desliza desde abajo como destino del NavHost externo.
+
+**Reproducción con Media3 en un servicio en primer plano.** El audio lo gestiona un `MediaSessionService` (`PlaybackService`) que aloja un único `ExoPlayer`: la música **sobrevive en segundo plano**, con notificación multimedia y controles en la pantalla de bloqueo. La UI no habla con el servicio directamente, sino a través de un `MediaController` envuelto en `PlaybackConnection`, que expone el estado del player como `StateFlow` a los ViewModels (MVVM).
+
+**Streaming con stream token.** Para reproducir, el cliente pide un stream token (`POST /api/listen/token`, con el JWT en cabecera) y construye las URLs de la cola como `/api/listen/{id}?st=<token>` (ver "Funcionamiento del streaming"). ExoPlayer hace las peticiones HTTP Range con esa URL, sin exponer el JWT.
+
+**Añadir a playlist.** Desde el mini-player o el reproductor, un *bottom sheet* lista las playlists propias (`GET /api/playlists/my`) y añade la canción en curso a la elegida (`POST /api/playlists/{id}/songs/{songId}`).
+
 ### Flujo de acceso: servidor, login y sesión
 
 Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo primero que hace es **preguntar a qué servidor conectarse**. El acceso son tres pantallas encadenadas:
@@ -765,9 +775,9 @@ Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo pri
 
 2. **Login / registro.** Misma lógica que la web: el usuario inicia sesión (`POST /api/auth/login`) o crea una cuenta (`POST /api/auth/signup`, que tras registrar inicia sesión automáticamente). El JWT recibido se **guarda asociado al servidor que lo emitió**: la sesión solo se considera válida si el servidor activo coincide con el servidor del token, de modo que **un JWT nunca se reutiliza en un servidor al que no pertenece**. Esta pantalla también ofrece un botón **Cambiar de servidor** que descarta el servidor y su token y vuelve al paso 1.
 
-3. **Home.** Por ahora muestra un saludo "Hola, &lt;usuario&gt;" y dos acciones: **Cerrar sesión** (borra el JWT pero conserva el servidor, devolviendo al paso 2) y **Cambiar de servidor** (borra servidor + JWT, devolviendo al paso 1).
+3. **App principal.** Tras el login se entra al contenedor principal: una **barra de navegación inferior** (estilo Spotify) con cuatro pestañas —**Descubrir, Búsqueda, Biblioteca y Perfil**— y, encima de ella, un **mini-player** persistente. *Descubrir* muestra los descubrimientos diarios (`GET /api/feed/daily-discoveries`) con scroll infinito (`GET /api/songs/random`) y permite reproducir. *Búsqueda* y *Biblioteca* son por ahora placeholders. *Perfil* muestra el nombre y avatar del usuario (`GET /api/me`) y aloja **Cerrar sesión** (borra el JWT, conserva el servidor, devolviendo al paso 2) y **Cambiar de servidor** (borra servidor + JWT + branding, devolviendo al paso 1). La app solo expone features de usuario (sin admin). Al entrar al contenedor principal la app **verifica el JWT** contra el servidor (`GET /api/me`): si el servidor lo **rechaza** (token expirado o inválido) cierra sesión automáticamente y vuelve al login —conservando el servidor—; si el servidor **no responde**, se muestra la pantalla de sin-conexión (a diferencia del JWT inválido, aquí la sesión se conserva para reintentar).
 
-Si, estando ya logueado, el servidor deja de responder, la app no se queda en un home inerte: muestra una **pantalla de sin-conexión** ("No hay conexión al servidor actualmente"). La comprobación se dispara al entrar al home, reutilizando el endpoint público `GET /api/config/public` (no necesita JWT). Esa pantalla ofrece dos acciones: **Reintentar conexión** (vuelve a comprobar el servidor; si responde, regresa al home) y **Desconectarse del servidor** (borra servidor + JWT + branding —paleta y logo— y vuelve al paso 1, para poder apuntar a otro servidor). No es un paso del flujo lineal de acceso, sino un estado al que se llega desde el home cuando la conexión cae.
+Si, estando ya logueado, el servidor deja de responder, la app no se queda en un contenedor inerte: muestra una **pantalla de sin-conexión** ("No hay conexión al servidor actualmente"). La comprobación se dispara al entrar al contenedor principal, como parte de la misma verificación de sesión que valida el JWT (`GET /api/me`): si la petición falla por falta de red se asume el servidor caído. Esa pantalla ofrece dos acciones: **Reintentar conexión** (vuelve a comprobar el servidor con el endpoint público `GET /api/config/public`; si responde, regresa al contenedor principal) y **Desconectarse del servidor** (borra servidor + JWT + branding —paleta y logo— y vuelve al paso 1, para poder apuntar a otro servidor). No es un paso del flujo lineal de acceso, sino un estado al que se llega cuando la conexión cae.
 
 Al arrancar, la app decide la pantalla inicial según el estado persistido: sin servidor → configuración de servidor; con servidor pero sin JWT válido → login; con servidor y JWT válido → home.
 
@@ -790,7 +800,7 @@ flowchart TD
     Auth -- 200 OK --> SaveJwt[Guardar JWT atado<br/>al servidor emisor]
     SaveJwt --> S3
 
-    S3[Pantalla 3: Home -<br/>Hola, usuario] -->|Cerrar sesión| ClrJwt[Borrar JWT<br/>conservar servidor]
+    S3[Pantalla 3: contenedor principal<br/>Descubrir / Búsqueda / Biblioteca / Perfil] -->|Cerrar sesión / JWT rechazado| ClrJwt[Borrar JWT<br/>conservar servidor]
     ClrJwt --> S2
     S3 -->|Cambiar de servidor| Forget
     S3 -->|servidor no responde| S4[Pantalla sin conexión]
