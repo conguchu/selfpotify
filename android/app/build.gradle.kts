@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
@@ -74,6 +75,9 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.session)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
