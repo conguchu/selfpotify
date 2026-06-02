@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Destino al que navegar tras una acción del home. */
-enum class HomeNav { TO_AUTH, TO_SERVER }
+enum class HomeNav { TO_AUTH, TO_SERVER, TO_OFFLINE }
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -28,6 +28,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _navigate = MutableSharedFlow<HomeNav>(extraBufferCapacity = 1)
     val navigate: SharedFlow<HomeNav> = _navigate.asSharedFlow()
+
+    /**
+     * Comprueba la conexión con el servidor estando logueado. Si no responde, navega a la
+     * pantalla de sin-conexión. Lo dispara el Fragment una vez está observando los eventos.
+     */
+    fun checkConnection() {
+        viewModelScope.launch {
+            if (!repo.checkConnection()) _navigate.emit(HomeNav.TO_OFFLINE)
+        }
+    }
 
     /** Logout: borra el JWT (conserva el servidor) y vuelve al login. */
     fun logout() {

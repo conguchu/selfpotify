@@ -35,4 +35,9 @@
     <string name="home_greeting">Hello, %1$s</string>
     <string name="home_logout">Log out</string>
     <string name="home_change_server">Change server</string>
+
+    <!-- Connection lost -->
+    <string name="offline_message">There is currently no connection to the server</string>
+    <string name="offline_retry">Retry connection</string>
+    <string name="offline_disconnect">Disconnect from server</string>
 </resources>

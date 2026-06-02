@@ -75,6 +75,16 @@ class AuthRepository(private val session: SessionStore) {
             ?.let { session.saveBrandingColors(it) }
     }
 
+    /**
+     * Comprueba (best-effort) si el servidor actual responde. Se usa estando ya logueado
+     * para detectar la pérdida de conexión y mostrar la pantalla de sin-conexión.
+     * Reutiliza el endpoint público, que no requiere JWT.
+     */
+    suspend fun checkConnection(): Boolean = withContext(Dispatchers.IO) {
+        val server = session.current().serverUrl ?: return@withContext false
+        runCatching { ApiProvider.api(server).getPublicConfig() }.isSuccess
+    }
+
     /** Logout: borra el JWT, conserva el servidor. */
     suspend fun logout() = session.clearSession()
 

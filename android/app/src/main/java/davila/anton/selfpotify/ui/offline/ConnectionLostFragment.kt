@@ -1,4 +1,4 @@
-package davila.anton.selfpotify.ui.home
+package davila.anton.selfpotify.ui.offline
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -12,68 +12,77 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import davila.anton.selfpotify.R
-import davila.anton.selfpotify.databinding.FragmentHomeBinding
+import davila.anton.selfpotify.databinding.FragmentConnectionLostBinding
 import davila.anton.selfpotify.ui.theme.BrandingColors
 import davila.anton.selfpotify.ui.theme.ThemeViewModel
+import davila.anton.selfpotify.ui.theme.applyBranding
 import davila.anton.selfpotify.ui.theme.applyFilled
 import davila.anton.selfpotify.ui.theme.applyOutlined
 import kotlinx.coroutines.launch
 
-/** Pantalla 3: saludo, logout (borra JWT) y cambiar de servidor (borra servidor + JWT). */
-class HomeFragment : Fragment() {
+/**
+ * Pantalla de sin-conexión: el usuario está logueado pero el servidor no responde.
+ * Permite reintentar la conexión o desconectarse del servidor (vuelve a la pantalla 1).
+ */
+class ConnectionLostFragment : Fragment() {
 
-    private var _binding: FragmentHomeBinding? = null
+    private var _binding: FragmentConnectionLostBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: HomeViewModel by viewModels()
+    private val viewModel: ConnectionLostViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by activityViewModels()
+
+    private var colors: BrandingColors = BrandingColors.fallback()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
-        _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        _binding = FragmentConnectionLostBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        binding.logoutButton.setOnClickListener { viewModel.logout() }
-        binding.changeServerButton.setOnClickListener { viewModel.changeServer() }
+        binding.retryButton.setOnClickListener { viewModel.retry() }
+        binding.disconnectButton.setOnClickListener { viewModel.disconnect() }
 
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { viewModel.retrying.collect(::renderRetrying) }
                 launch {
-                    viewModel.username.collect { name ->
-                        binding.greeting.text = getString(R.string.home_greeting, name.orEmpty())
+                    themeViewModel.colors.collect {
+                        colors = it
+                        applyColors()
                     }
-                }
-                launch {
-                    themeViewModel.colors.collect(::applyColors)
                 }
                 launch {
                     viewModel.navigate.collect { dest ->
                         val action = when (dest) {
-                            HomeNav.TO_AUTH -> R.id.action_home_to_auth
-                            HomeNav.TO_SERVER -> R.id.action_home_to_server
-                            HomeNav.TO_OFFLINE -> R.id.action_home_to_connection_lost
+                            OfflineNav.TO_HOME -> R.id.action_offline_to_home
+                            OfflineNav.TO_SERVER -> R.id.action_offline_to_server
                         }
                         findNavController().navigate(action)
                     }
                 }
             }
         }
+    }
 
-        // Tras suscribir los colectores, comprueba que el servidor sigue accesible.
-        viewModel.checkConnection()
+    /** Mientras reintenta: muestra el spinner y deshabilita los botones. */
+    private fun renderRetrying(retrying: Boolean) {
+        binding.progress.visibility = if (retrying) View.VISIBLE else View.GONE
+        binding.retryButton.isEnabled = !retrying
+        binding.disconnectButton.isEnabled = !retrying
     }
 
     /** Aplica la paleta del servidor a las vistas de la pantalla. */
-    private fun applyColors(colors: BrandingColors) {
+    private fun applyColors() {
         binding.root.setBackgroundColor(colors.background)
-        binding.greeting.setTextColor(colors.textPrimary)
-        binding.logoutButton.applyFilled(colors)
-        binding.changeServerButton.applyOutlined(colors)
+        binding.message.setTextColor(colors.textPrimary)
+        binding.progress.applyBranding(colors)
+        binding.retryButton.applyFilled(colors)
+        binding.disconnectButton.applyOutlined(colors)
     }
 
     override fun onDestroyView() {

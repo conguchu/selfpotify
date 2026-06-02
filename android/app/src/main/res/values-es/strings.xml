@@ -33,4 +33,9 @@
     <string name="home_greeting">Hola, %1$s</string>
     <string name="home_logout">Cerrar sesión</string>
     <string name="home_change_server">Cambiar de servidor</string>
+
+    <!-- Sin conexión -->
+    <string name="offline_message">No hay conexión al servidor actualmente</string>
+    <string name="offline_retry">Reintentar conexión</string>
+    <string name="offline_disconnect">Desconectarse del servidor</string>
 </resources>

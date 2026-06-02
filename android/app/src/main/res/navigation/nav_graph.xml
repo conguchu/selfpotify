@@ -47,5 +47,26 @@
             app:destination="@id/serverSetupFragment"
             app:popUpTo="@id/homeFragment"
             app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_home_to_connection_lost"
+            app:destination="@id/connectionLostFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/connectionLostFragment"
+        android:name="davila.anton.selfpotify.ui.offline.ConnectionLostFragment"
+        android:label="ConnectionLost">
+        <action
+            android:id="@+id/action_offline_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/connectionLostFragment"
+            app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_offline_to_server"
+            app:destination="@id/serverSetupFragment"
+            app:popUpTo="@id/connectionLostFragment"
+            app:popUpToInclusive="true" />
     </fragment>
 </navigation>
