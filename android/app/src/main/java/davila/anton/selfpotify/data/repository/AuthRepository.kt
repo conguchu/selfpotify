@@ -8,6 +8,20 @@ import davila.anton.selfpotify.data.network.ApiProvider
 import davila.anton.selfpotify.util.ServerUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
+import java.io.IOException
+
+/** Resultado de verificar la sesión contra el servidor (ver [AuthRepository.verifySession]). */
+enum class SessionStatus {
+    /** El JWT es válido: el servidor respondió a una petición autenticada. */
+    VALID,
+
+    /** El servidor rechazó el JWT (401/403): expiró o ya no es válido → hay que cerrar sesión. */
+    EXPIRED,
+
+    /** El servidor no responde (sin red o caído): no se puede afirmar nada del JWT. */
+    OFFLINE,
+}
 
 /**
  * Única fuente de verdad para servidor + autenticación (CLAUDE.md §2).
@@ -88,6 +102,28 @@ class AuthRepository(private val session: SessionStore) {
     suspend fun checkConnection(): Boolean = withContext(Dispatchers.IO) {
         val server = session.current().serverUrl ?: return@withContext false
         runCatching { ApiProvider.api(server).getPublicConfig() }.isSuccess
+    }
+
+    /**
+     * Verifica que el JWT guardado sigue siendo válido llamando a un endpoint autenticado
+     * (`GET /api/me`). Se usa al entrar al contenedor principal para cerrar sesión
+     * automáticamente si el token expiró o el servidor lo rechaza.
+     *
+     * Distingue tres casos: token válido, token rechazado por el servidor (401/403 → [EXPIRED])
+     * y servidor inaccesible (sin red → [OFFLINE], se conserva la sesión para reintentar). Otros
+     * errores HTTP del servidor no invalidan el token: se consideran [VALID].
+     */
+    suspend fun verifySession(): SessionStatus = withContext(Dispatchers.IO) {
+        val current = session.current()
+        if (!current.isLoggedIn || current.serverUrl == null) return@withContext SessionStatus.EXPIRED
+        try {
+            ApiProvider.api(current.serverUrl).me()
+            SessionStatus.VALID
+        } catch (e: HttpException) {
+            if (e.code() == 401 || e.code() == 403) SessionStatus.EXPIRED else SessionStatus.VALID
+        } catch (e: IOException) {
+            SessionStatus.OFFLINE
+        }
     }
 
     /** Logout: borra el JWT, conserva el servidor. */
