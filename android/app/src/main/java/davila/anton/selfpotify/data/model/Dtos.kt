@@ -95,8 +95,27 @@ data class PlaylistDTO(
     val description: String? = null,
     val isPublic: Boolean = false,
     val creatorId: Long? = null,
+    val pictureUrl: String? = null,
     val songIds: List<Long>? = null,
     val collaboratorIds: List<Long>? = null,
+) {
+    /** `true` si tiene algún colaborador además del creador (se muestra el icono de "compartida"). */
+    val isShared: Boolean
+        get() = (collaboratorIds?.count { it != creatorId } ?: 0) > 0
+}
+
+/** Body de `POST /api/playlists` y `PUT /api/playlists/{id}` (crear/editar). */
+data class PlaylistInput(
+    val name: String,
+    val description: String?,
+    val isPublic: Boolean,
+    val songIds: List<Long>,
+)
+
+/** Respuesta de `POST /api/playlists/{id}/share`: magic link de un solo uso. */
+data class ShareLinkResponse(
+    val token: String,
+    val shareUrl: String? = null,
 )
 
 /** Vista pública mínima de un usuario. Forma de `UserSummaryDTO` (API-doc §8). */

@@ -3,7 +3,9 @@ package davila.anton.selfpotify.data.network
 import davila.anton.selfpotify.data.model.JwtResponse
 import davila.anton.selfpotify.data.model.LoginRequest
 import davila.anton.selfpotify.data.model.PlaylistDTO
+import davila.anton.selfpotify.data.model.PlaylistInput
 import davila.anton.selfpotify.data.model.PublicConfig
+import davila.anton.selfpotify.data.model.ShareLinkResponse
 import davila.anton.selfpotify.data.model.SearchResponseDTO
 import davila.anton.selfpotify.data.model.SongDTO
 import davila.anton.selfpotify.data.model.AlbumDTO
@@ -12,11 +14,16 @@ import davila.anton.selfpotify.data.model.StreamTokenResponse
 import davila.anton.selfpotify.data.model.Top10ArtistTracksDTO
 import davila.anton.selfpotify.data.model.Top10GenreSongsDTO
 import davila.anton.selfpotify.data.model.UserSummaryDTO
+import okhttp3.MultipartBody
 import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -106,9 +113,48 @@ interface SelfpotifyApi {
     @GET("api/playlists/my")
     suspend fun myPlaylists(): List<PlaylistDTO>
 
+    /** Playlists compartidas conmigo (soy colaborador, no creador). */
+    @GET("api/playlists/shared")
+    suspend fun sharedPlaylists(): List<PlaylistDTO>
+
     /** Una playlist por id (trae `songIds`); incluye públicas y propias. */
     @GET("api/playlists/{id}")
     suspend fun getPlaylist(@Path("id") id: Long): PlaylistDTO
+
+    /** Crea una playlist. Devuelve la creada (el creador queda como colaborador). */
+    @POST("api/playlists")
+    suspend fun createPlaylist(@Body body: PlaylistInput): PlaylistDTO
+
+    /** Edita los metadatos de una playlist (solo el creador). */
+    @PUT("api/playlists/{id}")
+    suspend fun updatePlaylist(@Path("id") id: Long, @Body body: PlaylistInput): PlaylistDTO
+
+    /** Borra una playlist (creador o admin). */
+    @DELETE("api/playlists/{id}")
+    suspend fun deletePlaylist(@Path("id") id: Long): Response<Unit>
+
+    /** Sube/reemplaza la carátula de una playlist (solo el creador). Multipart, campo `file`. */
+    @Multipart
+    @POST("api/playlists/{id}/cover")
+    suspend fun uploadPlaylistCover(
+        @Path("id") id: Long,
+        @Part file: MultipartBody.Part,
+    ): PlaylistDTO
+
+    /** Genera un magic link de un solo uso para compartir la playlist (solo el creador). */
+    @POST("api/playlists/{id}/share")
+    suspend fun sharePlaylist(@Path("id") id: Long): ShareLinkResponse
+
+    /** Colaboradores actuales de la playlist. */
+    @GET("api/playlists/{id}/collaborators")
+    suspend fun playlistCollaborators(@Path("id") id: Long): List<UserSummaryDTO>
+
+    /** Quita a un colaborador de la playlist (solo el creador). */
+    @DELETE("api/playlists/{id}/collaborators/{userId}")
+    suspend fun removeCollaborator(
+        @Path("id") id: Long,
+        @Path("userId") userId: Long,
+    ): Response<Unit>
 
     /** Añade una canción a una playlist (creador o colaborador). Idempotente. */
     @POST("api/playlists/{id}/songs/{songId}")
