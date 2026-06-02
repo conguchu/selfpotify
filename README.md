@@ -164,7 +164,16 @@ Toda la configuración por instalación se declara en `.env` (ver `.env.example`
 ### Funcionamiento del streaming
 
 Para hacer que los clientes puedan recibir la música en pedazos de bytes con la librería media3, he implementado la ruta de la API
-``/api/listen/{id}``, endpoint que soporta http range, permitiendo reproducir sin descargar el archivo completo.
+``/api/listen/{id}``, endpoint que soporta HTTP Range, permitiendo reproducir sin descargar el archivo completo.
+
+**Decisión de diseño: stream tokens para no exponer el JWT de sesión en la URL de audio.** El elemento HTML `<audio>` y el player de Media3 (Android) no permiten añadir cabeceras personalizadas (`Authorization`) a las peticiones que generan automáticamente, lo que obligaría a pasar el JWT como query param (`?token=<jwt>`). Un JWT en la URL queda registrado en logs del servidor, historial del navegador y cabeceras `Referer`, comprometiendo la sesión completa.
+
+En lugar de eso, el cliente solicita primero un **stream token** ligero vía `POST /api/listen/token` (con el JWT en la cabecera `Authorization`, como cualquier otra llamada a la API). El stream token es un UUID aleatorio, sin claims JWT, que solo sirve para `/api/listen/{id}`. Se pasa como `?st=<streamToken>` en la URL de audio. Características del token:
+
+- **Sin claims de sesión:** no autentica ante ningún otro endpoint.
+- **Corta vida:** expira a las 4 horas (suficiente para una sesión de escucha continua).
+- **Reutilizable dentro de su TTL:** necesario porque el navegador/player hace múltiples peticiones HTTP Range a la misma URL al hacer seek; invalidarlo en la primera petición rompería la reproducción.
+- **Ligado al usuario:** el `StreamTokenService` almacena el username junto al token y lo recupera al validar, sin necesidad de contexto de seguridad de Spring.
 
 ### Gestión de la biblioteca musical
 

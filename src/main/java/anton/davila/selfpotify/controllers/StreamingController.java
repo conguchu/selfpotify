@@ -2,6 +2,7 @@ package anton.davila.selfpotify.controllers;
 
 import anton.davila.selfpotify.music.entity.Song;
 import anton.davila.selfpotify.music.service.SongService;
+import anton.davila.selfpotify.security.StreamTokenService;
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.listen.service.UserSongListenService;
 import anton.davila.selfpotify.user.service.UserService;
@@ -24,12 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
-/**
- * Este es el controller que se encarga de darle a la librería media 3 un archivo
- * por su ID
- */
 @CrossOrigin(origins = "*", maxAge = 3600,
         exposedHeaders = {"Content-Range", "Accept-Ranges", "Content-Length"})
 @RestController
@@ -45,14 +43,33 @@ public class StreamingController {
     @Autowired
     private SongService songService;
 
-    @GetMapping("{songId}")
+    @Autowired
+    private StreamTokenService streamTokenService;
+
+    /**
+     * Emite un stream token de un solo uso (TTL 60 s). El cliente lo usa como
+     * ?st= en la URL de streaming para que el <audio> no necesite enviar
+     * el JWT de sesión en un query param visible en logs.
+     */
+    @PostMapping("/token")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> issueStreamToken() {
+        String username = getCurrentUser().getUsername();
+        return ResponseEntity.ok(Map.of("token", streamTokenService.issue(username)));
+    }
+
+    @GetMapping("{songId}")
     public ResponseEntity<StreamingResponseBody> stream(
             @PathVariable String songId,
+            @RequestParam(name = "st", required = false) String streamToken,
             @RequestHeader(value = "Range", required = false) String rangeHeader
     ) {
-        // obtener la canción
-        Optional<Song> s = songService.getById( Long.parseLong(songId) );
+        String username = streamTokenService.validate(streamToken);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Optional<Song> s = songService.getById(Long.parseLong(songId));
 
         if (s.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -60,12 +77,12 @@ public class StreamingController {
 
         Song song = s.get();
 
-        // comprobamos primero que sea accesible el archivo
         if (!songService.isPathAvailable(song)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encuentra el archivo de la canción");
         }
 
-        User currentUser = getCurrentUser();
+        User currentUser = userService.getByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario no encontrado"));
 
         Path filePath = Paths.get(song.getSongPath());
 
@@ -76,9 +93,8 @@ public class StreamingController {
             HttpHeaders headers = new HttpHeaders();
             headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
             headers.setContentType(MediaType.parseMediaType(mimeType));
-            headers.setCacheControl("public, max-age=3600, immutable");
+            headers.setCacheControl("no-store");
 
-            // si hay header Range, responder con 206 Partial Content
             if (rangeHeader != null && !rangeHeader.isBlank()) {
                 List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
                 if (ranges.isEmpty()) {
@@ -92,9 +108,6 @@ public class StreamingController {
                 long end = range.getRangeEnd(fileSize);
                 long contentLength = end - start + 1;
 
-                // Solo la petición inicial (rango desde el byte 0) cuenta como
-                // escucha. Los seeks piden rangos con start > 0 y NO registran,
-                // así no inflan los conteos ni bloquean el stream con escrituras.
                 if (start == 0) {
                     recordPlaybackListen(currentUser, song);
                 }
@@ -120,7 +133,6 @@ public class StreamingController {
                         .body(body);
             }
 
-            // sin Range: petición inicial completa, cuenta como escucha
             recordPlaybackListen(currentUser, song);
 
             headers.setContentLength(fileSize);
@@ -144,13 +156,6 @@ public class StreamingController {
         }
     }
 
-    /**
-     * Registra la escucha de una canción: añade su género a los gustos del
-     * usuario y guarda la fila del evento en {@code user_song_listen} (única
-     * fuente de los conteos de popularidad). Solo se invoca en la petición
-     * inicial de la reproducción (sin Range o con Range desde el byte 0), no en
-     * los seeks.
-     */
     private void recordPlaybackListen(User currentUser, Song song) {
         userService.registerGenreListen(currentUser.getId(), song.getGenre());
         userSongListenService.recordListen(currentUser.getId(), song.getId());
@@ -181,5 +186,4 @@ public class StreamingController {
         return userService.getByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
     }
-
 }

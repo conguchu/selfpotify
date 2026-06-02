@@ -8,8 +8,7 @@ import { AddToPlaylistButton } from "@/components/music/AddToPlaylistButton";
 import { IconButton } from "@/components/ui/IconButton";
 import { Slider } from "@/components/ui/Slider";
 import { usePlayerStore } from "@/lib/player/store";
-import { useAuthStore } from "@/lib/auth/store";
-import { buildAudioUrl } from "@/lib/api/streaming";
+import { issueStreamToken, buildAudioUrl } from "@/lib/api/streaming";
 import { formatDuration, cn } from "@/lib/utils";
 
 export function PlayerBar() {
@@ -17,7 +16,6 @@ export function PlayerBar() {
   // Mientras hay un seek en curso ignoramos los timeupdate, que aún reportan
   // la posición antigua y harían saltar la barra hacia atrás.
   const seekingRef = useRef(false);
-  const token = useAuthStore((s) => s.token);
   const current = usePlayerStore((s) => s.current);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const loop = usePlayerStore((s) => s.loop);
@@ -48,15 +46,18 @@ export function PlayerBar() {
       audio.load();
       return;
     }
-    audio.src = buildAudioUrl(current.id, token);
-    audio.load();
-    if (isPlaying) {
-      audio.play().catch(() => {
-        /* navegador puede bloquear autoplay */
-      });
-    }
+    let cancelled = false;
+    issueStreamToken().then((st) => {
+      if (cancelled || !audioRef.current) return;
+      audio.src = buildAudioUrl(current.id, st);
+      audio.load();
+      if (isPlaying) {
+        audio.play().catch(() => {});
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, token]);
+  }, [current?.id]);
 
   // Play / pause sincronizado
   useEffect(() => {
