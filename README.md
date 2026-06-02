@@ -793,7 +793,7 @@ Pulsar cualquier canción la reproduce usando la lista de su propio carrusel com
 
 Tanto desde Búsqueda como desde Descubrir se puede **abrir el detalle** de un artista, álbum, playlist o usuario. Hay cuatro pantallas:
 
-- **Artista** — foto, nombre y sus **10 canciones más escuchadas** (`GET /api/artists/{id}` + `GET /api/artists/{id}/top-10-tracks`), reproducibles.
+- **Artista** — foto, nombre y sus **10 canciones más escuchadas** (`GET /api/artists/{id}` + `GET /api/artists/{id}/top-10-tracks`), al estilo de la vista web: **numeradas**, con su **número de escuchas** por canción y un botón **«+»** que abre una hoja para añadirla/quitarla de las playlists propias (`POST`/`DELETE /api/playlists/{id}/songs/{songId}`). Pulsar la fila reproduce.
 - **Álbum** — carátula, nombre y sus canciones (`GET /api/albums/{id}`), reproducibles.
 - **Playlist** — nombre/descripción y sus canciones (`GET /api/playlists/{id}`), reproducibles.
 - **Usuario** — avatar, nombre y sus **playlists públicas** (`GET /api/users/{id}/public` + `GET /api/playlists/user/{userId}`); pulsar una playlist abre su detalle.
