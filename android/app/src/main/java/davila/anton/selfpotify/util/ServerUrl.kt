@@ -24,4 +24,20 @@ object ServerUrl {
 
     /** Base URL para Retrofit (siempre termina en `/`). */
     fun baseUrl(raw: String): String = canonical(raw) + "/"
+
+    /**
+     * Resuelve una ruta de asset del servidor (p. ej. `branding.logoUrl = /assets/logo.png`)
+     * a una URL absoluta contra [rawServer]. Si la ruta ya es absoluta (http/https) se
+     * devuelve tal cual; si servidor o ruta están vacíos devuelve `null`.
+     */
+    fun asset(rawServer: String?, path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        if (path.startsWith("http://", ignoreCase = true) ||
+            path.startsWith("https://", ignoreCase = true)
+        ) {
+            return path
+        }
+        if (rawServer.isNullOrBlank()) return null
+        return canonical(rawServer) + "/" + path.trimStart('/')
+    }
 }

@@ -1,6 +1,5 @@
 package davila.anton.selfpotify.ui.auth
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,9 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -42,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import davila.anton.selfpotify.R
+import davila.anton.selfpotify.ui.common.ServerLogo
 import davila.anton.selfpotify.ui.theme.Spacing
 
 @Composable
@@ -76,12 +74,7 @@ fun AuthScreen(
                 .padding(top = Spacing.xxl, bottom = Spacing.l),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Image(
-                painter = painterResource(R.drawable.logo_selfpotify),
-                contentDescription = stringResource(R.string.cd_logo),
-                modifier = Modifier.size(Spacing.logo),
-                contentScale = ContentScale.Fit,
-            )
+            ServerLogo(modifier = Modifier.size(Spacing.logo))
             Spacer(Modifier.height(Spacing.l))
 
             Text(

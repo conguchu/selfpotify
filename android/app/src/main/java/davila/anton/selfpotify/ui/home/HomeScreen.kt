@@ -1,6 +1,5 @@
 package davila.anton.selfpotify.ui.home
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -20,14 +19,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import davila.anton.selfpotify.R
+import davila.anton.selfpotify.ui.common.ServerLogo
 import davila.anton.selfpotify.ui.theme.Spacing
 
 @Composable
@@ -64,12 +62,7 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Image(
-                painter = painterResource(R.drawable.logo_selfpotify),
-                contentDescription = stringResource(R.string.cd_logo),
-                modifier = Modifier.size(Spacing.logo),
-                contentScale = ContentScale.Fit,
-            )
+            ServerLogo(modifier = Modifier.size(Spacing.logo))
             Spacer(Modifier.height(Spacing.l))
 
             Text(

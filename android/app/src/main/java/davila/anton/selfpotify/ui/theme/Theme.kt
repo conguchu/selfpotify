@@ -19,12 +19,19 @@ import androidx.compose.ui.unit.dp
 /** Acceso a la paleta completa del servidor desde cualquier composable descendiente. */
 val LocalBrandingColors = staticCompositionLocalOf { BrandingColors.fallback() }
 
+/**
+ * URL absoluta del logo del servidor (o `null` si no hay → logo local de fallback).
+ * La consume el composable común `ServerLogo` para no propagar la URL pantalla a pantalla.
+ */
+val LocalServerLogoUrl = staticCompositionLocalOf<String?> { null }
+
 /** Conversión directa de un entero ARGB de [BrandingColors] a [Color] de Compose. */
 fun Int.toBrandingColor(): Color = Color(this)
 
 @Composable
 fun SelfpotifyTheme(
     colors: BrandingColors,
+    logoUrl: String?,
     content: @Composable () -> Unit,
 ) {
     val scheme = darkColorScheme(
@@ -42,7 +49,10 @@ fun SelfpotifyTheme(
         error = colors.error.toBrandingColor(),
         onError = colors.onAccent.toBrandingColor(),
     )
-    CompositionLocalProvider(LocalBrandingColors provides colors) {
+    CompositionLocalProvider(
+        LocalBrandingColors provides colors,
+        LocalServerLogoUrl provides logoUrl,
+    ) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }

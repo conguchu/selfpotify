@@ -61,13 +61,14 @@ android/app/src/main/java/davila/anton/selfpotify/
 - El estado del ViewModel se colecta en los composables con `collectAsStateWithLifecycle()`.
 - Los eventos de navegación (SharedFlow) se consumen con `LaunchedEffect(Unit) { flow.collect { ... } }`.
 
-### 3.1 Colores dinámicos (branding del servidor)
+### 3.1 Branding dinámico del servidor (colores y logo)
 
-- Al arrancar (antes del login), la app llama a `GET /api/config/public` — endpoint público, sin auth — y recibe `branding.colors`, un mapa de variables CSS con los tokens de la paleta.
+- Al arrancar (antes del login), la app llama a `GET /api/config/public` — endpoint público, sin auth — y recibe `branding.colors` (mapa de variables CSS con los tokens de la paleta) y `branding.logoUrl` (ruta del logo subido al servidor, p. ej. `/assets/logo.png`).
 - La paleta se proyecta sobre el `ColorScheme` de Material 3 en `SelfpotifyTheme` (fichero `ui/theme/Theme.kt`). **No hardcodees ningún color de marca en el cliente.**
 - Los tokens que Material 3 no cubre (texto secundario, hover del acento, etc.) están disponibles vía `LocalBrandingColors.current`.
-- Define en `res/values/colors.xml` únicamente los **valores de fallback** (por si el servidor no responde antes del primer render): fondo oscuro neutro `#121212`, acento neutro `#1DB954`, texto blanco `#FFFFFF`. Estos valores NO son el branding de la app — son un placeholder de carga.
-- El `ThemeViewModel` expone los tokens de color como `StateFlow<BrandingColors>` y se instancia a nivel de Activity. `SelfpotifyTheme` se aplica una sola vez en `MainActivity` y todas las pantallas heredan el tema.
+- El **logo del servidor** se carga con Coil (`AsyncImage`) desde el composable común `ui/common/ServerLogo.kt`, que lee la URL absoluta vía `LocalServerLogoUrl.current`. **No uses `R.drawable.logo_selfpotify` directamente en las pantallas**: usa `ServerLogo`. Ese drawable local es solo el fallback de carga (mientras llega la imagen, si falla la descarga o si el servidor no define logo).
+- Define en `res/values/colors.xml` únicamente los **valores de fallback** de color (por si el servidor no responde antes del primer render): fondo oscuro neutro `#121212`, acento neutro `#1DB954`, texto blanco `#FFFFFF`. Estos valores NO son el branding de la app — son un placeholder de carga.
+- El `ThemeViewModel` (instanciado a nivel de Activity) expone los colores como `StateFlow<BrandingColors>` y la URL absoluta del logo como `StateFlow<String?>`. `SelfpotifyTheme` se aplica una sola vez en `MainActivity` y provee ambos (`LocalBrandingColors`, `LocalServerLogoUrl`) a toda la jerarquía.
 
 ### 3.2 Estructura y navegación (inspirada en Spotify)
 

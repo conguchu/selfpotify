@@ -731,27 +731,31 @@ La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin s
 
 - **`data/model`** — DTOs Kotlin puros que reflejan la forma real de la API (`PublicConfig`, `JwtResponse`, …), tomada de `API-doc.md` y de los controllers.
 - **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
-- **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la paleta de marca del servidor (ver "Colores dinámicos del servidor").
+- **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la marca del servidor —paleta de colores y ruta del logo— (ver "Branding dinámico del servidor: colores y logo").
 - **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
 - **`ui/<feature>`** — una carpeta por pantalla (`server/`, `auth/`, `home/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI.
 
 El stack es **Jetpack Compose + Navigation Compose** (una sola `ComponentActivity` que aloja un `NavHost` con los destinos de la app), corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
 
-El look & feel sigue la estética **Spotify (oscuro)**, pero **la paleta de colores es dinámica**: se obtiene del servidor vía `GET /api/config/public` y los colores definidos en el cliente son solo valores de **fallback de carga** (fondo `#121212`, acento `#1DB954`, texto blanco), nunca el branding real de la instalación.
+El look & feel sigue la estética **Spotify (oscuro)**, pero **el branding es dinámico**: tanto la paleta de colores como el **logo** se obtienen del servidor vía `GET /api/config/public`. Lo que define el cliente son solo valores de **fallback de carga** —los colores neutros (fondo `#121212`, acento `#1DB954`, texto blanco) y el logo de Selfpotify empaquetado en `res/drawable`—, nunca el branding real de la instalación: en cuanto la app conoce un servidor adopta sus colores y muestra su logo en lugar del de Selfpotify.
 
-### Colores dinámicos del servidor
+### Branding dinámico del servidor: colores y logo
 
-Cada instalación define su propio branding, así que la app **adopta la paleta del servidor al que se conecta** en lugar de traer colores fijos. El ciclo es:
+Cada instalación define su propio branding, así que la app **adopta tanto la paleta como el logo del servidor al que se conecta** en lugar de traer recursos fijos. El logo local de Selfpotify (`res/drawable/logo_selfpotify.png`) queda relegado a **fallback de carga**, igual que los colores neutros. El ciclo es:
 
-1. **Origen.** El servidor expone su paleta en `branding.colors` de `GET /api/config/public`: un mapa de tokens CSS (`--color-bg`, `--color-bg-card`, `--color-bg-hover`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-hover`, `--color-danger`, …). El color de texto sobre el acento no lo envía el servidor: se calcula en el cliente (negro o blanco según la luminancia del acento, contraste WCAG).
+1. **Origen.** El servidor expone su branding en `GET /api/config/public`:
+   - **Colores:** `branding.colors`, un mapa de tokens CSS (`--color-bg`, `--color-bg-card`, `--color-bg-hover`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-hover`, `--color-danger`, …). El color de texto sobre el acento no lo envía el servidor: se calcula en el cliente (negro o blanco según la luminancia del acento, contraste WCAG).
+   - **Logo:** `branding.logoUrl`, una ruta relativa al asset subido por el administrador (p. ej. `/assets/logo.png`, servido por `/assets/**`). Puede ser `null` si la instalación no ha subido logo.
 
-2. **Captura.** La paleta se obtiene de la misma llamada que ya valida el servidor en la pantalla 1, de modo que la app adopta los colores **antes incluso de iniciar sesión**. Además, al hacer login se **refresca** (best-effort) volviendo a leer la config pública, por si el branding cambió desde entonces.
+2. **Captura.** El branding se obtiene de la misma llamada que ya valida el servidor en la pantalla 1, de modo que la app adopta colores y logo **antes incluso de iniciar sesión**. Además, al hacer login se **refresca** (best-effort) volviendo a leer la config pública, por si el branding cambió desde entonces.
 
-3. **Almacenamiento.** Los tokens se persisten en **DataStore** (`SessionStore`), serializados a JSON. La paleta pertenece al servidor, no a la sesión: **sobrevive al cierre de sesión** y solo se borra al **cambiar de servidor** (junto con su URL y su JWT).
+3. **Almacenamiento.** Los tokens de color (serializados a JSON) y la ruta del logo se persisten en **DataStore** (`SessionStore`). El branding pertenece al servidor, no a la sesión: **sobrevive al cierre de sesión** y solo se borra al **cambiar de servidor** (junto con su URL y su JWT).
 
-4. **Exposición.** El `ThemeViewModel` (compartido a nivel de `Activity`) lee los tokens persistidos, los resuelve a un modelo `BrandingColors` (enteros ARGB, con cada token ausente cayendo a su fallback) y los expone como `StateFlow<BrandingColors>`. Mientras no haya paleta guardada emite el fallback de carga.
+4. **Exposición.** El `ThemeViewModel` (compartido a nivel de `Activity`) lee el branding persistido y expone dos `StateFlow`: la paleta resuelta a un modelo `BrandingColors` (enteros ARGB, con cada token ausente cayendo a su fallback) y la **URL absoluta del logo** (combinando la dirección del servidor activo con `branding.logoUrl`; `null` mientras no haya logo). Mientras no haya branding guardado emite el fallback de carga.
 
-5. **Aplicación.** Los tokens se proyectan sobre el `ColorScheme` de Material 3 dentro de `SelfpotifyTheme` (Jetpack Compose). Toda la jerarquía de composables hereda el branding vía `MaterialTheme.colorScheme`; los tokens extra (texto secundario, hover del acento…) están disponibles como `LocalBrandingColors.current`. La `MainActivity` también tiñe las barras del sistema con el color de fondo del servidor desde el primer frame, leyendo la paleta persistida.
+5. **Aplicación.**
+   - **Colores:** los tokens se proyectan sobre el `ColorScheme` de Material 3 dentro de `SelfpotifyTheme` (Jetpack Compose). Toda la jerarquía de composables hereda el branding vía `MaterialTheme.colorScheme`; los tokens extra (texto secundario, hover del acento…) están disponibles como `LocalBrandingColors.current`. La `MainActivity` también tiñe las barras del sistema con el color de fondo del servidor desde el primer frame, leyendo la paleta persistida.
+   - **Logo:** la URL absoluta se publica vía `LocalServerLogoUrl` y la consume el composable común `ServerLogo`, que carga la imagen del servidor con **Coil** (`AsyncImage`). Todas las pantallas del flujo (configuración de servidor, login, home y sin-conexión) usan `ServerLogo` en lugar del recurso local; mientras la imagen llega, si la descarga falla o si el servidor no define logo, `ServerLogo` cae al logo de Selfpotify empaquetado.
 
 ### Flujo de acceso: servidor, login y sesión
 
@@ -763,7 +767,7 @@ Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo pri
 
 3. **Home.** Por ahora muestra un saludo "Hola, &lt;usuario&gt;" y dos acciones: **Cerrar sesión** (borra el JWT pero conserva el servidor, devolviendo al paso 2) y **Cambiar de servidor** (borra servidor + JWT, devolviendo al paso 1).
 
-Si, estando ya logueado, el servidor deja de responder, la app no se queda en un home inerte: muestra una **pantalla de sin-conexión** ("No hay conexión al servidor actualmente"). La comprobación se dispara al entrar al home, reutilizando el endpoint público `GET /api/config/public` (no necesita JWT). Esa pantalla ofrece dos acciones: **Reintentar conexión** (vuelve a comprobar el servidor; si responde, regresa al home) y **Desconectarse del servidor** (borra servidor + JWT + paleta y vuelve al paso 1, para poder apuntar a otro servidor). No es un paso del flujo lineal de acceso, sino un estado al que se llega desde el home cuando la conexión cae.
+Si, estando ya logueado, el servidor deja de responder, la app no se queda en un home inerte: muestra una **pantalla de sin-conexión** ("No hay conexión al servidor actualmente"). La comprobación se dispara al entrar al home, reutilizando el endpoint público `GET /api/config/public` (no necesita JWT). Esa pantalla ofrece dos acciones: **Reintentar conexión** (vuelve a comprobar el servidor; si responde, regresa al home) y **Desconectarse del servidor** (borra servidor + JWT + branding —paleta y logo— y vuelve al paso 1, para poder apuntar a otro servidor). No es un paso del flujo lineal de acceso, sino un estado al que se llega desde el home cuando la conexión cae.
 
 Al arrancar, la app decide la pantalla inicial según el estado persistido: sin servidor → configuración de servidor; con servidor pero sin JWT válido → login; con servidor y JWT válido → home.
 

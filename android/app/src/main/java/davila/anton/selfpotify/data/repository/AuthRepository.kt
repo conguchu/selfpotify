@@ -35,9 +35,10 @@ class AuthRepository(private val session: SessionStore) {
         session.saveServer(ServerUrl.canonical(rawUrl))
     }
 
-    /** Guarda la paleta de marca del servidor (tokens de `branding.colors`). */
-    suspend fun saveBranding(colors: Map<String, String>?) {
+    /** Guarda la marca del servidor: paleta (`branding.colors`) y logo (`branding.logoUrl`). */
+    suspend fun saveBranding(colors: Map<String, String>?, logoUrl: String?) {
         session.saveBrandingColors(colors)
+        session.saveBrandingLogoUrl(logoUrl)
     }
 
     /** Inicia sesión contra el servidor guardado y persiste el JWT asociado a él. */
@@ -66,13 +67,17 @@ class AuthRepository(private val session: SessionStore) {
         }
 
     /**
-     * Refresca la paleta de marca desde la config pública del servidor al iniciar sesión,
-     * por si cambió desde la validación inicial. Best-effort: un fallo no aborta el login.
+     * Refresca la marca (paleta + logo) desde la config pública del servidor al iniciar
+     * sesión, por si cambió desde la validación inicial. Best-effort: un fallo no aborta el
+     * login (y se conserva la marca ya persistida).
      */
     private suspend fun refreshBranding(server: String) {
-        runCatching { ApiProvider.api(server).getPublicConfig().branding?.colors }
+        runCatching { ApiProvider.api(server).getPublicConfig().branding }
             .getOrNull()
-            ?.let { session.saveBrandingColors(it) }
+            ?.let {
+                session.saveBrandingColors(it.colors)
+                session.saveBrandingLogoUrl(it.logoUrl)
+            }
     }
 
     /**

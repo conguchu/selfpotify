@@ -31,6 +31,8 @@ class SessionStore(context: Context) {
         val USERNAME = stringPreferencesKey("username")
         // Tokens de color de marca del servidor (branding.colors) serializados a JSON.
         val BRANDING_COLORS = stringPreferencesKey("branding_colors")
+        // Ruta del logo de marca del servidor (branding.logoUrl), tal cual la sirve el servidor.
+        val BRANDING_LOGO_URL = stringPreferencesKey("branding_logo_url")
     }
 
     data class Session(
@@ -69,6 +71,16 @@ class SessionStore(context: Context) {
 
     suspend fun currentBrandingColors(): Map<String, String>? = brandingColors.first()
 
+    /**
+     * Ruta del logo de marca del servidor (`branding.logoUrl`, p. ej. `/assets/logo.png`).
+     * Igual que la paleta, pertenece al servidor: sobrevive al logout y solo se borra al
+     * cambiar de servidor ([clearAll]). Se guarda tal cual la sirve el servidor (sin resolver
+     * a URL absoluta); quien la consuma la combina con la URL del servidor activo.
+     */
+    val brandingLogoUrl: Flow<String?> = store.data.map { p -> p[Keys.BRANDING_LOGO_URL] }
+
+    suspend fun currentBrandingLogoUrl(): String? = brandingLogoUrl.first()
+
     suspend fun saveServer(canonicalUrl: String) {
         store.edit { it[Keys.SERVER_URL] = canonicalUrl }
     }
@@ -78,6 +90,14 @@ class SessionStore(context: Context) {
         store.edit {
             if (colors.isNullOrEmpty()) it.remove(Keys.BRANDING_COLORS)
             else it[Keys.BRANDING_COLORS] = gson.toJson(colors)
+        }
+    }
+
+    /** Persiste (o borra, si es null/vacío) la ruta del logo del servidor. */
+    suspend fun saveBrandingLogoUrl(logoUrl: String?) {
+        store.edit {
+            if (logoUrl.isNullOrBlank()) it.remove(Keys.BRANDING_LOGO_URL)
+            else it[Keys.BRANDING_LOGO_URL] = logoUrl
         }
     }
 

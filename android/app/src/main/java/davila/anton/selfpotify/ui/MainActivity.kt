@@ -42,7 +42,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeViewModel: ThemeViewModel = viewModel()
             val colors by themeViewModel.colors.collectAsStateWithLifecycle()
-            SelfpotifyTheme(colors) {
+            val logoUrl by themeViewModel.logoUrl.collectAsStateWithLifecycle()
+            SelfpotifyTheme(colors, logoUrl) {
                 SelfpotifyApp(startDestination = startDestination)
             }
         }
