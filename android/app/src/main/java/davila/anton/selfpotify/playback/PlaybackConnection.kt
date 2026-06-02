@@ -3,6 +3,7 @@ package davila.anton.selfpotify.playback
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -28,6 +29,7 @@ data class PlayerState(
     val songId: Long? = null,
     val title: String = "",
     val artist: String = "",
+    val artistId: Long? = null,
     val artworkUrl: String? = null,
     val positionMs: Long = 0,
     val durationMs: Long = 0,
@@ -104,6 +106,9 @@ object PlaybackConnection {
     /** Construye el [MediaItem] de una canción con la URL de streaming firmada (`?st=`). */
     private fun mediaItem(song: SongDTO, server: String, token: String): MediaItem {
         val url = "${ServerUrl.canonical(server)}/api/listen/${song.id}?st=$token"
+        // El id del artista principal viaja en los extras para poder abrir su detalle desde el
+        // reproductor (la metadata estándar de Media3 solo guarda el nombre, no el id).
+        val extras = song.artistIds?.firstOrNull()?.let { Bundle().apply { putLong(KEY_ARTIST_ID, it) } }
         return MediaItem.Builder()
             .setMediaId(song.id.toString())
             .setUri(url)
@@ -112,6 +117,7 @@ object PlaybackConnection {
                     .setTitle(song.title.orEmpty())
                     .setArtist(song.artistsLabel)
                     .setArtworkUri(ServerUrl.asset(server, song.pictureUrl)?.let(Uri::parse))
+                    .setExtras(extras)
                     .build(),
             )
             .build()
@@ -138,6 +144,9 @@ object PlaybackConnection {
             else Player.REPEAT_MODE_ONE
     }
 
+    /** Clave del id del artista principal en los extras del [MediaMetadata]. */
+    private const val KEY_ARTIST_ID = "selfpotify.artistId"
+
     private object PlayerListener : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncState()
     }
@@ -152,6 +161,7 @@ object PlaybackConnection {
             songId = ctrl.currentMediaItem?.mediaId?.toLongOrNull(),
             title = meta.title?.toString().orEmpty(),
             artist = meta.artist?.toString().orEmpty(),
+            artistId = meta.extras?.takeIf { it.containsKey(KEY_ARTIST_ID) }?.getLong(KEY_ARTIST_ID),
             artworkUrl = meta.artworkUri?.toString(),
             durationMs = ctrl.duration.coerceAtLeast(0),
             positionMs = ctrl.currentPosition.coerceAtLeast(0),

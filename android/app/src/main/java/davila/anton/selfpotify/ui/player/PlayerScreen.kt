@@ -1,5 +1,6 @@
 package davila.anton.selfpotify.ui.player
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import davila.anton.selfpotify.ui.theme.Spacing
 @Composable
 fun PlayerScreen(
     onCollapse: () -> Unit,
+    onOpenArtist: (Long) -> Unit,
     vm: PlayerViewModel = viewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -100,6 +102,9 @@ fun PlayerScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
+            // Si conocemos el id del artista principal, su nombre es pulsable y abre su detalle
+            // (igual que en la web). Si no, queda como texto plano.
+            val artistId = state.artistId
             Text(
                 text = state.artist,
                 fontSize = 15.sp,
@@ -107,7 +112,13 @@ fun PlayerScreen(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xs)
+                    .then(
+                        if (artistId != null) Modifier.clickable { onOpenArtist(artistId) }
+                        else Modifier,
+                    ),
             )
 
             Spacer(Modifier.height(Spacing.l))

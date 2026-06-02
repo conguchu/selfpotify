@@ -42,6 +42,8 @@ fun MainScreen(
     onNavigateToServer: () -> Unit,
     onNavigateToOffline: () -> Unit,
     onOpenPlayer: () -> Unit,
+    pendingArtistId: Long? = null,
+    onPendingArtistConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
     playerViewModel: PlayerViewModel = viewModel(),
 ) {
@@ -93,6 +95,15 @@ fun MainScreen(
         val openPlaylist: (Long) -> Unit = { tabNavController.navigate(DetailRoute.playlist(it)) }
         val openUser: (Long) -> Unit = { tabNavController.navigate(DetailRoute.user(it)) }
         val onBack: () -> Unit = { tabNavController.popBackStack() }
+
+        // Abre el artista solicitado desde el reproductor una vez este ha colapsado a este
+        // contenedor (la navegación a detalle vive en el grafo de pestañas, no en el externo).
+        LaunchedEffect(pendingArtistId) {
+            pendingArtistId?.let {
+                openArtist(it)
+                onPendingArtistConsumed()
+            }
+        }
 
         NavHost(
             navController = tabNavController,
