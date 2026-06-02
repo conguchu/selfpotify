@@ -357,7 +357,11 @@ el borrado individual (`SongService.delete`) como en el reset
 
 ```mermaid
 flowchart TD
-    Listen([Usuario escucha<br/>GET /api/listen/id]) --> Record[UserSongListenService<br/>.recordListen]
+    IssueToken([Cliente pide stream token<br/>POST /api/listen/token<br/>Authorization: Bearer JWT]) --> Token[StreamTokenService<br/>.issue — UUID ligado al usuario]
+    Token --> Stream([GET /api/listen/id?st=UUID])
+    Stream --> Validate{¿token válido?}
+    Validate -- no --> Reject([401 Unauthorized])
+    Validate -- sí --> Record[UserSongListenService<br/>.recordListen]
     Record --> Resolve[Resolver usuario<br/>y canción por id]
     Resolve --> Save[Guardar fila en<br/>user_song_listen]
     Save --> Count{¿más de 1000<br/>escuchas del usuario?}
