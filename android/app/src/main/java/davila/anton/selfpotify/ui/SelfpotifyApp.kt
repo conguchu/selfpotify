@@ -1,12 +1,15 @@
 package davila.anton.selfpotify.ui
 
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import davila.anton.selfpotify.ui.auth.AuthScreen
-import davila.anton.selfpotify.ui.home.HomeScreen
+import davila.anton.selfpotify.ui.main.MainScreen
 import davila.anton.selfpotify.ui.offline.ConnectionLostScreen
+import davila.anton.selfpotify.ui.player.PlayerScreen
 import davila.anton.selfpotify.ui.server.ServerSetupScreen
 
 /**
@@ -45,7 +48,7 @@ fun SelfpotifyApp(startDestination: String) {
         }
 
         composable(Route.HOME) {
-            HomeScreen(
+            MainScreen(
                 onNavigateToAuth = {
                     navController.navigate(Route.AUTH) {
                         popUpTo(Route.HOME) { inclusive = true }
@@ -61,7 +64,18 @@ fun SelfpotifyApp(startDestination: String) {
                         popUpTo(Route.HOME) { inclusive = true }
                     }
                 },
+                onOpenPlayer = { navController.navigate(Route.PLAYER) },
             )
+        }
+
+        composable(
+            Route.PLAYER,
+            enterTransition = { slideInVertically { it } },
+            exitTransition = { slideOutVertically { it } },
+            popEnterTransition = { slideInVertically { it } },
+            popExitTransition = { slideOutVertically { it } },
+        ) {
+            PlayerScreen(onCollapse = { navController.popBackStack() })
         }
 
         composable(Route.OFFLINE) {
