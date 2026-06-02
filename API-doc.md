@@ -13,7 +13,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 ## 0. Convenciones
 
 - **Base URL local:** `http://localhost:8080`
-- **Auth:** se envía como `Authorization: Bearer <jwt>` salvo en el endpoint de streaming, donde también se acepta el JWT vía query param `?token=<jwt>` (necesario porque `<audio>` no permite headers personalizados — implementado en `AuthTokenFilter.java:60-65`).
+- **Auth:** se envía como `Authorization: Bearer <jwt>`. El endpoint de streaming (`GET /api/listen/{id}`) usa un **stream token** de corta vida (ver §6) en lugar del JWT, para no exponerlo en query params.
 - **Tipo de contenido:** `application/json` para request/response salvo el streaming, que devuelve `audio/*`.
 - **Roles:** `ROLE_USER` y `ROLE_ADMIN`. El discriminador JPA `users.type` (`USER` / `ADMIN`) determina el rol. Un `ADMIN` puede reasignarlo con `PUT /api/users/{id}/role` (ver §7).
 - **CORS:** abierto a cualquier origen (`*`); credenciales permitidas; cabeceras expuestas: `Content-Range`, `Accept-Ranges`, `Content-Length`.
@@ -280,18 +280,31 @@ Una playlist puede compartirse con otros usuarios mediante un **magic link de un
 
 ## 6. Streaming de audio (`/api/listen`)
 
-### `GET /api/listen/{songId}`
+El flujo de streaming usa **stream tokens** de corta vida para evitar exponer el JWT de sesión en la URL del elemento `<audio>`. El cliente primero pide un token al backend (enviando el JWT en header como siempre), y luego pasa ese token como query param `?st=` en la URL de audio. El stream token no es un JWT, no sirve para ningún otro endpoint, y expira en 4 horas.
 
-- **Acceso:** autenticado. El JWT puede llegar en `Authorization: Bearer <token>` **o** como query param `?token=<token>` (única forma compatible con el elemento HTML `<audio>`).
+### `POST /api/listen/token`
+
+- **Acceso:** `ROLE_USER` o `ROLE_ADMIN` (JWT en `Authorization: Bearer`).
+- **Request body:** ninguno.
+- **Respuesta `200 OK`:**
+  ```json
+  { "token": "550e8400-e29b-41d4-a716-446655440000" }
+  ```
+- **Comportamiento:** emite un stream token UUID ligado al usuario autenticado con TTL de 4 horas. El token es reutilizable dentro de su TTL (necesario para soportar múltiples peticiones HTTP Range del mismo `<audio>`).
+
+### `GET /api/listen/{songId}?st={streamToken}`
+
+- **Acceso:** requiere `?st=<streamToken>` válido emitido por `POST /api/listen/token`. No requiere cabecera `Authorization`.
 - **Cabeceras de petición:** opcional `Range: bytes=start-end` para streaming progresivo (HTTP Range, RFC 7233).
 - **Respuesta `200 OK`** (sin Range): el archivo completo, con cabeceras
   - `Content-Type: audio/mpeg | audio/wav | audio/ogg | audio/flac | audio/aac | application/octet-stream`
   - `Content-Length: <bytes>`
   - `Accept-Ranges: bytes`
-  - `Cache-Control: public, max-age=3600, immutable`
+  - `Cache-Control: no-store`
 - **Respuesta `206 Partial Content`** (con Range válido): chunk solicitado, cabecera `Content-Range: bytes start-end/total`.
+- **Respuesta `401 Unauthorized`** si el stream token es inválido o ha expirado.
 - **Respuesta `416 Requested Range Not Satisfiable`** si el Range es inválido.
-- **Respuesta `404 Not Found`** si la canción no existe o el archivo (`Song.songPath`) no es accesible (en cuyo caso además se marca `Song.available = false`).
+- **Respuesta `404 Not Found`** si la canción no existe o el archivo (`Song.songPath`) no es accesible.
 
 **Efectos secundarios:** solo la **petición inicial** de la reproducción (sin cabecera `Range`, o con `Range` desde el byte 0) registra una fila en la tabla de eventos `user_song_listen` (`UserSongListenService.recordListen`) y apila el género de la canción en el feed del usuario (`registerGenreListen`). Las peticiones de rango posteriores (los *seeks* dentro de la canción, con `start > 0`) **no** tienen efectos secundarios: no insertan filas ni alteran el feed. **No** se incrementa ningún contador numérico: la popularidad de canciones, álbumes, artistas y géneros se deriva por consulta a partir de esos eventos (ver §6.5 y la nota de `SongDTO` en §8). La tabla de eventos se acota a 1000 registros por usuario con descarte FIFO.
 

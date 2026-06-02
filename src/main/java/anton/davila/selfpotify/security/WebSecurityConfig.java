@@ -87,6 +87,7 @@ public class WebSecurityConfig {
                                 .requestMatchers(HttpMethod.POST, "/api/config/logo").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/users").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/listen/**").permitAll()
                                 .requestMatchers("/assets/**").permitAll()
                                 .requestMatchers("/h2-console/**").permitAll()
                                 .requestMatchers("/error").permitAll()
