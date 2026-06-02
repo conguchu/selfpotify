@@ -13,17 +13,33 @@ import java.util.concurrent.TimeUnit
  * La URL del servidor se decide en tiempo de ejecución (CLAUDE.md §5), por lo que el
  * cliente Retrofit se reconstruye cuando cambia el servidor. Se cachea el último para
  * no recrearlo en cada llamada al mismo servidor.
+ *
+ * El JWT se adjunta vía [AuthInterceptor], que lee el token actual con [tokenProvider]
+ * (registrado en [init] al arrancar la app). Así las peticiones autenticadas (feed, playlists,
+ * perfil, stream token…) llevan `Authorization` sin acoplar la red a la sesión.
  */
 object ApiProvider {
 
     @Volatile
     private var cache: Pair<String, SelfpotifyApi>? = null
 
+    @Volatile
+    private var tokenProvider: () -> String? = { null }
+
+    /**
+     * Registra el proveedor del JWT vigente. Se llama una vez al arrancar (MainActivity),
+     * pasándole un lector de la sesión persistida.
+     */
+    fun init(tokenProvider: () -> String?) {
+        this.tokenProvider = tokenProvider
+    }
+
     private val client: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
         OkHttpClient.Builder()
+            .addInterceptor(AuthInterceptor { tokenProvider() })
             .addInterceptor(logging)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
