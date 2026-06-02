@@ -1,44 +1,36 @@
 package davila.anton.selfpotify.ui.discover
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import davila.anton.selfpotify.R
-import davila.anton.selfpotify.data.model.SongDTO
-import davila.anton.selfpotify.ui.common.CoverImage
 import davila.anton.selfpotify.ui.theme.Spacing
-import davila.anton.selfpotify.util.ServerUrl
+import java.util.Locale
 
 /**
- * Pantalla "Descubrir": carrusel vertical de descubrimientos diarios con scroll infinito
- * (al acercarse al final se cargan canciones aleatorias). Pulsar una canción la reproduce.
+ * Pantalla "Descubrir": columna vertical de secciones, cada una un carrusel horizontal de
+ * carátulas (estilo web, sin efecto 3D). Arriba los descubrimientos diarios con scroll infinito,
+ * debajo los artistas recomendados y un carrusel por cada género reciente del usuario.
  */
 @Composable
 fun DiscoverScreen(
@@ -46,27 +38,14 @@ fun DiscoverScreen(
     vm: DiscoverViewModel = viewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
-
-    // Dispara loadMore cuando faltan pocas canciones por ver (patrón scroll infinito del README).
-    val nearEnd by remember {
-        derivedStateOf {
-            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val total = listState.layoutInfo.totalItemsCount
-            total > 0 && last >= total - 3
-        }
-    }
-    androidx.compose.runtime.LaunchedEffect(nearEnd) {
-        if (nearEnd) vm.loadMore()
-    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when {
-            state.loading && state.songs.isEmpty() -> CenterLoader()
-            state.error && state.songs.isEmpty() -> CenterMessage(stringResource(R.string.discover_error))
+            state.loading && state.daily.isEmpty() -> CenterLoader()
+            state.error && state.daily.isEmpty() -> CenterMessage(stringResource(R.string.discover_error))
             else -> LazyColumn(
-                state = listState,
                 contentPadding = contentPadding,
+                verticalArrangement = Arrangement.spacedBy(Spacing.l),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 item {
@@ -81,55 +60,39 @@ fun DiscoverScreen(
                         ),
                     )
                 }
-                items(state.songs, key = { it.id }) { song ->
-                    SongRow(
-                        song = song,
+
+                item {
+                    DailyCarousel(
+                        songs = state.daily,
                         serverUrl = state.serverUrl,
-                        onClick = { vm.play(state.songs.indexOf(song)) },
+                        loadingMore = state.loadingMore,
+                        onPlay = { index -> vm.play(state.daily, index) },
+                        onLoadMore = { vm.loadMore() },
                     )
                 }
-                if (state.loadingMore) {
+
+                if (state.artists.isNotEmpty()) {
                     item {
-                        Box(Modifier.fillMaxWidth().padding(Spacing.m), Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
+                        ArtistCarousel(
+                            title = stringResource(R.string.discover_artists),
+                            artists = state.artists,
+                            serverUrl = state.serverUrl,
+                        )
                     }
                 }
-            }
-        }
-    }
-}
 
-@Composable
-private fun SongRow(song: SongDTO, serverUrl: String?, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.page, vertical = Spacing.s),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.m),
-    ) {
-        CoverImage(
-            url = ServerUrl.asset(serverUrl, song.pictureUrl),
-            modifier = Modifier.size(56.dp),
-        )
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = song.title.orEmpty(),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = song.artistsLabel,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+                items(state.genres, key = { it.genre }) { section ->
+                    SongCarousel(
+                        icon = Icons.Rounded.Album,
+                        title = section.genre.replaceFirstChar {
+                            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                        },
+                        songs = section.songs,
+                        serverUrl = state.serverUrl,
+                        onPlay = { index -> vm.play(section.songs, index) },
+                    )
+                }
+            }
         }
     }
 }

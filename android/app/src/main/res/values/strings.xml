@@ -40,6 +40,8 @@
     <!-- Discover -->
     <string name="discover_title">Discover</string>
     <string name="discover_error">Couldn\'t load discoveries. Try again.</string>
+    <string name="discover_daily">Your daily discoveries</string>
+    <string name="discover_artists">Artists recommended for you</string>
 
     <!-- Placeholder tabs -->
     <string name="search_title">Search</string>

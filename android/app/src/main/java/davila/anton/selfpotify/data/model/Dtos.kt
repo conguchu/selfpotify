@@ -57,6 +57,12 @@ data class SongDTO(
     val artistsLabel: String get() = artistNames?.joinToString(", ").orEmpty()
 }
 
+/** Respuesta de `GET /api/songs/top?genre=`: top 10 canciones de un género. Forma de `Top10GenreSongsDTO`. */
+data class Top10GenreSongsDTO(
+    val genre: String? = null,
+    val top: List<SongDTO>? = null,
+)
+
 /** Artista. Forma de `ArtistDTO` (API-doc §8). */
 data class ArtistDTO(
     val id: Long,

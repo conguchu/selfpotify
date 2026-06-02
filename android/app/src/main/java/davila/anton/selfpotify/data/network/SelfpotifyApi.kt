@@ -5,7 +5,9 @@ import davila.anton.selfpotify.data.model.LoginRequest
 import davila.anton.selfpotify.data.model.PlaylistDTO
 import davila.anton.selfpotify.data.model.PublicConfig
 import davila.anton.selfpotify.data.model.SongDTO
+import davila.anton.selfpotify.data.model.ArtistDTO
 import davila.anton.selfpotify.data.model.StreamTokenResponse
+import davila.anton.selfpotify.data.model.Top10GenreSongsDTO
 import davila.anton.selfpotify.data.model.UserSummaryDTO
 import okhttp3.ResponseBody
 import retrofit2.http.Body
@@ -38,6 +40,18 @@ interface SelfpotifyApi {
     /** Canciones aleatorias del catálogo (scroll infinito de Descubrir). */
     @GET("api/songs/random")
     suspend fun randomSongs(@Query("count") count: Int = 10): List<SongDTO>
+
+    /** Artistas recomendados del home, personalizados por usuario (carrusel de Descubrir). */
+    @GET("api/feed")
+    suspend fun homeFeed(): List<ArtistDTO>
+
+    /** Géneros escuchados más recientemente (máx. 10, del más reciente al más antiguo). */
+    @GET("api/feed/genres")
+    suspend fun recentGenres(): List<String>
+
+    /** Top 10 canciones de un género por escuchas. El backend usa @RequestParam `genre`. */
+    @GET("api/songs/top")
+    suspend fun genreTopSongs(@Query("genre") genre: String): Top10GenreSongsDTO
 
     /** Emite un stream token de corta vida para construir las URLs de `/api/listen/{id}`. */
     @POST("api/listen/token")

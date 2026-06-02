@@ -38,6 +38,8 @@
     <!-- Descubrir -->
     <string name="discover_title">Descubrir</string>
     <string name="discover_error">No se pudieron cargar los descubrimientos. Inténtalo de nuevo.</string>
+    <string name="discover_daily">Tus descubrimientos diarios</string>
+    <string name="discover_artists">Artistas recomendados para ti</string>
 
     <!-- Pestañas placeholder -->
     <string name="search_title">Búsqueda</string>
