@@ -48,9 +48,36 @@ class DiscoverViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val dailyIds = mutableSetOf<Long>()
 
+    /**
+     * Reproducir desde el carrusel diario hace que su cola se **autoextienda**: al llegar a la
+     * última canción se piden más aleatorias y se añaden al final, para que la reproducción no se
+     * detenga. Estos campos rastrean la cola del player (independiente del carrusel visible):
+     * [dailyQueueActive] indica si la cola en curso es la diaria, [queueIds] sus ids (para no
+     * repetir) y [lastExtendedId] la última canción para la que ya se pidió extensión (evita
+     * pedir lo mismo en cada tick de posición del player).
+     */
+    private var dailyQueueActive = false
+    private val queueIds = mutableSetOf<Long>()
+    private var lastExtendedId: Long? = null
+    private var extending = false
+
     init {
         viewModelScope.launch {
             _state.update { it.copy(serverUrl = session.current().serverUrl) }
+        }
+        viewModelScope.launch {
+            PlaybackConnection.state.collect { player ->
+                // En la última canción de la cola diaria, el player ya no tiene "siguiente":
+                // pedimos más y las añadimos. Una sola vez por canción (lastExtendedId). El
+                // `songId in queueIds` evita extender una cola ajena si otra pantalla toma el player.
+                if (dailyQueueActive && player.hasItem && !player.hasNext &&
+                    player.songId != null && player.songId in queueIds &&
+                    player.songId != lastExtendedId
+                ) {
+                    lastExtendedId = player.songId
+                    extendQueue()
+                }
+            }
         }
         load()
     }
@@ -126,15 +153,51 @@ class DiscoverViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Reproduce desde [index] usando [queue] (la lista del carrusel pulsado) como cola. */
-    fun play(queue: List<SongDTO>, index: Int) {
+    /**
+     * Reproduce desde [index] usando [queue] (la lista del carrusel pulsado) como cola. Si
+     * [extendable] es `true` (carrusel diario), la cola se autoextiende al llegar al final.
+     */
+    fun play(queue: List<SongDTO>, index: Int, extendable: Boolean = false) {
+        dailyQueueActive = extendable
+        lastExtendedId = null
+        queueIds.clear()
+        if (extendable) queueIds.addAll(queue.map { it.id })
         viewModelScope.launch {
             PlaybackConnection.playFrom(queue, index)
+        }
+    }
+
+    /**
+     * Pide más canciones aleatorias y las añade al final de la cola del player. Reintenta unas
+     * pocas veces si solo llegan ids ya en cola, para no quedarse sin extender por duplicados.
+     */
+    private fun extendQueue() {
+        if (extending) return
+        extending = true
+        viewModelScope.launch {
+            try {
+                repeat(EXTEND_RETRIES) {
+                    val more = repo.randomSongs(EXTEND_BATCH).getOrDefault(emptyList())
+                    val fresh = more.filter { queueIds.add(it.id) }
+                    if (fresh.isNotEmpty()) {
+                        PlaybackConnection.appendSongs(fresh)
+                        return@launch
+                    }
+                }
+            } finally {
+                extending = false
+            }
         }
     }
 
     private companion object {
         /** Máximo de canciones acumuladas en el carrusel diario, para acotar memoria e imágenes. */
         const val MAX_DAILY = 120
+
+        /** Canciones que se piden cada vez que se autoextiende la cola de reproducción. */
+        const val EXTEND_BATCH = 10
+
+        /** Intentos para conseguir canciones nuevas (no repetidas) al extender la cola. */
+        const val EXTEND_RETRIES = 3
     }
 }

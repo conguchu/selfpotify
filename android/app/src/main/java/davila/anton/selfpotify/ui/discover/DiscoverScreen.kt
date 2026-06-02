@@ -88,7 +88,7 @@ fun DiscoverScreen(
                                 songs = state.daily,
                                 serverUrl = state.serverUrl,
                                 loadingMore = state.loadingMore,
-                                onPlay = { index -> vm.play(state.daily, index) },
+                                onPlay = { index -> vm.play(state.daily, index, extendable = true) },
                                 onLoadMore = { vm.loadMore() },
                             )
                         }

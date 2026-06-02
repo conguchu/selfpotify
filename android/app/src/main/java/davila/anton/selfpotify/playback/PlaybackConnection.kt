@@ -81,24 +81,40 @@ object PlaybackConnection {
         val ctrl = controller ?: return
         if (songs.isEmpty()) return
         val token = streamTokens.streamToken().getOrNull() ?: return
-        val server = session.current().serverUrl
-        val items = songs.map { song ->
-            val url = "${ServerUrl.canonical(server!!)}/api/listen/${song.id}?st=$token"
-            MediaItem.Builder()
-                .setMediaId(song.id.toString())
-                .setUri(url)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(song.title.orEmpty())
-                        .setArtist(song.artistsLabel)
-                        .setArtworkUri(ServerUrl.asset(server, song.pictureUrl)?.let(Uri::parse))
-                        .build(),
-                )
-                .build()
-        }
+        val server = session.current().serverUrl ?: return
+        val items = songs.map { mediaItem(it, server, token) }
         ctrl.setMediaItems(items, startIndex.coerceIn(0, items.lastIndex), 0)
         ctrl.prepare()
         ctrl.play()
+    }
+
+    /**
+     * Añade [songs] al final de la cola actual sin interrumpir la reproducción. Lo usa el
+     * carrusel diario de Descubrir para que, al llegar a la última canción, sigan sonando las
+     * siguientes en lugar de detenerse al final (ver "Pantalla Descubrir" en el README).
+     */
+    suspend fun appendSongs(songs: List<SongDTO>) {
+        val ctrl = controller ?: return
+        if (songs.isEmpty()) return
+        val token = streamTokens.streamToken().getOrNull() ?: return
+        val server = session.current().serverUrl ?: return
+        ctrl.addMediaItems(songs.map { mediaItem(it, server, token) })
+    }
+
+    /** Construye el [MediaItem] de una canción con la URL de streaming firmada (`?st=`). */
+    private fun mediaItem(song: SongDTO, server: String, token: String): MediaItem {
+        val url = "${ServerUrl.canonical(server)}/api/listen/${song.id}?st=$token"
+        return MediaItem.Builder()
+            .setMediaId(song.id.toString())
+            .setUri(url)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(song.title.orEmpty())
+                    .setArtist(song.artistsLabel)
+                    .setArtworkUri(ServerUrl.asset(server, song.pictureUrl)?.let(Uri::parse))
+                    .build(),
+            )
+            .build()
     }
 
     fun togglePlay() {
