@@ -763,6 +763,8 @@ Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo pri
 
 3. **Home.** Por ahora muestra un saludo "Hola, &lt;usuario&gt;" y dos acciones: **Cerrar sesión** (borra el JWT pero conserva el servidor, devolviendo al paso 2) y **Cambiar de servidor** (borra servidor + JWT, devolviendo al paso 1).
 
+Si, estando ya logueado, el servidor deja de responder, la app no se queda en un home inerte: muestra una **pantalla de sin-conexión** ("No hay conexión al servidor actualmente"). La comprobación se dispara al entrar al home, reutilizando el endpoint público `GET /api/config/public` (no necesita JWT). Esa pantalla ofrece dos acciones: **Reintentar conexión** (vuelve a comprobar el servidor; si responde, regresa al home) y **Desconectarse del servidor** (borra servidor + JWT + paleta y vuelve al paso 1, para poder apuntar a otro servidor). No es un paso del flujo lineal de acceso, sino un estado al que se llega desde el home cuando la conexión cae.
+
 Al arrancar, la app decide la pantalla inicial según el estado persistido: sin servidor → configuración de servidor; con servidor pero sin JWT válido → login; con servidor y JWT válido → home.
 
 ```mermaid
@@ -787,6 +789,9 @@ flowchart TD
     S3[Pantalla 3: Home -<br/>Hola, usuario] -->|Cerrar sesión| ClrJwt[Borrar JWT<br/>conservar servidor]
     ClrJwt --> S2
     S3 -->|Cambiar de servidor| Forget
+    S3 -->|servidor no responde| S4[Pantalla sin conexión]
+    S4 -->|Reintentar conexión| S3
+    S4 -->|Desconectarse del servidor| Forget
 ```
 
 ---
