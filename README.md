@@ -733,9 +733,9 @@ La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin s
 - **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
 - **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la paleta de marca del servidor (ver "Colores dinámicos del servidor").
 - **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
-- **`ui/<feature>`** — una carpeta por pantalla (`server/`, `auth/`, `home/`), cada una con su `Fragment` + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian vistas.
+- **`ui/<feature>`** — una carpeta por pantalla (`server/`, `auth/`, `home/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI.
 
-El stack es **View system + Navigation Component** (una sola `Activity` que aloja un `NavHost` con tres destinos) con **ViewBinding**, corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
+El stack es **Jetpack Compose + Navigation Compose** (una sola `ComponentActivity` que aloja un `NavHost` con los destinos de la app), corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
 
 El look & feel sigue la estética **Spotify (oscuro)**, pero **la paleta de colores es dinámica**: se obtiene del servidor vía `GET /api/config/public` y los colores definidos en el cliente son solo valores de **fallback de carga** (fondo `#121212`, acento `#1DB954`, texto blanco), nunca el branding real de la instalación.
 
@@ -751,7 +751,7 @@ Cada instalación define su propio branding, así que la app **adopta la paleta 
 
 4. **Exposición.** El `ThemeViewModel` (compartido a nivel de `Activity`) lee los tokens persistidos, los resuelve a un modelo `BrandingColors` (enteros ARGB, con cada token ausente cayendo a su fallback) y los expone como `StateFlow<BrandingColors>`. Mientras no haya paleta guardada emite el fallback de carga.
 
-5. **Aplicación.** En el *View system* no se pueden inyectar colores hex arbitrarios como atributos de tema, así que cada pantalla **observa el `StateFlow` y recolorea sus vistas programáticamente** (fondo, textos, campos, botones) mediante helpers `ColorStateList`. La `MainActivity` aplica además el fondo de la ventana y las barras del sistema desde el primer frame, leyendo la paleta persistida.
+5. **Aplicación.** Los tokens se proyectan sobre el `ColorScheme` de Material 3 dentro de `SelfpotifyTheme` (Jetpack Compose). Toda la jerarquía de composables hereda el branding vía `MaterialTheme.colorScheme`; los tokens extra (texto secundario, hover del acento…) están disponibles como `LocalBrandingColors.current`. La `MainActivity` también tiñe las barras del sistema con el color de fondo del servidor desde el primer frame, leyendo la paleta persistida.
 
 ### Flujo de acceso: servidor, login y sesión
 
