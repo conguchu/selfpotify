@@ -68,9 +68,11 @@ class DiscoverViewModel(app: Application) : AndroidViewModel(app) {
             val artists = artistsDeferred.await().getOrDefault(emptyList())
 
             daily.onSuccess { songs ->
+                // distinctBy para blindar el LazyRow ante IDs duplicados que pueda devolver la API.
+                val unique = songs.distinctBy { it.id }
                 dailyIds.clear()
-                dailyIds.addAll(songs.map { it.id })
-                _state.update { it.copy(daily = songs, artists = artists, loading = false) }
+                dailyIds.addAll(unique.map { it.id })
+                _state.update { it.copy(daily = unique, artists = artists, loading = false) }
             }.onFailure {
                 _state.update { it.copy(loading = false, error = true) }
             }
@@ -78,10 +80,11 @@ class DiscoverViewModel(app: Application) : AndroidViewModel(app) {
             // Un carrusel por género reciente; se descartan los que no devuelven canciones.
             if (daily.isSuccess) {
                 val sections = genreNamesDeferred.await().getOrDefault(emptyList())
+                    .distinct() // géneros duplicados → claves duplicadas en LazyColumn → crash
                     .mapNotNull { genre ->
                         repo.genreTopSongs(genre).getOrNull()
                             ?.takeIf { it.isNotEmpty() }
-                            ?.let { GenreSection(genre, it) }
+                            ?.let { GenreSection(genre, it.distinctBy { s -> s.id }) }
                     }
                 _state.update { it.copy(genres = sections) }
             }
