@@ -35,6 +35,7 @@ import java.util.Locale
 @Composable
 fun DiscoverScreen(
     contentPadding: PaddingValues,
+    onOpenArtist: (Long) -> Unit,
     vm: DiscoverViewModel = viewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -77,6 +78,7 @@ fun DiscoverScreen(
                             title = stringResource(R.string.discover_artists),
                             artists = state.artists,
                             serverUrl = state.serverUrl,
+                            onArtistClick = onOpenArtist,
                         )
                     }
                 }

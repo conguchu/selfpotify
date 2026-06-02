@@ -1,6 +1,7 @@
 package davila.anton.selfpotify.ui.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +16,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -75,6 +76,10 @@ private val USER_WIDTH = 120.dp
 @Composable
 fun SearchScreen(
     contentPadding: PaddingValues,
+    onOpenArtist: (Long) -> Unit,
+    onOpenAlbum: (Long) -> Unit,
+    onOpenPlaylist: (Long) -> Unit,
+    onOpenUser: (Long) -> Unit,
     vm: SearchViewModel = viewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -103,6 +108,10 @@ fun SearchScreen(
                     serverUrl = state.serverUrl,
                     bottomPadding = contentPadding.calculateBottomPadding(),
                     onPlaySong = { queue, index -> vm.play(queue, index) },
+                    onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
+                    onOpenPlaylist = onOpenPlaylist,
+                    onOpenUser = onOpenUser,
                 )
             }
         }
@@ -143,6 +152,10 @@ private fun Results(
     serverUrl: String?,
     bottomPadding: androidx.compose.ui.unit.Dp,
     onPlaySong: (List<davila.anton.selfpotify.data.model.SongDTO>, Int) -> Unit,
+    onOpenArtist: (Long) -> Unit,
+    onOpenAlbum: (Long) -> Unit,
+    onOpenPlaylist: (Long) -> Unit,
+    onOpenUser: (Long) -> Unit,
 ) {
     LazyColumn(
         contentPadding = PaddingValues(top = Spacing.s, bottom = bottomPadding),
@@ -166,17 +179,18 @@ private fun Results(
                     title = stringResource(R.string.search_section_artists),
                     artists = artists,
                     serverUrl = serverUrl,
+                    onArtistClick = onOpenArtist,
                 )
             }
         }
         response.albums?.content?.takeIf { it.isNotEmpty() }?.let { albums ->
-            item { AlbumCarousel(albums = albums, serverUrl = serverUrl) }
+            item { AlbumCarousel(albums = albums, serverUrl = serverUrl, onAlbumClick = onOpenAlbum) }
         }
         response.playlists?.content?.takeIf { it.isNotEmpty() }?.let { playlists ->
-            item { PlaylistCarousel(playlists = playlists) }
+            item { PlaylistCarousel(playlists = playlists, onPlaylistClick = onOpenPlaylist) }
         }
         response.users?.content?.takeIf { it.isNotEmpty() }?.let { users ->
-            item { UserCarousel(users = users, serverUrl = serverUrl) }
+            item { UserCarousel(users = users, serverUrl = serverUrl, onUserClick = onOpenUser) }
         }
         response.genres?.content?.takeIf { it.isNotEmpty() }?.let { genres ->
             item { GenreCarousel(genres = genres) }
@@ -184,9 +198,9 @@ private fun Results(
     }
 }
 
-/** Carrusel de álbumes (carátula + nombre). No interactivo: aún no hay pantalla de álbum. */
+/** Carrusel de álbumes (carátula + nombre). Pulsar abre el detalle del álbum. */
 @Composable
-private fun AlbumCarousel(albums: List<AlbumDTO>, serverUrl: String?) {
+private fun AlbumCarousel(albums: List<AlbumDTO>, serverUrl: String?, onAlbumClick: (Long) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         SectionHeader(Icons.Rounded.Album, stringResource(R.string.search_section_albums))
         LazyRow(
@@ -195,7 +209,9 @@ private fun AlbumCarousel(albums: List<AlbumDTO>, serverUrl: String?) {
         ) {
             items(albums, key = { it.id }) { album ->
                 Column(
-                    modifier = Modifier.width(CARD_WIDTH),
+                    modifier = Modifier
+                        .width(CARD_WIDTH)
+                        .clickable { onAlbumClick(album.id) },
                     verticalArrangement = Arrangement.spacedBy(Spacing.s),
                 ) {
                     CoverImage(
@@ -216,18 +232,20 @@ private fun AlbumCarousel(albums: List<AlbumDTO>, serverUrl: String?) {
     }
 }
 
-/** Carrusel de playlists (icono + nombre + nº de canciones). No interactivo de momento. */
+/** Carrusel de playlists (icono + nombre + nº de canciones). Pulsar abre el detalle de la playlist. */
 @Composable
-private fun PlaylistCarousel(playlists: List<PlaylistDTO>) {
+private fun PlaylistCarousel(playlists: List<PlaylistDTO>, onPlaylistClick: (Long) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-        SectionHeader(Icons.Rounded.QueueMusic, stringResource(R.string.search_section_playlists))
+        SectionHeader(Icons.AutoMirrored.Rounded.QueueMusic, stringResource(R.string.search_section_playlists))
         LazyRow(
             contentPadding = PaddingValues(horizontal = Spacing.page),
             horizontalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
             items(playlists, key = { it.id }) { playlist ->
                 Column(
-                    modifier = Modifier.width(CARD_WIDTH),
+                    modifier = Modifier
+                        .width(CARD_WIDTH)
+                        .clickable { onPlaylistClick(playlist.id) },
                     verticalArrangement = Arrangement.spacedBy(Spacing.s),
                 ) {
                     // PlaylistDTO de la app no expone carátula: se pinta el placeholder de CoverImage.
@@ -253,9 +271,9 @@ private fun PlaylistCarousel(playlists: List<PlaylistDTO>) {
     }
 }
 
-/** Carrusel de usuarios (avatar circular + nombre visible). No interactivo de momento. */
+/** Carrusel de usuarios (avatar circular + nombre visible). Pulsar abre el detalle del usuario. */
 @Composable
-private fun UserCarousel(users: List<UserSummaryDTO>, serverUrl: String?) {
+private fun UserCarousel(users: List<UserSummaryDTO>, serverUrl: String?, onUserClick: (Long) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         SectionHeader(Icons.Rounded.Group, stringResource(R.string.search_section_users))
         LazyRow(
@@ -264,7 +282,9 @@ private fun UserCarousel(users: List<UserSummaryDTO>, serverUrl: String?) {
         ) {
             items(users, key = { it.id }) { user ->
                 Column(
-                    modifier = Modifier.width(USER_WIDTH),
+                    modifier = Modifier
+                        .width(USER_WIDTH)
+                        .clickable { onUserClick(user.id) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(Spacing.s),
                 ) {

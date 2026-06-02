@@ -63,6 +63,11 @@ data class Top10GenreSongsDTO(
     val top: List<SongDTO>? = null,
 )
 
+/** Respuesta de `GET /api/artists/{id}/top-10-tracks`: top 10 canciones del artista. */
+data class Top10ArtistTracksDTO(
+    val tracks: List<SongDTO>? = null,
+)
+
 /** Artista. Forma de `ArtistDTO` (API-doc §8). */
 data class ArtistDTO(
     val id: Long,

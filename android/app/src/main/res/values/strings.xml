@@ -57,6 +57,13 @@
     <string name="search_section_users">Users</string>
     <string name="search_section_genres">Genres</string>
 
+    <!-- Detail screens (artist / album / playlist / user) -->
+    <string name="cd_back">Back</string>
+    <string name="detail_error">Couldn\'t load. Try again.</string>
+    <string name="detail_role_artist">Artist</string>
+    <string name="detail_no_tracks">No tracks yet.</string>
+    <string name="detail_no_playlists">No public playlists yet.</string>
+
     <!-- Placeholder tabs -->
     <string name="library_title">Library</string>
     <string name="coming_soon">Coming soon</string>

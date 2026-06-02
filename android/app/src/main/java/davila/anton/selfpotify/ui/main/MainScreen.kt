@@ -13,10 +13,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import davila.anton.selfpotify.ui.detail.AlbumDetailScreen
+import davila.anton.selfpotify.ui.detail.ArtistDetailScreen
+import davila.anton.selfpotify.ui.detail.PlaylistDetailScreen
+import davila.anton.selfpotify.ui.detail.UserDetailScreen
 import davila.anton.selfpotify.ui.discover.DiscoverScreen
 import davila.anton.selfpotify.ui.library.LibraryScreen
 import davila.anton.selfpotify.ui.player.MiniPlayer
@@ -80,18 +86,78 @@ fun MainScreen(
             }
         },
     ) { innerPadding ->
+        // Navegación a detalle dentro del propio grafo de pestañas: la barra inferior y el
+        // mini-player siguen visibles al abrir artista/álbum/playlist/usuario.
+        val openArtist: (Long) -> Unit = { tabNavController.navigate(DetailRoute.artist(it)) }
+        val openAlbum: (Long) -> Unit = { tabNavController.navigate(DetailRoute.album(it)) }
+        val openPlaylist: (Long) -> Unit = { tabNavController.navigate(DetailRoute.playlist(it)) }
+        val openUser: (Long) -> Unit = { tabNavController.navigate(DetailRoute.user(it)) }
+        val onBack: () -> Unit = { tabNavController.popBackStack() }
+
         NavHost(
             navController = tabNavController,
             startDestination = Tab.DISCOVER.route,
         ) {
-            composable(Tab.DISCOVER.route) { DiscoverScreen(contentPadding = innerPadding) }
-            composable(Tab.SEARCH.route) { SearchScreen(contentPadding = innerPadding) }
+            composable(Tab.DISCOVER.route) {
+                DiscoverScreen(contentPadding = innerPadding, onOpenArtist = openArtist)
+            }
+            composable(Tab.SEARCH.route) {
+                SearchScreen(
+                    contentPadding = innerPadding,
+                    onOpenArtist = openArtist,
+                    onOpenAlbum = openAlbum,
+                    onOpenPlaylist = openPlaylist,
+                    onOpenUser = openUser,
+                )
+            }
             composable(Tab.LIBRARY.route) { LibraryScreen(contentPadding = innerPadding) }
             composable(Tab.PROFILE.route) {
                 ProfileScreen(
                     contentPadding = innerPadding,
                     onNavigateToAuth = onNavigateToAuth,
                     onNavigateToServer = onNavigateToServer,
+                )
+            }
+
+            composable(
+                DetailRoute.ARTIST,
+                arguments = listOf(navArgument(DetailRoute.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                ArtistDetailScreen(
+                    id = entry.arguments?.getLong(DetailRoute.ARG_ID) ?: 0L,
+                    contentPadding = innerPadding,
+                    onBack = onBack,
+                )
+            }
+            composable(
+                DetailRoute.ALBUM,
+                arguments = listOf(navArgument(DetailRoute.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                AlbumDetailScreen(
+                    id = entry.arguments?.getLong(DetailRoute.ARG_ID) ?: 0L,
+                    contentPadding = innerPadding,
+                    onBack = onBack,
+                )
+            }
+            composable(
+                DetailRoute.PLAYLIST,
+                arguments = listOf(navArgument(DetailRoute.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                PlaylistDetailScreen(
+                    id = entry.arguments?.getLong(DetailRoute.ARG_ID) ?: 0L,
+                    contentPadding = innerPadding,
+                    onBack = onBack,
+                )
+            }
+            composable(
+                DetailRoute.USER,
+                arguments = listOf(navArgument(DetailRoute.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                UserDetailScreen(
+                    id = entry.arguments?.getLong(DetailRoute.ARG_ID) ?: 0L,
+                    contentPadding = innerPadding,
+                    onBack = onBack,
+                    onOpenPlaylist = openPlaylist,
                 )
             }
         }
