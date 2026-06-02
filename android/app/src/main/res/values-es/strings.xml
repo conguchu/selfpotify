@@ -29,10 +29,39 @@
     <string name="auth_error_empty_fields">Introduce usuario y contraseña.</string>
     <string name="auth_change_server">Cambiar de servidor</string>
 
-    <!-- Pantalla 3: home -->
-    <string name="home_greeting">Hola, %1$s</string>
-    <string name="home_logout">Cerrar sesión</string>
-    <string name="home_change_server">Cambiar de servidor</string>
+    <!-- Pestañas de navegación inferior -->
+    <string name="tab_discover">Descubrir</string>
+    <string name="tab_search">Búsqueda</string>
+    <string name="tab_library">Biblioteca</string>
+    <string name="tab_profile">Perfil</string>
+
+    <!-- Descubrir -->
+    <string name="discover_title">Descubrir</string>
+    <string name="discover_error">No se pudieron cargar los descubrimientos. Inténtalo de nuevo.</string>
+
+    <!-- Pestañas placeholder -->
+    <string name="search_title">Búsqueda</string>
+    <string name="library_title">Biblioteca</string>
+    <string name="coming_soon">Próximamente</string>
+
+    <!-- Perfil -->
+    <string name="profile_logout">Cerrar sesión</string>
+    <string name="profile_change_server">Cambiar de servidor</string>
+
+    <!-- Reproductor -->
+    <string name="player_play">Reproducir</string>
+    <string name="player_pause">Pausar</string>
+    <string name="player_next">Siguiente</string>
+    <string name="player_previous">Anterior</string>
+    <string name="player_loop">Repetir</string>
+    <string name="player_add_to_playlist">Añadir a playlist</string>
+    <string name="player_collapse">Cerrar reproductor</string>
+
+    <!-- Hoja de añadir a playlist -->
+    <string name="add_to_playlist_title">Añadir a playlist</string>
+    <string name="add_to_playlist_empty">Todavía no tienes playlists.</string>
+    <string name="add_to_playlist_error">No se pudieron cargar tus playlists.</string>
+    <string name="playlist_song_count">%1$d canciones</string>
 
     <!-- Sin conexión -->
     <string name="offline_message">No hay conexión al servidor actualmente</string>

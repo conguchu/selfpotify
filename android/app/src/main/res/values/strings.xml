@@ -31,10 +31,39 @@
     <string name="auth_error_empty_fields">Enter a username and password.</string>
     <string name="auth_change_server">Change server</string>
 
-    <!-- Screen 3: home -->
-    <string name="home_greeting">Hello, %1$s</string>
-    <string name="home_logout">Log out</string>
-    <string name="home_change_server">Change server</string>
+    <!-- Bottom navigation tabs -->
+    <string name="tab_discover">Discover</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_library">Library</string>
+    <string name="tab_profile">Profile</string>
+
+    <!-- Discover -->
+    <string name="discover_title">Discover</string>
+    <string name="discover_error">Couldn\'t load discoveries. Try again.</string>
+
+    <!-- Placeholder tabs -->
+    <string name="search_title">Search</string>
+    <string name="library_title">Library</string>
+    <string name="coming_soon">Coming soon</string>
+
+    <!-- Profile -->
+    <string name="profile_logout">Log out</string>
+    <string name="profile_change_server">Change server</string>
+
+    <!-- Player -->
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_next">Next</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_loop">Repeat</string>
+    <string name="player_add_to_playlist">Add to playlist</string>
+    <string name="player_collapse">Collapse player</string>
+
+    <!-- Add to playlist sheet -->
+    <string name="add_to_playlist_title">Add to playlist</string>
+    <string name="add_to_playlist_empty">You don\'t have any playlists yet.</string>
+    <string name="add_to_playlist_error">Couldn\'t load your playlists.</string>
+    <string name="playlist_song_count">%1$d songs</string>
 
     <!-- Connection lost -->
     <string name="offline_message">There is currently no connection to the server</string>
