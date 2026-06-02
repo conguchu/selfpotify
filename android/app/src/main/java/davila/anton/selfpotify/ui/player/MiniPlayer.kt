@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAddCheck
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
@@ -47,6 +48,7 @@ fun MiniPlayer(
     val state by vm.state.collectAsStateWithLifecycle()
     if (!state.hasItem) return
 
+    val inAnyPlaylist by vm.currentInAnyPlaylist.collectAsStateWithLifecycle()
     var showAddSheet by remember { mutableStateOf(false) }
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
@@ -78,9 +80,13 @@ fun MiniPlayer(
             }
             IconButton(onClick = { showAddSheet = true }) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
-                    contentDescription = stringResource(R.string.player_add_to_playlist),
-                    tint = MaterialTheme.colorScheme.onSurface,
+                    imageVector = if (inAnyPlaylist) Icons.AutoMirrored.Rounded.PlaylistAddCheck
+                    else Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    contentDescription = stringResource(
+                        if (inAnyPlaylist) R.string.player_in_playlist else R.string.player_add_to_playlist,
+                    ),
+                    tint = if (inAnyPlaylist) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
                 )
             }
             IconButton(onClick = { vm.togglePlay() }) {

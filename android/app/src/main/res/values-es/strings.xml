@@ -41,8 +41,29 @@
     <string name="discover_daily">Tus descubrimientos diarios</string>
     <string name="discover_artists">Artistas recomendados para ti</string>
 
-    <!-- Pestañas placeholder -->
+    <!-- Búsqueda -->
     <string name="search_title">Búsqueda</string>
+    <string name="search_hint">Canciones, artistas, álbumes…</string>
+    <string name="search_prompt">Busca canciones, artistas, álbumes, playlists, usuarios y géneros</string>
+    <string name="search_no_results">Sin resultados para \"%1$s\"</string>
+    <string name="search_error">No se pudo buscar. Inténtalo de nuevo.</string>
+    <string name="search_clear">Borrar</string>
+    <string name="search_section_songs">Canciones</string>
+    <string name="search_section_artists">Artistas</string>
+    <string name="search_section_albums">Álbumes</string>
+    <string name="search_section_playlists">Playlists</string>
+    <string name="search_section_users">Usuarios</string>
+    <string name="search_section_genres">Géneros</string>
+
+    <!-- Pantallas de detalle (artista / álbum / playlist / usuario) -->
+    <string name="cd_back">Atrás</string>
+    <string name="detail_error">No se pudo cargar. Inténtalo de nuevo.</string>
+    <string name="detail_role_artist">Artista</string>
+    <string name="detail_no_tracks">Aún no hay canciones.</string>
+    <string name="detail_no_playlists">Aún no hay playlists públicas.</string>
+    <string name="cd_play_count">Reproducciones</string>
+
+    <!-- Pestañas placeholder -->
     <string name="library_title">Biblioteca</string>
     <string name="coming_soon">Próximamente</string>
 
@@ -57,12 +78,15 @@
     <string name="player_previous">Anterior</string>
     <string name="player_loop">Repetir</string>
     <string name="player_add_to_playlist">Añadir a playlist</string>
+    <string name="player_in_playlist">En una playlist</string>
     <string name="player_collapse">Cerrar reproductor</string>
 
     <!-- Hoja de añadir a playlist -->
     <string name="add_to_playlist_title">Añadir a playlist</string>
     <string name="add_to_playlist_empty">Todavía no tienes playlists.</string>
     <string name="add_to_playlist_error">No se pudieron cargar tus playlists.</string>
+    <string name="add_to_playlist_add">Añadir a esta playlist</string>
+    <string name="add_to_playlist_remove">Quitar de esta playlist</string>
     <string name="playlist_song_count">%1$d canciones</string>
 
     <!-- Sin conexión -->

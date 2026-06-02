@@ -7,7 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Fuente de verdad de playlists. De momento la app solo lista las propias y añade canciones
+ * Fuente de verdad de playlists. De momento la app lista las propias y añade o quita canciones
  * desde el reproductor (bottom sheet "añadir a playlist").
  */
 class PlaylistRepository(private val session: SessionStore) {
@@ -21,6 +21,12 @@ class PlaylistRepository(private val session: SessionStore) {
     suspend fun addSongToPlaylist(playlistId: Long, songId: Long): Result<PlaylistDTO> =
         withContext(Dispatchers.IO) {
             runCatching { api().addSongToPlaylist(playlistId, songId) }
+        }
+
+    /** Quita [songId] de la playlist [playlistId]. Devuelve la playlist actualizada. */
+    suspend fun removeSongFromPlaylist(playlistId: Long, songId: Long): Result<PlaylistDTO> =
+        withContext(Dispatchers.IO) {
+            runCatching { api().removeSongFromPlaylist(playlistId, songId) }
         }
 
     private suspend fun api() =

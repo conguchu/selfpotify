@@ -4,13 +4,17 @@ import davila.anton.selfpotify.data.model.JwtResponse
 import davila.anton.selfpotify.data.model.LoginRequest
 import davila.anton.selfpotify.data.model.PlaylistDTO
 import davila.anton.selfpotify.data.model.PublicConfig
+import davila.anton.selfpotify.data.model.SearchResponseDTO
 import davila.anton.selfpotify.data.model.SongDTO
+import davila.anton.selfpotify.data.model.AlbumDTO
 import davila.anton.selfpotify.data.model.ArtistDTO
 import davila.anton.selfpotify.data.model.StreamTokenResponse
+import davila.anton.selfpotify.data.model.Top10ArtistTracksDTO
 import davila.anton.selfpotify.data.model.Top10GenreSongsDTO
 import davila.anton.selfpotify.data.model.UserSummaryDTO
 import okhttp3.ResponseBody
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -57,15 +61,65 @@ interface SelfpotifyApi {
     @POST("api/listen/token")
     suspend fun streamToken(): StreamTokenResponse
 
+    // --- Búsqueda ---
+
+    /**
+     * Búsqueda global. En modo `all` (default) devuelve hasta 5 elementos por categoría, pensado
+     * como vista previa multi-categoría. Si [q] está en blanco el backend devuelve la respuesta con
+     * todas las categorías a 0.
+     */
+    @GET("api/search")
+    suspend fun search(
+        @Query("q") q: String,
+        @Query("type") type: String = "all",
+    ): SearchResponseDTO
+
+    // --- Detalle (artista / álbum / playlist / usuario) ---
+
+    /** Una canción por id (para resolver las `songIds` de álbumes y playlists). */
+    @GET("api/songs/{id}")
+    suspend fun getSong(@Path("id") id: Long): SongDTO
+
+    /** Artista por id. */
+    @GET("api/artists/{id}")
+    suspend fun getArtist(@Path("id") id: Long): ArtistDTO
+
+    /** Top 10 canciones del artista por escuchas. */
+    @GET("api/artists/{id}/top-10-tracks")
+    suspend fun artistTopTracks(@Path("id") id: Long): Top10ArtistTracksDTO
+
+    /** Álbum por id (trae `songIds`). */
+    @GET("api/albums/{id}")
+    suspend fun getAlbum(@Path("id") id: Long): AlbumDTO
+
+    /** Vista pública de un usuario cualquiera por id. */
+    @GET("api/users/{id}/public")
+    suspend fun getUserPublic(@Path("id") id: Long): UserSummaryDTO
+
+    /** Playlists públicas de un usuario cualquiera. */
+    @GET("api/playlists/user/{userId}")
+    suspend fun userPlaylists(@Path("userId") userId: Long): List<PlaylistDTO>
+
     // --- Playlists ---
 
     /** Playlists del usuario autenticado (privadas y públicas). */
     @GET("api/playlists/my")
     suspend fun myPlaylists(): List<PlaylistDTO>
 
+    /** Una playlist por id (trae `songIds`); incluye públicas y propias. */
+    @GET("api/playlists/{id}")
+    suspend fun getPlaylist(@Path("id") id: Long): PlaylistDTO
+
     /** Añade una canción a una playlist (creador o colaborador). Idempotente. */
     @POST("api/playlists/{id}/songs/{songId}")
     suspend fun addSongToPlaylist(
+        @Path("id") playlistId: Long,
+        @Path("songId") songId: Long,
+    ): PlaylistDTO
+
+    /** Quita una canción de una playlist (creador o colaborador). Devuelve la playlist actualizada. */
+    @DELETE("api/playlists/{id}/songs/{songId}")
+    suspend fun removeSongFromPlaylist(
         @Path("id") playlistId: Long,
         @Path("songId") songId: Long,
     ): PlaylistDTO

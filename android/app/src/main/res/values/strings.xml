@@ -43,8 +43,29 @@
     <string name="discover_daily">Your daily discoveries</string>
     <string name="discover_artists">Artists recommended for you</string>
 
-    <!-- Placeholder tabs -->
+    <!-- Search -->
     <string name="search_title">Search</string>
+    <string name="search_hint">Songs, artists, albums…</string>
+    <string name="search_prompt">Search for songs, artists, albums, playlists, users and genres</string>
+    <string name="search_no_results">No results for \"%1$s\"</string>
+    <string name="search_error">Couldn\'t search. Try again.</string>
+    <string name="search_clear">Clear</string>
+    <string name="search_section_songs">Songs</string>
+    <string name="search_section_artists">Artists</string>
+    <string name="search_section_albums">Albums</string>
+    <string name="search_section_playlists">Playlists</string>
+    <string name="search_section_users">Users</string>
+    <string name="search_section_genres">Genres</string>
+
+    <!-- Detail screens (artist / album / playlist / user) -->
+    <string name="cd_back">Back</string>
+    <string name="detail_error">Couldn\'t load. Try again.</string>
+    <string name="detail_role_artist">Artist</string>
+    <string name="detail_no_tracks">No tracks yet.</string>
+    <string name="detail_no_playlists">No public playlists yet.</string>
+    <string name="cd_play_count">Plays</string>
+
+    <!-- Placeholder tabs -->
     <string name="library_title">Library</string>
     <string name="coming_soon">Coming soon</string>
 
@@ -59,12 +80,15 @@
     <string name="player_previous">Previous</string>
     <string name="player_loop">Repeat</string>
     <string name="player_add_to_playlist">Add to playlist</string>
+    <string name="player_in_playlist">In a playlist</string>
     <string name="player_collapse">Collapse player</string>
 
     <!-- Add to playlist sheet -->
     <string name="add_to_playlist_title">Add to playlist</string>
     <string name="add_to_playlist_empty">You don\'t have any playlists yet.</string>
     <string name="add_to_playlist_error">Couldn\'t load your playlists.</string>
+    <string name="add_to_playlist_add">Add to this playlist</string>
+    <string name="add_to_playlist_remove">Remove from this playlist</string>
     <string name="playlist_song_count">%1$d songs</string>
 
     <!-- Connection lost -->

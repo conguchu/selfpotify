@@ -140,13 +140,13 @@ fun SongCarousel(
     }
 }
 
-/** Carrusel de artistas recomendados (foto circular + nombre). Sin acción al pulsar (no hay
- *  pantalla de artista en la app todavía). */
+/** Carrusel de artistas (foto circular + nombre). Pulsar un artista abre su pantalla de detalle. */
 @Composable
 fun ArtistCarousel(
     title: String,
     artists: List<ArtistDTO>,
     serverUrl: String?,
+    onArtistClick: (Long) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         SectionHeader(Icons.Rounded.Group, title)
@@ -155,7 +155,7 @@ fun ArtistCarousel(
             horizontalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
             items(artists, key = { it.id }) { artist ->
-                ArtistCard(artist = artist, serverUrl = serverUrl)
+                ArtistCard(artist = artist, serverUrl = serverUrl, onClick = { onArtistClick(artist.id) })
             }
         }
     }
@@ -192,9 +192,11 @@ private fun SongCard(song: SongDTO, serverUrl: String?, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ArtistCard(artist: ArtistDTO, serverUrl: String?) {
+private fun ArtistCard(artist: ArtistDTO, serverUrl: String?, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.width(ARTIST_WIDTH),
+        modifier = Modifier
+            .width(ARTIST_WIDTH)
+            .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.s),
     ) {
