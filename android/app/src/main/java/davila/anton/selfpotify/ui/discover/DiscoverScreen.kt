@@ -10,9 +10,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -32,6 +34,7 @@ import java.util.Locale
  * carátulas (estilo web, sin efecto 3D). Arriba los descubrimientos diarios con scroll infinito,
  * debajo los artistas recomendados y un carrusel por cada género reciente del usuario.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     contentPadding: PaddingValues,
@@ -43,54 +46,60 @@ fun DiscoverScreen(
         when {
             state.loading && state.daily.isEmpty() -> CenterLoader()
             state.error && state.daily.isEmpty() -> CenterMessage(stringResource(R.string.discover_error))
-            else -> LazyColumn(
-                contentPadding = contentPadding,
-                verticalArrangement = Arrangement.spacedBy(Spacing.l),
+            else -> PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = { vm.refresh() },
                 modifier = Modifier.fillMaxSize(),
             ) {
-                item {
-                    Text(
-                        text = stringResource(R.string.discover_title),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(
-                            horizontal = Spacing.page,
-                            vertical = Spacing.m,
-                        ),
-                    )
-                }
-
-                item {
-                    DailyCarousel(
-                        songs = state.daily,
-                        serverUrl = state.serverUrl,
-                        loadingMore = state.loadingMore,
-                        onPlay = { index -> vm.play(state.daily, index) },
-                        onLoadMore = { vm.loadMore() },
-                    )
-                }
-
-                if (state.artists.isNotEmpty()) {
+                LazyColumn(
+                    contentPadding = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.l),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
                     item {
-                        ArtistCarousel(
-                            title = stringResource(R.string.discover_artists),
-                            artists = state.artists,
-                            serverUrl = state.serverUrl,
+                        Text(
+                            text = stringResource(R.string.discover_title),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(
+                                horizontal = Spacing.page,
+                                vertical = Spacing.m,
+                            ),
                         )
                     }
-                }
 
-                items(state.genres, key = { it.genre }) { section ->
-                    SongCarousel(
-                        icon = Icons.Rounded.Album,
-                        title = section.genre.replaceFirstChar {
-                            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
-                        },
-                        songs = section.songs,
-                        serverUrl = state.serverUrl,
-                        onPlay = { index -> vm.play(section.songs, index) },
-                    )
+                    item {
+                        DailyCarousel(
+                            songs = state.daily,
+                            serverUrl = state.serverUrl,
+                            loadingMore = state.loadingMore,
+                            onPlay = { index -> vm.play(state.daily, index) },
+                            onLoadMore = { vm.loadMore() },
+                        )
+                    }
+
+                    if (state.artists.isNotEmpty()) {
+                        item {
+                            ArtistCarousel(
+                                title = stringResource(R.string.discover_artists),
+                                artists = state.artists,
+                                serverUrl = state.serverUrl,
+                            )
+                        }
+                    }
+
+                    items(state.genres, key = { it.genre }) { section ->
+                        SongCarousel(
+                            icon = Icons.Rounded.Album,
+                            title = section.genre.replaceFirstChar {
+                                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                            },
+                            songs = section.songs,
+                            serverUrl = state.serverUrl,
+                            onPlay = { index -> vm.play(section.songs, index) },
+                        )
+                    }
                 }
             }
         }

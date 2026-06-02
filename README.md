@@ -779,6 +779,8 @@ Las secciones, de arriba a abajo, son:
 
 Pulsar cualquier canción la reproduce usando la lista de su propio carrusel como cola.
 
+**Pull-to-refresh.** La pantalla soporta el gesto de **tirar hacia abajo para refrescar** (`PullToRefreshBox` de Material 3): vuelve a pedir todas las secciones —descubrimientos diarios, artistas y carruseles por género— desde el servidor. A diferencia de la carga inicial (que muestra el *loader* a pantalla completa cuando aún no hay nada), el refresco **mantiene el contenido actual visible** mientras llega el nuevo, mostrando solo el indicador de refresco; si el refresco falla se conserva el contenido previo y solo se marca error cuando no había nada que mostrar. El refresco reinicia el carrusel diario (descarta lo acumulado por el scroll infinito y vuelve a empezar desde el primer lote).
+
 **Decisión de diseño: evitar el crash por scroll y acotar la caché del teléfono.** El scroll infinito pedía canciones aleatorias que podían repetir `id`s ya mostrados; como el carrusel usa el `id` como clave de `LazyRow`, esos duplicados provocaban un crash (`IllegalArgumentException` por clave repetida) al desplazarse lo suficiente. Ahora el `DiscoverViewModel` **deduplica por `id`** antes de añadir y **acota** el carrusel diario a un máximo de canciones acumuladas. Además, la app configura un `ImageLoader` de Coil global (`SelfpotifyApp`) con **cachés acotadas** —memoria ≤20 % del heap (LRU) y disco ≤50 MB— para que arrastrar carruseles largos de carátulas no agote la memoria ni el almacenamiento.
 
 ### Flujo de acceso: servidor, login y sesión

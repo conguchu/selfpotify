@@ -29,6 +29,7 @@ data class DiscoverUiState(
     val serverUrl: String? = null,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
+    val refreshing: Boolean = false,
     val error: Boolean = false,
 )
 
@@ -56,38 +57,56 @@ class DiscoverViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Carga inicial: descubrimientos diarios, artistas recomendados y carruseles por género. */
     fun load() {
-        if (_state.value.loading) return
+        if (_state.value.loading || _state.value.refreshing) return
         _state.update { it.copy(loading = true, error = false) }
-        viewModelScope.launch {
-            // Daily y artistas en paralelo; los géneros dependen de su lista, así que van después.
-            val dailyDeferred = async { repo.dailyDiscoveries() }
-            val artistsDeferred = async { repo.homeFeed() }
-            val genreNamesDeferred = async { repo.recentGenres() }
+        viewModelScope.launch { fetch() }
+    }
 
-            val daily = dailyDeferred.await()
-            val artists = artistsDeferred.await().getOrDefault(emptyList())
+    /**
+     * Pull-to-refresh: vuelve a pedir todas las secciones manteniendo el contenido actual visible
+     * mientras llega el nuevo (a diferencia de [load], que muestra el loader a pantalla completa).
+     */
+    fun refresh() {
+        if (_state.value.loading || _state.value.refreshing) return
+        _state.update { it.copy(refreshing = true, error = false) }
+        viewModelScope.launch { fetch() }
+    }
 
-            daily.onSuccess { songs ->
-                // distinctBy para blindar el LazyRow ante IDs duplicados que pueda devolver la API.
-                val unique = songs.distinctBy { it.id }
-                dailyIds.clear()
-                dailyIds.addAll(unique.map { it.id })
-                _state.update { it.copy(daily = unique, artists = artists, loading = false) }
-            }.onFailure {
-                _state.update { it.copy(loading = false, error = true) }
+    /** Lógica compartida por carga inicial y refresco: descubrimientos, artistas y géneros. */
+    private suspend fun fetch() {
+        // Daily y artistas en paralelo; los géneros dependen de su lista, así que van después.
+        val dailyDeferred = viewModelScope.async { repo.dailyDiscoveries() }
+        val artistsDeferred = viewModelScope.async { repo.homeFeed() }
+        val genreNamesDeferred = viewModelScope.async { repo.recentGenres() }
+
+        val daily = dailyDeferred.await()
+        val artists = artistsDeferred.await().getOrDefault(emptyList())
+
+        daily.onSuccess { songs ->
+            // distinctBy para blindar el LazyRow ante IDs duplicados que pueda devolver la API.
+            val unique = songs.distinctBy { it.id }
+            dailyIds.clear()
+            dailyIds.addAll(unique.map { it.id })
+            _state.update {
+                it.copy(daily = unique, artists = artists, loading = false, refreshing = false)
             }
-
-            // Un carrusel por género reciente; se descartan los que no devuelven canciones.
-            if (daily.isSuccess) {
-                val sections = genreNamesDeferred.await().getOrDefault(emptyList())
-                    .distinct() // géneros duplicados → claves duplicadas en LazyColumn → crash
-                    .mapNotNull { genre ->
-                        repo.genreTopSongs(genre).getOrNull()
-                            ?.takeIf { it.isNotEmpty() }
-                            ?.let { GenreSection(genre, it.distinctBy { s -> s.id }) }
-                    }
-                _state.update { it.copy(genres = sections) }
+        }.onFailure {
+            // En refresco se conserva el contenido previo; solo se marca error si no había nada.
+            _state.update {
+                it.copy(loading = false, refreshing = false, error = it.daily.isEmpty())
             }
+        }
+
+        // Un carrusel por género reciente; se descartan los que no devuelven canciones.
+        if (daily.isSuccess) {
+            val sections = genreNamesDeferred.await().getOrDefault(emptyList())
+                .distinct() // géneros duplicados → claves duplicadas en LazyColumn → crash
+                .mapNotNull { genre ->
+                    repo.genreTopSongs(genre).getOrNull()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { GenreSection(genre, it.distinctBy { s -> s.id }) }
+                }
+            _state.update { it.copy(genres = sections) }
         }
     }
 
