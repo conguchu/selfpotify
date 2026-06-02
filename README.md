@@ -774,7 +774,7 @@ La app logueada es un `Scaffold` con un `NavHost` anidado para las cuatro pesta�
 Las secciones, de arriba a abajo, son:
 
 1. **Descubrimientos diarios** (`GET /api/feed/daily-discoveries`) — carrusel con **scroll infinito**: al acercarse a las dos últimas tarjetas se piden 10 canciones aleatorias (`GET /api/songs/random?count=10`) y se añaden al final, con un spinner mientras llega el lote.
-2. **Artistas recomendados** (`GET /api/feed`) — carrusel de artistas con foto circular. Son tarjetas de solo lectura: la app todavía no tiene pantalla de artista.
+2. **Artistas recomendados** (`GET /api/feed`) — carrusel de artistas con foto circular. Pulsar un artista abre su **pantalla de detalle** (ver «Pantallas de detalle»).
 3. **Carruseles por género** — uno por cada género reciente del usuario (`GET /api/feed/genres`), cada uno con sus canciones top (`GET /api/songs/top?genre=`). Se omiten los géneros sin canciones.
 
 Pulsar cualquier canción la reproduce usando la lista de su propio carrusel como cola.
@@ -787,7 +787,20 @@ Pulsar cualquier canción la reproduce usando la lista de su propio carrusel com
 
 **Decisión de diseño: búsqueda en vivo con *debounce*.** No hay botón de buscar: cada pulsación actualiza el campo al instante, pero la llamada a la API se dispara solo cuando el usuario deja de teclear (~300 ms). El `SearchViewModel` alimenta un `MutableStateFlow` con el texto y lo consume con `debounce` + `distinctUntilChanged` + `collectLatest`, de modo que una consulta nueva **cancela** la anterior en vuelo y solo se pinta el resultado de la última. Se usa el modo `all` del endpoint, que devuelve hasta **5 elementos por categoría** —tamaño pensado justamente para esta vista previa— sin paginación.
 
-**Decisión de diseño: solo las canciones son interactivas, de momento.** Pulsar una canción la reproduce usando la lista de su carrusel como cola (igual que en Descubrir). El resto de categorías (artistas, álbumes, playlists, usuarios y géneros) se muestran como tarjetas de **solo lectura**, porque la app todavía no tiene pantallas de detalle de artista/álbum/playlist/usuario a las que navegar. Cada categoría se omite si no trae resultados, y la pantalla cubre los cuatro estados habituales: indicación inicial (campo vacío), *loader*, error y "sin resultados" para la consulta tecleada.
+**Navegación desde los resultados.** Pulsar una canción la reproduce usando la lista de su carrusel como cola (igual que en Descubrir). **Artistas, álbumes, playlists y usuarios** abren su **pantalla de detalle** (ver «Pantallas de detalle»). Los **géneros** son la única categoría sin navegación: se muestran como chips informativos porque no hay pantalla de género. Cada categoría se omite si no trae resultados, y la pantalla cubre los cuatro estados habituales: indicación inicial (campo vacío), *loader*, error y "sin resultados" para la consulta tecleada.
+
+### Pantallas de detalle
+
+Tanto desde Búsqueda como desde Descubrir se puede **abrir el detalle** de un artista, álbum, playlist o usuario. Hay cuatro pantallas:
+
+- **Artista** — foto, nombre y sus **10 canciones más escuchadas** (`GET /api/artists/{id}` + `GET /api/artists/{id}/top-10-tracks`), reproducibles.
+- **Álbum** — carátula, nombre y sus canciones (`GET /api/albums/{id}`), reproducibles.
+- **Playlist** — nombre/descripción y sus canciones (`GET /api/playlists/{id}`), reproducibles.
+- **Usuario** — avatar, nombre y sus **playlists públicas** (`GET /api/users/{id}/public` + `GET /api/playlists/user/{userId}`); pulsar una playlist abre su detalle.
+
+**Decisión de diseño: viven en el grafo de las pestañas, no en el externo.** Las pantallas de detalle son destinos del `NavHost` **anidado** de la app principal (el mismo que las pestañas), no del NavHost externo donde vive el reproductor. Así, al abrir un artista/álbum/playlist/usuario, la **barra de navegación inferior y el mini-player siguen visibles** y la flecha de retroceso vuelve a la pestaña de origen, igual que en Spotify.
+
+**Decisión de diseño: álbum y playlist resuelven sus `songIds` en paralelo.** `AlbumDTO` y `PlaylistDTO` solo traen la **lista de ids** de canciones, no los `SongDTO` completos. La pantalla los resuelve con llamadas concurrentes a `GET /api/songs/{id}`, conservando el orden de la lista y **descartando** las que fallen (una canción borrada no debe tumbar toda la pantalla). Es una elección consciente para no añadir un endpoint nuevo en el backend; los catálogos personales hacen que el coste sea asumible.
 
 ### Flujo de acceso: servidor, login y sesión
 
