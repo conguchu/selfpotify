@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,8 +35,9 @@ import davila.anton.selfpotify.data.model.PlaylistDTO
 import davila.anton.selfpotify.ui.theme.Spacing
 
 /**
- * Bottom sheet para añadir la canción en reproducción a una de las playlists del usuario
- * (`GET /api/playlists/my` → `POST /api/playlists/{id}/songs/{songId}`).
+ * Bottom sheet para añadir o quitar la canción en reproducción de las playlists del usuario
+ * (`GET /api/playlists/my` → `POST`/`DELETE /api/playlists/{id}/songs/{songId}`). Cada playlist
+ * muestra un check que refleja si la canción ya está en ella; pulsar la fila alterna el estado.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +46,8 @@ fun AddToPlaylistSheet(
     onDismiss: () -> Unit,
 ) {
     val addState by vm.addState.collectAsStateWithLifecycle()
+    val player by vm.state.collectAsStateWithLifecycle()
+    val songId = player.songId
 
     LaunchedEffect(Unit) { vm.loadPlaylists() }
 
@@ -69,10 +74,8 @@ fun AddToPlaylistSheet(
 
             else -> LazyColumn(modifier = Modifier.padding(bottom = Spacing.l)) {
                 items(addState.playlists, key = { it.id }) { playlist ->
-                    PlaylistRow(playlist) {
-                        vm.addCurrentToPlaylist(playlist.id)
-                        onDismiss()
-                    }
+                    val inPlaylist = songId != null && playlist.songIds?.contains(songId) == true
+                    PlaylistRow(playlist, inPlaylist) { vm.toggleCurrentInPlaylist(playlist) }
                 }
             }
         }
@@ -80,11 +83,11 @@ fun AddToPlaylistSheet(
 }
 
 @Composable
-private fun PlaylistRow(playlist: PlaylistDTO, onClick: () -> Unit) {
+private fun PlaylistRow(playlist: PlaylistDTO, inPlaylist: Boolean, onToggle: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onToggle)
             .padding(horizontal = Spacing.page, vertical = Spacing.s),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
@@ -109,6 +112,15 @@ private fun PlaylistRow(playlist: PlaylistDTO, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Icon(
+            imageVector = if (inPlaylist) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+            contentDescription = stringResource(
+                if (inPlaylist) R.string.add_to_playlist_remove else R.string.add_to_playlist_add,
+            ),
+            tint = if (inPlaylist) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
 

@@ -79,12 +79,15 @@
     <string name="player_previous">Previous</string>
     <string name="player_loop">Repeat</string>
     <string name="player_add_to_playlist">Add to playlist</string>
+    <string name="player_in_playlist">In a playlist</string>
     <string name="player_collapse">Collapse player</string>
 
     <!-- Add to playlist sheet -->
     <string name="add_to_playlist_title">Add to playlist</string>
     <string name="add_to_playlist_empty">You don\'t have any playlists yet.</string>
     <string name="add_to_playlist_error">Couldn\'t load your playlists.</string>
+    <string name="add_to_playlist_add">Add to this playlist</string>
+    <string name="add_to_playlist_remove">Remove from this playlist</string>
     <string name="playlist_song_count">%1$d songs</string>
 
     <!-- Connection lost -->

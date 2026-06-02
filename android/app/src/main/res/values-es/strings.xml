@@ -77,12 +77,15 @@
     <string name="player_previous">Anterior</string>
     <string name="player_loop">Repetir</string>
     <string name="player_add_to_playlist">Añadir a playlist</string>
+    <string name="player_in_playlist">En una playlist</string>
     <string name="player_collapse">Cerrar reproductor</string>
 
     <!-- Hoja de añadir a playlist -->
     <string name="add_to_playlist_title">Añadir a playlist</string>
     <string name="add_to_playlist_empty">Todavía no tienes playlists.</string>
     <string name="add_to_playlist_error">No se pudieron cargar tus playlists.</string>
+    <string name="add_to_playlist_add">Añadir a esta playlist</string>
+    <string name="add_to_playlist_remove">Quitar de esta playlist</string>
     <string name="playlist_song_count">%1$d canciones</string>
 
     <!-- Sin conexión -->

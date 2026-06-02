@@ -14,6 +14,7 @@ import davila.anton.selfpotify.data.model.Top10GenreSongsDTO
 import davila.anton.selfpotify.data.model.UserSummaryDTO
 import okhttp3.ResponseBody
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -112,6 +113,13 @@ interface SelfpotifyApi {
     /** Añade una canción a una playlist (creador o colaborador). Idempotente. */
     @POST("api/playlists/{id}/songs/{songId}")
     suspend fun addSongToPlaylist(
+        @Path("id") playlistId: Long,
+        @Path("songId") songId: Long,
+    ): PlaylistDTO
+
+    /** Quita una canción de una playlist (creador o colaborador). Devuelve la playlist actualizada. */
+    @DELETE("api/playlists/{id}/songs/{songId}")
+    suspend fun removeSongFromPlaylist(
         @Path("id") playlistId: Long,
         @Path("songId") songId: Long,
     ): PlaylistDTO
