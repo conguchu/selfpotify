@@ -43,8 +43,21 @@
     <string name="discover_daily">Your daily discoveries</string>
     <string name="discover_artists">Artists recommended for you</string>
 
-    <!-- Placeholder tabs -->
+    <!-- Search -->
     <string name="search_title">Search</string>
+    <string name="search_hint">Songs, artists, albums…</string>
+    <string name="search_prompt">Search for songs, artists, albums, playlists, users and genres</string>
+    <string name="search_no_results">No results for \"%1$s\"</string>
+    <string name="search_error">Couldn\'t search. Try again.</string>
+    <string name="search_clear">Clear</string>
+    <string name="search_section_songs">Songs</string>
+    <string name="search_section_artists">Artists</string>
+    <string name="search_section_albums">Albums</string>
+    <string name="search_section_playlists">Playlists</string>
+    <string name="search_section_users">Users</string>
+    <string name="search_section_genres">Genres</string>
+
+    <!-- Placeholder tabs -->
     <string name="library_title">Library</string>
     <string name="coming_soon">Coming soon</string>
 

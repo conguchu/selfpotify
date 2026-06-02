@@ -40,9 +40,6 @@ build/
 .env.local
 .env.*.local
 
-### Runtime data (BBDD H2 file, config.yml local, etc.) ###
-data/
-
 ### Librería musical local (opcional, ver MUSIC_LIBRARY_PATH en .env) ###
 /music/
 

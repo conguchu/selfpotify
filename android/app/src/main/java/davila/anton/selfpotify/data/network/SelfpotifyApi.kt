@@ -4,6 +4,7 @@ import davila.anton.selfpotify.data.model.JwtResponse
 import davila.anton.selfpotify.data.model.LoginRequest
 import davila.anton.selfpotify.data.model.PlaylistDTO
 import davila.anton.selfpotify.data.model.PublicConfig
+import davila.anton.selfpotify.data.model.SearchResponseDTO
 import davila.anton.selfpotify.data.model.SongDTO
 import davila.anton.selfpotify.data.model.ArtistDTO
 import davila.anton.selfpotify.data.model.StreamTokenResponse
@@ -56,6 +57,19 @@ interface SelfpotifyApi {
     /** Emite un stream token de corta vida para construir las URLs de `/api/listen/{id}`. */
     @POST("api/listen/token")
     suspend fun streamToken(): StreamTokenResponse
+
+    // --- Búsqueda ---
+
+    /**
+     * Búsqueda global. En modo `all` (default) devuelve hasta 5 elementos por categoría, pensado
+     * como vista previa multi-categoría. Si [q] está en blanco el backend devuelve la respuesta con
+     * todas las categorías a 0.
+     */
+    @GET("api/search")
+    suspend fun search(
+        @Query("q") q: String,
+        @Query("type") type: String = "all",
+    ): SearchResponseDTO
 
     // --- Playlists ---
 

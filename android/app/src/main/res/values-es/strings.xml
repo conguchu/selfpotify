@@ -41,8 +41,21 @@
     <string name="discover_daily">Tus descubrimientos diarios</string>
     <string name="discover_artists">Artistas recomendados para ti</string>
 
-    <!-- Pestañas placeholder -->
+    <!-- Búsqueda -->
     <string name="search_title">Búsqueda</string>
+    <string name="search_hint">Canciones, artistas, álbumes…</string>
+    <string name="search_prompt">Busca canciones, artistas, álbumes, playlists, usuarios y géneros</string>
+    <string name="search_no_results">Sin resultados para \"%1$s\"</string>
+    <string name="search_error">No se pudo buscar. Inténtalo de nuevo.</string>
+    <string name="search_clear">Borrar</string>
+    <string name="search_section_songs">Canciones</string>
+    <string name="search_section_artists">Artistas</string>
+    <string name="search_section_albums">Álbumes</string>
+    <string name="search_section_playlists">Playlists</string>
+    <string name="search_section_users">Usuarios</string>
+    <string name="search_section_genres">Géneros</string>
+
+    <!-- Pestañas placeholder -->
     <string name="library_title">Biblioteca</string>
     <string name="coming_soon">Próximamente</string>
 

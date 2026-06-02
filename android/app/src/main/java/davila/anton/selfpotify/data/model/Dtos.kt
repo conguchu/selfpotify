@@ -73,6 +73,16 @@ data class ArtistDTO(
     val songIds: List<Long>? = null,
 )
 
+/** Álbum. Forma de `AlbumDTO` (API-doc §8). `releaseDate` y `artistId` siempre llegan `null`. */
+data class AlbumDTO(
+    val id: Long,
+    val name: String? = null,
+    val releaseDate: String? = null,
+    val pictureUrl: String? = null,
+    val artistId: Long? = null,
+    val songIds: List<Long>? = null,
+)
+
 /** Playlist. Forma de `PlaylistDTO` (API-doc §8). */
 data class PlaylistDTO(
     val id: Long,
@@ -100,3 +110,41 @@ data class UserSummaryDTO(
 data class StreamTokenResponse(
     val token: String,
 )
+
+/** Resultado de `/api/search?type=genres` y modo `all`. Forma de `GenreResultDTO` (API-doc §8). */
+data class GenreResultDTO(
+    val name: String? = null,
+    val songCount: Int = 0,
+)
+
+/**
+ * Una categoría de la respuesta de búsqueda: el slice de resultados más sus totales.
+ * Forma de `CategoryPage<T>` dentro de `SearchResponseDTO` (API-doc §6.6).
+ */
+data class CategoryPage<T>(
+    val content: List<T>? = null,
+    val totalElements: Long = 0,
+    val totalPages: Int = 0,
+)
+
+/**
+ * Respuesta de `GET /api/search`. Misma forma en modo `all` y en modo categoría única; las
+ * categorías no usadas llegan `null` y se omiten del JSON (API-doc §6.6 / §8).
+ */
+data class SearchResponseDTO(
+    val query: String? = null,
+    val type: String? = null,
+    val page: Int = 0,
+    val size: Int = 0,
+    val songs: CategoryPage<SongDTO>? = null,
+    val artists: CategoryPage<ArtistDTO>? = null,
+    val albums: CategoryPage<AlbumDTO>? = null,
+    val playlists: CategoryPage<PlaylistDTO>? = null,
+    val users: CategoryPage<UserSummaryDTO>? = null,
+    val genres: CategoryPage<GenreResultDTO>? = null,
+) {
+    /** `true` si ninguna categoría trae resultados (para distinguir "sin resultados"). */
+    val isEmpty: Boolean
+        get() = listOf(songs, artists, albums, playlists, users, genres)
+            .all { it?.content.isNullOrEmpty() }
+}
