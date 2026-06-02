@@ -1,6 +1,6 @@
 package davila.anton.selfpotify.ui.common
 
-import android.widget.Toast
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -27,10 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,9 +39,9 @@ import davila.anton.selfpotify.ui.theme.Spacing
 import davila.anton.selfpotify.util.ServerUrl
 
 /**
- * Hoja inferior para compartir una playlist por **magic link** de un solo uso (README §454-464).
- * Presentacional: el ViewModel genera el enlace y la lista de colaboradores y los pasa aquí. Permite
- * copiar el enlace, generar otro y quitar colaboradores.
+ * Hoja inferior para compartir una playlist por **magic link** (README §454-464). Genera el enlace,
+ * lo comparte mediante el diálogo nativo de Android y lista los colaboradores actuales con opción
+ * de quitarlos.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,9 +55,7 @@ fun SharePlaylistSheet(
     onRemoveCollaborator: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    val copiedMessage = stringResource(R.string.share_copied)
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
         Column(
@@ -100,12 +96,15 @@ fun SharePlaylistSheet(
                         label = { Text(stringResource(R.string.share_link_label)) },
                         trailingIcon = {
                             IconButton(onClick = {
-                                clipboard.setText(AnnotatedString(shareUrl))
-                                Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(Intent.EXTRA_TEXT, shareUrl)
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(intent, null))
                             }) {
                                 Icon(
-                                    Icons.Rounded.ContentCopy,
-                                    contentDescription = stringResource(R.string.share_copy),
+                                    Icons.Rounded.Share,
+                                    contentDescription = stringResource(R.string.share_send),
                                 )
                             }
                         },

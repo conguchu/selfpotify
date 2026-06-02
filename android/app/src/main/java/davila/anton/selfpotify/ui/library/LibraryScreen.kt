@@ -112,7 +112,7 @@ fun LibraryScreen(
             editing = false,
             saving = state.saving,
             error = state.formError,
-            onSave = { name, description, isPublic, coverUri ->
+            onSave = { name, description, isPublic, coverUri, _ ->
                 vm.createPlaylist(name, description, isPublic, coverUri)
             },
             onDismiss = vm::closeCreate,

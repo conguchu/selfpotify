@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Group
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +35,7 @@ import davila.anton.selfpotify.ui.common.SongRow
 import davila.anton.selfpotify.ui.theme.Spacing
 import davila.anton.selfpotify.util.ServerUrl
 
-/** Pantalla de playlist: carátula/nombre/descripción + canciones, con edición y compartir si soy dueño. */
+/** Pantalla de playlist: carátula/nombre/descripción + canciones numeradas, edición y compartir. */
 @Composable
 fun PlaylistDetailScreen(
     id: Long,
@@ -58,7 +57,6 @@ fun PlaylistDetailScreen(
                     val playlist = state.playlist!!
                     val subtitle = playlist.description?.takeIf { it.isNotBlank() }
                         ?: stringResource(R.string.playlist_song_count, state.songs.size)
-                    // Dueño o colaborador pueden editar el contenido (añadir/quitar canciones).
                     val canEditContent = state.isOwner ||
                         (playlist.collaboratorIds?.contains(state.currentUserId) == true)
                     LazyColumn(contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
@@ -86,6 +84,7 @@ fun PlaylistDetailScreen(
                                     song = song,
                                     serverUrl = state.serverUrl,
                                     onClick = { vm.play(index) },
+                                    position = index + 1,
                                     listeners = song.listeners,
                                     onRemoveFromPlaylist = if (canEditContent) {
                                         { vm.removeSong(song.id) }
@@ -111,8 +110,8 @@ fun PlaylistDetailScreen(
             initialDescription = playlist.description.orEmpty(),
             initialPublic = playlist.isPublic,
             currentCoverUrl = ServerUrl.asset(state.serverUrl, playlist.pictureUrl),
-            onSave = { name, description, isPublic, coverUri ->
-                vm.savePlaylist(name, description, isPublic, coverUri)
+            onSave = { name, description, isPublic, coverUri, removeCover ->
+                vm.savePlaylist(name, description, isPublic, coverUri, removeCover)
             },
             onDelete = vm::deletePlaylist,
             onDismiss = vm::closeEdit,
@@ -132,7 +131,12 @@ fun PlaylistDetailScreen(
     }
 }
 
-/** Fila de acciones bajo la cabecera: icono "compartida" (informativo) y, si soy dueño, editar y compartir. */
+/**
+ * Fila de acciones bajo la cabecera.
+ * - Colaborador (no dueño): icono estático «compartida» si la playlist tiene colaboradores.
+ * - Dueño: botón editar + botón de gestión de colaboradores (icono Group); el icono estático
+ *   no se muestra para evitar duplicados (el botón ya implica que está compartida).
+ */
 @Composable
 private fun PlaylistActions(
     shared: Boolean,
@@ -146,7 +150,7 @@ private fun PlaylistActions(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (shared) {
+        if (shared && !isOwner) {
             Icon(
                 imageVector = Icons.Rounded.Group,
                 contentDescription = stringResource(R.string.cd_playlist_shared),
@@ -164,7 +168,7 @@ private fun PlaylistActions(
             }
             IconButton(onClick = onShare) {
                 Icon(
-                    imageVector = Icons.Rounded.Share,
+                    imageVector = Icons.Rounded.Group,
                     contentDescription = stringResource(R.string.cd_playlist_share),
                     tint = MaterialTheme.colorScheme.onBackground,
                 )

@@ -108,7 +108,7 @@ class PlaylistDetailViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeEdit() = _state.update { it.copy(editing = false, saving = false, formError = false) }
 
-    fun savePlaylist(name: String, description: String?, isPublic: Boolean, coverUri: Uri?) {
+    fun savePlaylist(name: String, description: String?, isPublic: Boolean, coverUri: Uri?, removeCover: Boolean = false) {
         val id = loadedId ?: return
         val songIds = _state.value.playlist?.songIds.orEmpty()
         _state.update { it.copy(saving = true, formError = false) }

@@ -16,11 +16,13 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -34,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,14 +60,10 @@ import davila.anton.selfpotify.R
 import davila.anton.selfpotify.ui.theme.Spacing
 
 /**
- * Hoja inferior reutilizable para **crear** o **editar** una playlist (CLAUDE.md §3.2). Es
- * presentacional: el estado de carga/error y la persistencia los gobierna el ViewModel del caller.
- * Devuelve los datos del formulario por [onSave]; la `Uri` de carátula (si el usuario eligió una
- * nueva con el Photo Picker) va aparte para que el caller la lea y suba con `POST .../cover`.
+ * Hoja inferior reutilizable para **crear** o **editar** una playlist. Se abre completamente
+ * expandida (`skipPartiallyExpanded`) para que los botones no queden tapados por la UI del sistema.
  *
- * @param editing `true` en modo edición: cambia título/botón y muestra el borrado.
- * @param currentCoverUrl carátula actual (solo edición) para previsualizar si no se elige otra.
- * @param onDelete acción de borrado (solo edición); `null` la oculta.
+ * [onSave] recibe también [removeCover] (`true` si el usuario borró la foto seleccionada/actual).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +75,7 @@ fun PlaylistFormSheet(
     initialDescription: String = "",
     initialPublic: Boolean = false,
     currentCoverUrl: String? = null,
-    onSave: (name: String, description: String?, isPublic: Boolean, coverUri: Uri?) -> Unit,
+    onSave: (name: String, description: String?, isPublic: Boolean, coverUri: Uri?, removeCover: Boolean) -> Unit,
     onDelete: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
@@ -84,13 +83,25 @@ fun PlaylistFormSheet(
     var description by rememberSaveable { mutableStateOf(initialDescription) }
     var isPublic by rememberSaveable { mutableStateOf(initialPublic) }
     var coverUri by remember { mutableStateOf<Uri?>(null) }
+    var coverCleared by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
-    ) { uri -> if (uri != null) coverUri = uri }
+    ) { uri ->
+        if (uri != null) {
+            coverUri = uri
+            coverCleared = false
+        }
+    }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -121,13 +132,18 @@ fun PlaylistFormSheet(
                 }
             }
 
+            val effectiveCoverUrl = if (coverCleared) null else currentCoverUrl
             CoverPicker(
                 coverUri = coverUri,
-                currentCoverUrl = currentCoverUrl,
+                currentCoverUrl = effectiveCoverUrl,
                 onPick = {
                     picker.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                     )
+                },
+                onClear = {
+                    coverUri = null
+                    coverCleared = true
                 },
             )
 
@@ -180,7 +196,7 @@ fun PlaylistFormSheet(
                 }
                 Button(
                     onClick = {
-                        onSave(name.trim(), description.trim().ifBlank { null }, isPublic, coverUri)
+                        onSave(name.trim(), description.trim().ifBlank { null }, isPublic, coverUri, coverCleared)
                     },
                     enabled = name.isNotBlank() && !saving,
                     modifier = Modifier.weight(1f),
@@ -228,29 +244,59 @@ fun PlaylistFormSheet(
     }
 }
 
-/** Cuadrado pulsable que previsualiza la carátula elegida ([coverUri]) o la actual ([currentCoverUrl]). */
+/**
+ * Cuadrado pulsable que previsualiza la carátula. Muestra un botón «✕» superpuesto para borrarla
+ * cuando hay imagen seleccionada o actual.
+ */
 @Composable
-private fun CoverPicker(coverUri: Uri?, currentCoverUrl: String?, onPick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(120.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onPick),
-        contentAlignment = Alignment.Center,
-    ) {
-        val model: Any? = coverUri ?: currentCoverUrl
-        if (model != null) {
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(model).crossfade(true).build(),
-                contentDescription = stringResource(R.string.playlist_form_cover),
-                contentScale = ContentScale.Crop,
-                loading = { PickIcon() },
-                error = { PickIcon() },
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            PickIcon()
+private fun CoverPicker(
+    coverUri: Uri?,
+    currentCoverUrl: String?,
+    onPick: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val hasCover = coverUri != null || currentCoverUrl != null
+    Box(modifier = Modifier.size(120.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClick = onPick),
+            contentAlignment = Alignment.Center,
+        ) {
+            val model: Any? = coverUri ?: currentCoverUrl
+            if (model != null) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current).data(model).crossfade(true).build(),
+                    contentDescription = stringResource(R.string.playlist_form_cover),
+                    contentScale = ContentScale.Crop,
+                    loading = { PickIcon() },
+                    error = { PickIcon() },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                PickIcon()
+            }
+        }
+        if (hasCover) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                    .clickable(onClick = onClear),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.playlist_form_cover_clear),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }

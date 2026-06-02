@@ -86,6 +86,7 @@
     <string name="playlist_form_public">Pública</string>
     <string name="playlist_form_public_hint">Otros usuarios podrán verla.</string>
     <string name="playlist_form_cover">Carátula</string>
+    <string name="playlist_form_cover_clear">Eliminar carátula</string>
     <string name="playlist_form_create">Crear</string>
     <string name="playlist_form_save">Guardar</string>
     <string name="playlist_form_cancel">Cancelar</string>
@@ -100,6 +101,7 @@
     <string name="share_description">Cualquiera con este enlace de un solo uso podrá unirse como colaborador.</string>
     <string name="share_link_label">Enlace de invitación</string>
     <string name="share_copy">Copiar</string>
+    <string name="share_send">Compartir</string>
     <string name="share_copied">Enlace copiado</string>
     <string name="share_regenerate">Generar otro enlace</string>
     <string name="share_error">No se pudo generar el enlace.</string>
