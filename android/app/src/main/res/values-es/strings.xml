@@ -61,6 +61,7 @@
     <string name="detail_role_artist">Artista</string>
     <string name="detail_no_tracks">Aún no hay canciones.</string>
     <string name="detail_no_playlists">Aún no hay playlists públicas.</string>
+    <string name="cd_play_count">Reproducciones</string>
 
     <!-- Pestañas placeholder -->
     <string name="library_title">Biblioteca</string>

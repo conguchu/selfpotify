@@ -63,6 +63,7 @@
     <string name="detail_role_artist">Artist</string>
     <string name="detail_no_tracks">No tracks yet.</string>
     <string name="detail_no_playlists">No public playlists yet.</string>
+    <string name="cd_play_count">Plays</string>
 
     <!-- Placeholder tabs -->
     <string name="library_title">Library</string>

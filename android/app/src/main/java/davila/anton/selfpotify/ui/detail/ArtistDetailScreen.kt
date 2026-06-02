@@ -20,6 +20,7 @@ import davila.anton.selfpotify.ui.common.CenterLoader
 import davila.anton.selfpotify.ui.common.CenterMessage
 import davila.anton.selfpotify.ui.common.DetailHeader
 import davila.anton.selfpotify.ui.common.DetailTopBar
+import davila.anton.selfpotify.ui.common.PlaylistPickerSheet
 import davila.anton.selfpotify.ui.common.SongRow
 import davila.anton.selfpotify.util.ServerUrl
 
@@ -59,6 +60,9 @@ fun ArtistDetailScreen(
                                     song = song,
                                     serverUrl = state.serverUrl,
                                     onClick = { vm.play(index) },
+                                    position = index + 1,
+                                    listeners = song.listeners,
+                                    onAddToPlaylist = { vm.openAddToPlaylist(song.id) },
                                 )
                             }
                         }
@@ -66,5 +70,17 @@ fun ArtistDetailScreen(
                 }
             }
         }
+    }
+
+    val sheetSongId = state.sheetSongId
+    if (sheetSongId != null) {
+        PlaylistPickerSheet(
+            loading = state.playlistsLoading,
+            error = state.playlistsError,
+            playlists = state.playlists,
+            isInPlaylist = { it.songIds?.contains(sheetSongId) == true },
+            onToggle = { vm.toggleInPlaylist(it, sheetSongId) },
+            onDismiss = { vm.closeAddToPlaylist() },
+        )
     }
 }

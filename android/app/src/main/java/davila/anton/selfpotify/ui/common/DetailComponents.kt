@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -111,22 +114,41 @@ fun DetailHeader(
     }
 }
 
-/** Fila de canción en una lista vertical: carátula pequeña + título + artistas. Pulsar reproduce. */
+/**
+ * Fila de canción en una lista vertical: carátula pequeña + título + artistas. Pulsar reproduce.
+ *
+ * Opcionalmente, al estilo de la vista web (`SongRow.tsx`):
+ * - [position] pinta el número de orden a la izquierda (1, 2, 3…).
+ * - [listeners], si no es `null`, muestra el contador de escuchas (icono ▶ + nº) a la derecha.
+ * - [onAddToPlaylist], si no es `null`, añade un botón "+" para meter la canción en una playlist.
+ */
 @Composable
 fun SongRow(
     song: SongDTO,
     serverUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    position: Int? = null,
+    listeners: Long? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.page, vertical = Spacing.s),
+            .padding(start = Spacing.page, end = Spacing.s, top = Spacing.s, bottom = Spacing.s),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
+        if (position != null) {
+            Text(
+                text = position.toString(),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 20.dp),
+            )
+        }
         CoverImage(
             url = ServerUrl.asset(serverUrl, song.pictureUrl),
             modifier = Modifier.size(48.dp),
@@ -149,8 +171,43 @@ fun SongRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (listeners != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.PlayArrow,
+                    contentDescription = stringResourcePlays(),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = listeners.toString(),
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (onAddToPlaylist != null) {
+            IconButton(onClick = onAddToPlaylist) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = stringResourceAddToPlaylist(),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
+
+@Composable
+private fun stringResourcePlays(): String =
+    androidx.compose.ui.res.stringResource(R.string.cd_play_count)
+
+@Composable
+private fun stringResourceAddToPlaylist(): String =
+    androidx.compose.ui.res.stringResource(R.string.player_add_to_playlist)
 
 /** Foto circular (artista/usuario); placeholder de persona mientras carga o si falta/falla. */
 @Composable
