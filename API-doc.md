@@ -3,8 +3,8 @@
 API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por defecto en `http://localhost:8080`.
 
 **Persistencia:**
-- Datos de música, usuarios y playlists → H2 en memoria (`create-drop` en cada arranque, no sobrevive a reinicios).
-- Configuración del servidor (branding, rutas a escanear, flags) → fichero YAML externo en `~/.selfpotify/config.yml` (sobrevive a reinicios). Override vía `app.config.path`.
+- Datos de música, usuarios y playlists → H2 **en fichero** por defecto (`jdbc:h2:file:./data/selfpotify;AUTO_SERVER=TRUE`, `ddl-auto=update`), por lo que **sobreviven a reinicios**. Configurable vía `DB_URL`/`DB_DDL_AUTO` (puede apuntarse a H2 en memoria, MariaDB, etc.).
+- Configuración del servidor (branding, rutas a escanear, flags) → fichero YAML externo en `~/.selfpotify/config.yml` (sobrevive a reinicios). Override vía `app.config.path` (`APP_CONFIG_PATH`).
 
 > Estado: este documento refleja el código fuente real (controllers + WebSecurityConfig + DTOs). No incluye comportamientos no implementados.
 
@@ -18,7 +18,7 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Roles:** `ROLE_USER` y `ROLE_ADMIN`. El discriminador JPA `users.type` (`USER` / `ADMIN`) determina el rol. Un `ADMIN` puede reasignarlo con `PUT /api/users/{id}/role` (ver §7).
 - **CORS:** abierto a cualquier origen (`*`); credenciales permitidas; cabeceras expuestas: `Content-Range`, `Accept-Ranges`, `Content-Length`.
 - **Sesión:** stateless, sin cookies. El token caduca a las 24 horas.
-- **Datos seed (`DataLoader`):** en cada arranque se garantizan los usuarios `user / password` (USER) y `admin / admin123` (ADMIN).
+- **Admin inicial (`AdminBootstrapRunner`):** en el primer arranque, si la BBDD no tiene ningún usuario, se crea un `ADMIN` con las credenciales `ADMIN_USERNAME` / `ADMIN_PASSWORD` del `.env`. Si esas variables están vacías, el bootstrap se omite y no se crea ningún usuario por defecto.
 
 ---
 
@@ -52,16 +52,6 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
 - **Respuesta `200 OK`:** `"User registered successfully!"`
 - **Notas:** el campo `isAdmin` del body es **ignorado**; siempre crea un `ROLE_USER`.
 - **Errores:** `400` con `"Error: Username is already taken!"`.
-
-### `POST /api/auth/signup-admin` — Registro de administrador
-
-- **Acceso:** público pero requiere la cabecera `X-Admin-Signup-Key` con el valor de `app.admin.signup-key` (por defecto `changeme-admin-key`, configurable en `application.properties`).
-- **Body:**
-  ```json
-  { "username": "admin2", "password": "secret" }
-  ```
-- **Respuesta `200 OK`:** `"Admin registered successfully!"`
-- **Errores:** `403 Forbidden` con `"Error: Invalid admin signup key"` si la cabecera falta o es incorrecta; `400` si el username está cogido.
 
 ---
 
@@ -238,6 +228,13 @@ Todos los endpoints requieren `ROLE_USER` o `ROLE_ADMIN`.
 ### `DELETE /api/playlists/{id}` — Borrar
 - El **creador** o un **admin** pueden borrar. Al borrar se eliminan también los colaboradores y los magic links pendientes de la playlist.
 - **Respuesta:** `204 No Content`, `403`, o `404`.
+
+### `POST /api/playlists/{id}/cover` — Subir/cambiar carátula
+- **Acceso:** solo el **creador** de la playlist.
+- **Body:** `multipart/form-data` con campo `file` (JPEG/PNG/WebP, máx **5 MB**).
+- **Comportamiento:** recorta la imagen al cuadrado por el centro con `ImageIO`, la aplana a RGB sobre fondo blanco y la guarda como JPEG en `/assets/playlist-covers/<sha256>.jpg` (idempotente por SHA-256), persistiendo `Playlist.pictureUrl`. Mismo patrón que la carátula de canción (`POST /api/songs/cover`) y el avatar de perfil.
+- **Errores:** `400` sin archivo o imagen ilegible; `403` si no es el creador; `413` si excede 5 MB; `415` si el MIME no está soportado.
+- **Respuesta:** `200 OK PlaylistDTO` con la nueva `pictureUrl`.
 
 ### Colaboración (playlists compartidas)
 
@@ -458,6 +455,7 @@ Acceso exclusivo `ROLE_ADMIN`.
 |---|---|---|---|
 | GET | `/api/users` | — | `List<User>` (campo `type` = `USER`/`ADMIN`, getter calculado desde la subclase; `password` no se serializa) |
 | GET | `/api/users/{id}` | — | `User` o `404` |
+| GET | `/api/users/{id}/genres/recent` | — | `List<String>` con los hasta 10 géneros escuchados más recientemente por ese usuario (más reciente primero), o `404` |
 | POST | `/api/users` | `{ "username", "password", "isAdmin" }` | `200 OK "User created successfully by admin!"`; `400` si el username está cogido |
 | PUT | `/api/users/{id}` | `User` (si trae `password` se reencripta automáticamente) | `200 OK User` o `404` |
 | PUT | `/api/users/{id}/role` | `{ "isAdmin": true\|false }` | `200 OK User` (con el `type` ya actualizado); `400` si se intenta degradar al último administrador; `404` si no existe |
@@ -469,7 +467,7 @@ Acceso exclusivo `ROLE_ADMIN`.
 
 ## 7.5 Configuración del servidor (`/api/config`)
 
-La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/config.yml` y se mantiene en memoria como copia volátil. Las escrituras se hacen a fichero temporal + `ATOMIC_MOVE`. **No** vive en H2 (que está en `create-drop`).
+La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/config.yml` y se mantiene en memoria como copia volátil. Las escrituras se hacen a fichero temporal + `ATOMIC_MOVE`. **No** vive en H2: es un fichero YAML independiente de la BBDD.
 
 ### `GET /api/config/public`
 - **Acceso:** público (sin auth). El frontend lo consume antes del login para aplicar branding y para decidir si mostrar el wizard de setup.
@@ -558,6 +556,24 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
   { "status": "ok", "lastRunEpochSec": 1714492800 }
   ```
 
+### `POST /api/config/scan/rescan` — Re-escaneo de cambios bajo demanda
+- **Acceso:** `ROLE_ADMIN`.
+- **Comportamiento:** dispara un re-escaneo inmediato de las rutas configuradas (mismo enriquecimiento de género y carátulas que `scan/run`) y devuelve un resumen de los cambios. Bloqueado con el mismo `ReentrantLock`: `409` si ya hay un escaneo en curso. Lo usa el botón «Re-escanear biblioteca» del panel.
+- **Respuesta `200 OK RescanResultDTO`:**
+  ```json
+  { "added": 3, "recovered": 1, "skipped": 120, "failed": 0 }
+  ```
+  `added` = canciones nuevas importadas; `recovered` = canciones que volvieron a estar disponibles; `skipped` = ya presentes sin cambios; `failed` = ficheros que fallaron al leerse.
+
+### `POST /api/config/reset` — Reset total del servidor
+- **Acceso:** `ROLE_ADMIN`.
+- **Comportamiento:** devuelve el servidor al estado de primer arranque (`ResetService.resetAll`): vacía la BBDD (playlists, canciones, álbumes, artistas, perfiles, usuarios, escuchas, follows, colaboradores y tokens de compartición) y la configuración (`resetToDefaults`), y reproduce los bootstraps de arranque — reseedea el admin desde `ADMIN_USERNAME`/`ADMIN_PASSWORD` del `.env` (si están definidos) y reañade la librería del `.env` a `scan.paths`. Tras el reset, el wizard de setup se vuelve a forzar.
+- **Respuesta `200 OK`:**
+  ```json
+  { "status": "ok", "message": "Servidor reseteado. Vuelve a iniciar sesión con el admin definido en el .env" }
+  ```
+- **Errores:** `500 Internal Server Error` si falla el borrado de ficheros.
+
 ### Ejemplo de `~/.selfpotify/config.yml`
 ```yaml
 branding:
@@ -644,6 +660,7 @@ Además, en el primer arranque y solo mientras `setupComplete=false`, la librer�
   "description": "Para conducir",
   "isPublic": false,
   "creatorId": 3,
+  "pictureUrl": "/assets/playlist-covers/ab12cd34....jpg",
   "songIds": [1, 2, 3],
   "collaboratorIds": [7, 9]
 }
@@ -785,26 +802,24 @@ Cada `content` lista DTOs de su categoría (`SongDTO`, `ArtistDTO`, `AlbumDTO`, 
 ## 10. Configuración relevante (`application.properties`)
 
 ```properties
-spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-spring.h2.console.enabled=true
-spring.h2.console.path=/h2-console
-spring.jpa.hibernate.ddl-auto=create-drop
-
-# Clave para registrar admins vía /api/auth/signup-admin
-app.admin.signup-key=changeme-admin-key
+# BBDD: por defecto H2 en fichero (persiste entre reinicios). Configurable vía .env.
+spring.datasource.url=${DB_URL:jdbc:h2:file:./data/selfpotify;AUTO_SERVER=TRUE}
+spring.jpa.hibernate.ddl-auto=${DB_DDL_AUTO:update}
+spring.h2.console.enabled=${H2_CONSOLE_ENABLED:true}
+spring.h2.console.path=${H2_CONSOLE_PATH:/h2-console}
 
 # Límites de upload (logo) — controlado por LOGO_MAX_FILE_SIZE (.env)
 spring.servlet.multipart.max-file-size=${LOGO_MAX_FILE_SIZE:2MB}
 spring.servlet.multipart.max-request-size=${LOGO_MAX_FILE_SIZE:2MB}
 app.logo.max-file-size=${LOGO_MAX_FILE_SIZE:2MB}
 
-# Override opcional de la ruta del YAML de configuración
-# app.config.path=~/.selfpotify/config.yml
+# Ruta del YAML de configuración (override opcional)
+app.config.path=${APP_CONFIG_PATH:~/.selfpotify/config.yml}
 ```
 
-**Consola H2:** `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:testdb`, user `sa`, sin contraseña).
+**Consola H2:** `http://localhost:8080/h2-console`, habilitada por defecto (`H2_CONSOLE_ENABLED`). La JDBC URL es el valor de `DB_URL` (por defecto `jdbc:h2:file:./data/selfpotify`), user `sa`, sin contraseña. Conviene desactivarla en despliegue (`H2_CONSOLE_ENABLED=false`).
 
-**Configuración del servidor (no en BD):** `~/.selfpotify/config.yml` se crea en el primer arranque. Si existe `app.music.import-folder` apuntando a un directorio válido, se siembra como primera ruta de escaneo.
+**Configuración del servidor (no en BD):** `~/.selfpotify/config.yml` se crea en el primer arranque. En ese primer arranque, `LibraryBootstrap` auto-añade la librería musical del `.env` (`MUSIC_LIBRARY_PATH` en host, `/music` en Docker) a `scan.paths` de forma idempotente (ver §7.5).
 
 ---
 
