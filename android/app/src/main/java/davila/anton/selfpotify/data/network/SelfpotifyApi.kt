@@ -4,6 +4,7 @@ import davila.anton.selfpotify.data.model.JwtResponse
 import davila.anton.selfpotify.data.model.LoginRequest
 import davila.anton.selfpotify.data.model.PlaylistDTO
 import davila.anton.selfpotify.data.model.PlaylistInput
+import davila.anton.selfpotify.data.model.ProfileUpdateRequest
 import davila.anton.selfpotify.data.model.PublicConfig
 import davila.anton.selfpotify.data.model.ShareLinkResponse
 import davila.anton.selfpotify.data.model.SearchResponseDTO
@@ -182,4 +183,35 @@ interface SelfpotifyApi {
     /** Vista pública del usuario autenticado. */
     @GET("api/me")
     suspend fun me(): UserSummaryDTO
+
+    /** Edita el nombre visible del usuario autenticado (`name` nulo/vacío lo borra). */
+    @PUT("api/me/profile")
+    suspend fun updateProfile(@Body body: ProfileUpdateRequest): UserSummaryDTO
+
+    /** Sube/reemplaza la foto del usuario autenticado. Multipart, campo `file`. */
+    @Multipart
+    @POST("api/me/profile/picture")
+    suspend fun uploadAvatar(@Part file: MultipartBody.Part): UserSummaryDTO
+
+    /** Borra la foto del usuario autenticado (deja `avatarUrl` a `null`). */
+    @DELETE("api/me/profile/picture")
+    suspend fun deleteAvatar(): UserSummaryDTO
+
+    // --- Seguimiento entre usuarios ---
+
+    /** Seguidores de un usuario (más recientes primero). */
+    @GET("api/users/{id}/followers")
+    suspend fun followers(@Path("id") id: Long): List<UserSummaryDTO>
+
+    /** Usuarios a los que sigue un usuario (más recientes primero). */
+    @GET("api/users/{id}/following")
+    suspend fun following(@Path("id") id: Long): List<UserSummaryDTO>
+
+    /** Sigue a un usuario. Idempotente. Devuelve el `UserSummaryDTO` con los contadores al día. */
+    @POST("api/users/{id}/follow")
+    suspend fun follow(@Path("id") id: Long): UserSummaryDTO
+
+    /** Deja de seguir a un usuario. Idempotente. Devuelve el `UserSummaryDTO` actualizado. */
+    @DELETE("api/users/{id}/follow")
+    suspend fun unfollow(@Path("id") id: Long): UserSummaryDTO
 }
