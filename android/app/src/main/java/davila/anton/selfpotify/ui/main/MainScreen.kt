@@ -6,9 +6,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -19,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import davila.anton.selfpotify.R
 import davila.anton.selfpotify.ui.detail.AlbumDetailScreen
 import davila.anton.selfpotify.ui.detail.ArtistDetailScreen
 import davila.anton.selfpotify.ui.detail.PlaylistDetailScreen
@@ -44,10 +47,13 @@ fun MainScreen(
     onOpenPlayer: () -> Unit,
     pendingArtistId: Long? = null,
     onPendingArtistConsumed: () -> Unit = {},
+    pendingShareToken: String? = null,
+    onShareTokenConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
     playerViewModel: PlayerViewModel = viewModel(),
 ) {
     val tabNavController = rememberNavController()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         vm.navigateOffline.collect { onNavigateToOffline() }
@@ -102,6 +108,29 @@ fun MainScreen(
             pendingArtistId?.let {
                 openArtist(it)
                 onPendingArtistConsumed()
+            }
+        }
+
+        // Canje del deep link de invitación (selfpotify://playlist/share/{token}). Como MainScreen
+        // solo existe con sesión iniciada, un token que llegue sin sesión espera en el estado de la
+        // Activity hasta que el usuario entra y este contenedor se monta.
+        LaunchedEffect(pendingShareToken) {
+            pendingShareToken?.let { vm.redeemShare(it) }
+        }
+        LaunchedEffect(Unit) {
+            vm.openPlaylist.collect { id ->
+                openPlaylist(id)
+                onShareTokenConsumed()
+            }
+        }
+        LaunchedEffect(Unit) {
+            vm.shareError.collect {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.share_redeem_error),
+                    Toast.LENGTH_LONG,
+                ).show()
+                onShareTokenConsumed()
             }
         }
 

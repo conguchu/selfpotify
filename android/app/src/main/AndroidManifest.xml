@@ -25,10 +25,24 @@
 
         <activity
             android:name=".ui.MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link de invitación a playlist: selfpotify://playlist/share/{token}.
+                 Esquema propio (no App Links verificadas) porque el servidor es self-hosted y su
+                 dominio es desconocido en compilación. Lo lanza la página web /playlist/share. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="selfpotify"
+                    android:host="playlist"
+                    android:pathPrefix="/share" />
             </intent-filter>
         </activity>
 

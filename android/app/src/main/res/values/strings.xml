@@ -110,6 +110,7 @@
     <string name="share_collaborators">Collaborators</string>
     <string name="share_no_collaborators">No collaborators yet.</string>
     <string name="share_remove_collaborator">Remove collaborator</string>
+    <string name="share_redeem_error">This invitation link isn\'t valid or has already been used.</string>
 
     <!-- Profile -->
     <string name="profile_logout">Log out</string>

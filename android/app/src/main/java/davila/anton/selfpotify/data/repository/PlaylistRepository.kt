@@ -73,6 +73,14 @@ class PlaylistRepository(private val session: SessionStore) {
         runCatching { api().sharePlaylist(id) }
     }
 
+    /**
+     * Canjea el magic link [token]: añade al usuario como colaborador y devuelve la playlist.
+     * Lo dispara el deep link `selfpotify://playlist/share/{token}` recibido por la Activity.
+     */
+    suspend fun redeem(token: String): Result<PlaylistDTO> = withContext(Dispatchers.IO) {
+        runCatching { api().redeemShareLink(token) }
+    }
+
     /** Colaboradores actuales de la playlist [id]. */
     suspend fun collaborators(id: Long): Result<List<UserSummaryDTO>> = withContext(Dispatchers.IO) {
         runCatching { api().playlistCollaborators(id) }

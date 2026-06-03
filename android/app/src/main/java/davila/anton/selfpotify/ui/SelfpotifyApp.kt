@@ -21,7 +21,11 @@ import davila.anton.selfpotify.ui.server.ServerSetupScreen
  * El grafo refleja el flujo documentado en el README (sección Android).
  */
 @Composable
-fun SelfpotifyApp(startDestination: String) {
+fun SelfpotifyApp(
+    startDestination: String,
+    pendingShareToken: String? = null,
+    onShareTokenConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
 
     // Artista pendiente de abrir solicitado desde el reproductor (NavHost externo). El detalle de
@@ -76,6 +80,8 @@ fun SelfpotifyApp(startDestination: String) {
                 onOpenPlayer = { navController.navigate(Route.PLAYER) },
                 pendingArtistId = pendingArtistId,
                 onPendingArtistConsumed = { pendingArtistId = null },
+                pendingShareToken = pendingShareToken,
+                onShareTokenConsumed = onShareTokenConsumed,
             )
         }
 

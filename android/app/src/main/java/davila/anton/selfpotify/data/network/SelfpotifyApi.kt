@@ -145,6 +145,13 @@ interface SelfpotifyApi {
     @POST("api/playlists/{id}/share")
     suspend fun sharePlaylist(@Path("id") id: Long): ShareLinkResponse
 
+    /**
+     * Canjea un magic link: añade al usuario autenticado como colaborador y devuelve la playlist.
+     * Mismo endpoint que usa la web; lo invoca el handoff del deep link `selfpotify://`.
+     */
+    @POST("api/playlists/share/{token}")
+    suspend fun redeemShareLink(@Path("token") token: String): PlaylistDTO
+
     /** Colaboradores actuales de la playlist. */
     @GET("api/playlists/{id}/collaborators")
     suspend fun playlistCollaborators(@Path("id") id: Long): List<UserSummaryDTO>

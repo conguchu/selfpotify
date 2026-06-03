@@ -108,6 +108,7 @@
     <string name="share_collaborators">Colaboradores</string>
     <string name="share_no_collaborators">Aún no hay colaboradores.</string>
     <string name="share_remove_collaborator">Quitar colaborador</string>
+    <string name="share_redeem_error">Este enlace de invitación no es válido o ya se ha usado.</string>
 
     <!-- Perfil -->
     <string name="profile_logout">Cerrar sesión</string>
