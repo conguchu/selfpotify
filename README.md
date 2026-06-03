@@ -503,20 +503,34 @@ intent en `onNewIntent` cuando ya está abierta).
 
 **El que detecta el móvil y hace el puente es la página web, no el enlace.** El
 enlace compartido NO cambia de formato (sigue siendo http(s), con fallback web
-intacto). Es la página `/playlist/share/{token}` la que, al cargar, detecta si se
-accede desde un **user-agent móvil** y, en ese caso, intenta el handoff a la app
-redirigiendo a `selfpotify://playlist/share/{token}`. Si el handoff no ocurre en
-una ventana corta de tiempo (la app no está instalada → el navegador no cambia de
-contexto), se continúa con el flujo previsto en web/móvil (canje web o página de
-bienvenida móvil `/mobile`). En escritorio no se intenta el deep link: se canjea
-en web como hasta ahora.
+intacto). Es la página `/playlist/share/{token}` la que, al cargar, detecta el
+dispositivo y decide cómo abrir la app, distinguiendo plataforma:
 
-> **Nota sobre la redirección a `/mobile`.** Esta ruta es la **única exenta** del
-> middleware que redirige el resto de páginas a `/mobile` en móvil (ver
-> "Redirección a la app móvil"). La excepción es deliberada: la página
-> `/playlist/share/{token}` debe **cargarse** en el móvil para poder ejecutar el
-> handoff a `selfpotify://` y, si la app no está instalada, decidir su propio
-> fallback (canje web o `/mobile`).
+- **Android** → redirige a una URL `intent:` de Chrome/Samsung/Firefox con
+  `browser_fallback_url`:
+  `intent://playlist/share/{token}#Intent;scheme=selfpotify;package=davila.anton.selfpotify;S.browser_fallback_url=<…/mobile?origin=playlist-share>;end`.
+  Es el **propio sistema** quien decide: si la app está instalada la abre; si no,
+  navega automáticamente al `browser_fallback_url`. No hace falta heurística de
+  temporizador: no hay forma fiable de "preguntar" desde el navegador si la app
+  está instalada, así que se delega la decisión al SO vía `intent:`. El fallback
+  apunta a la pantalla de bienvenida `/mobile?origin=playlist-share`, que muestra
+  un copy de invitación específico (ver "Redirección a la app móvil").
+- **iOS / otros móviles** → intenta el esquema propio
+  `selfpotify://playlist/share/{token}` y, si no hay handoff dentro de una ventana
+  corta (`DEEP_LINK_FALLBACK_MS`, la pestaña no se oculta → la app no está
+  instalada), **cae al canje web**.
+- **Escritorio** → no se intenta el deep link: se canjea en web como hasta ahora.
+
+> **Nota: la página vive fuera del grupo protegido `(app)`.** `/playlist/share/{token}`
+> es una ruta de **nivel superior** (`front/app/playlist/share/[token]/`), no bajo
+> `(app)`, precisamente para que el puente al deep link se ejecute **aunque el
+> visitante no tenga sesión web** —el caso típico de quien recibe la invitación en
+> el móvil—. Si estuviera bajo `ProtectedRoute`, un usuario sin sesión sería
+> redirigido a `/login` (y el middleware lo mandaría a `/mobile`) **antes** de poder
+> intentar abrir la app. Solo el *fallback* de canje web requiere sesión; sin ella
+> redirige a `/login`. Además es la **única ruta exenta** del middleware que
+> redirige los móviles a `/mobile` (ver "Redirección a la app móvil"), para poder
+> **cargarse** en el móvil y ejecutar el handoff.
 
 **Qué hace la app al recibir el deep link.** `MainActivity` extrae el `token` del
 URI y canjea el enlace contra el servidor configurado
@@ -771,10 +785,18 @@ invita a **descargar la app nativa** desde las
 [releases oficiales de GitHub](https://github.com/conguchu/selfpotify/releases).
 
 La única ruta exenta es `/playlist/share/*`: debe **cargarse** también en móvil
-para canjear el magic link (hoy en web) y, en el futuro, para hacer el handoff a
-la app vía `selfpotify://` (ver "Apertura en la app móvil"). Desde escritorio,
-`/mobile` redirige a `/home`. El middleware ignora los assets estáticos y las
-rutas internas de Next.js mediante su `matcher`.
+para hacer el handoff a la app (vía `intent:` en Android o `selfpotify://` en
+iOS/otros) y, si la app no está instalada, decidir su fallback (ver "Apertura en
+la app móvil"). Desde escritorio, `/mobile` redirige a `/home`. El middleware
+ignora los assets estáticos y las rutas internas de Next.js mediante su `matcher`.
+
+La pantalla `/mobile` adapta su texto según el parámetro `origin`: con
+`?origin=playlist-share` —el `browser_fallback_url` que usa el `intent:` de Android
+cuando la app **no** está instalada— muestra un copy de invitación ("Te han
+invitado a colaborar en una playlist, ¿te lo vas a perder? Instálate la app y
+regístrate en el servidor `<url del servidor>`", con la URL reconstruida en el
+servidor desde las cabeceras de la petición) en vez del copy genérico de descarga,
+**manteniendo el botón de descarga** en ambos casos.
 
 ```mermaid
 flowchart TD
@@ -783,7 +805,7 @@ flowchart TD
     Mobile1 -- sí --> Home[Redirige a /home]
     Mobile1 -- no --> Pass1([Continúa normal])
     UA -- sí --> Share{¿Ruta == /playlist/share/*?}
-    Share -- sí --> Pass2([Continúa normal<br/>manejo Android propio])
+    Share -- sí --> Pass2([Continúa normal<br/>la página hace el puente a la app:<br/>intent:// Android · selfpotify:// iOS])
     Share -- no --> Mob{¿Ruta == /mobile?}
     Mob -- sí --> Pass3([Muestra pantalla móvil])
     Mob -- no --> Redir[Redirige a /mobile]
@@ -792,10 +814,10 @@ flowchart TD
 
 **Visión de conjunto: cómo se atiende a un cliente de teléfono.** El siguiente
 diagrama resume todas las vías por las que un móvil llega a contenido de
-Selfpotify y dónde acaba. Las flechas discontinuas marcan el **handoff
-`selfpotify://`** (ver "Apertura en la app móvil"): solo se recorren si el deep
-link se intenta y, según haya app instalada o no, se canjea en la app nativa o
-se cae al canje web.
+Selfpotify y dónde acaba. Las flechas discontinuas marcan el **handoff a la app**
+(ver "Apertura en la app móvil"), distinto según plataforma: en Android vía
+`intent:` (el SO abre la app o cae al `browser_fallback_url` `/mobile`), y en
+iOS/otros vía `selfpotify://` con fallback por temporizador al canje web.
 
 ```mermaid
 flowchart TD
@@ -812,12 +834,18 @@ flowchart TD
     MW -- sí, móvil --> MobPage([Pantalla /mobile<br/>«Descarga la app» + releases GitHub])
 
     C --> MW2{Middleware:<br/>/playlist/share exento}
-    MW2 --> SharePage[Página /playlist/share/token se CARGA<br/>aunque sea móvil]
-    SharePage --> Redeem[Canje web: POST /api/playlists/share/token]
+    MW2 --> SharePage["Página /playlist/share/token se CARGA<br/>aunque sea móvil · fuera del grupo protegido"]
+    SharePage --> Plat{¿Qué dispositivo?}
+
+    Plat -- escritorio --> Redeem[Canje web: POST /api/playlists/share/token]
     Redeem --> PL([Redirige a /playlist/id])
 
-    SharePage -. si UA móvil .-> Deep[/"selfpotify://playlist/share/token"/]
-    Deep -. app instalada .-> AppRedeem([MainActivity canjea y abre la playlist])
+    Plat -- Android --> Intent[/"intent://…;scheme=selfpotify;<br/>browser_fallback_url=/mobile?origin=playlist-share"/]
+    Intent -. app instalada .-> AppRedeem([MainActivity canjea y abre la playlist])
+    Intent -. app NO instalada .-> MobInvite([/mobile?origin=playlist-share<br/>copy de invitación + descarga])
+
+    Plat -- iOS/otros --> Deep[/"selfpotify://playlist/share/token"/]
+    Deep -. app instalada .-> AppRedeem
     Deep -. app NO instalada timeout .-> Redeem
 ```
 
@@ -868,6 +896,16 @@ La app logueada es un `Scaffold` con un `NavHost` anidado para las cuatro pesta�
 **Streaming con stream token.** Para reproducir, el cliente pide un stream token (`POST /api/listen/token`, con el JWT en cabecera) y construye las URLs de la cola como `/api/listen/{id}?st=<token>` (ver "Funcionamiento del streaming"). ExoPlayer hace las peticiones HTTP Range con esa URL, sin exponer el JWT.
 
 **Añadir a playlist.** Desde el mini-player o el reproductor, un *bottom sheet* lista las playlists propias (`GET /api/playlists/my`) y añade la canción en curso a la elegida (`POST /api/playlists/{id}/songs/{songId}`).
+
+### Deep link de invitación a playlist (`selfpotify://`)
+
+La app es el destino nativo de los enlaces de invitación a playlist. El **lado web** (detección de dispositivo y puente a la app vía `intent:` en Android o `selfpotify://` en iOS) se explica en "Apertura en la app móvil"; aquí se documenta el **lado cliente Android**.
+
+**Registro del esquema.** `MainActivity` declara un `intent-filter` (acción `VIEW` + categoría `BROWSABLE`) para el URI `selfpotify://playlist/share/{token}` (`scheme=selfpotify`, `host=playlist`, `pathPrefix=/share`). Se usa un **esquema propio** y no App Links verificadas porque el servidor es self-hosted y su dominio es arbitrario, lo que haría inviable publicar el `assetlinks.json` que exigen las App Links.
+
+**Recepción del intent (`singleTask`).** La Activity es `launchMode="singleTask"`, así que el deep link puede llegar al **arrancar** (`onCreate`, vía `getIntent()`) o con la app **ya abierta** (`onNewIntent`). En ambos casos `extractShareToken` valida que el intent sea un `VIEW` con path `/share/{token}` y guarda el token en un `mutableStateOf` (`pendingShareToken`) que observa el árbol de Compose.
+
+**Canje diferido hasta tener sesión.** El token pendiente se canjea contra el servidor configurado (`POST /api/playlists/share/{token}` → `PlaylistRepository.redeem`), se añade al usuario como colaborador y se **navega al detalle de la playlist**. Si todavía no hay sesión activa, el canje **queda pendiente** hasta completar el login y se ejecuta a continuación; una vez consumido, el token se limpia (`onShareTokenConsumed`). El token es server-relativo: la app lo canjea contra **su** servidor configurado, coherente con el modelo single-server de cada instalación.
 
 ### Pantalla Descubrir
 
