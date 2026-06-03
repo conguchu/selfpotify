@@ -31,6 +31,7 @@ data class ProfileUiState(
     val followersCount: Int = 0,
     val followingCount: Int = 0,
     val serverUrl: String? = null,
+    val refreshing: Boolean = false,
     val savingName: Boolean = false,
     val uploadingPhoto: Boolean = false,
     val showNameDialog: Boolean = false,
@@ -63,10 +64,12 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Recarga el perfil (`GET /api/me`). */
+    /** Recarga el perfil (`GET /api/me`). Activa el indicador de *pull-to-refresh*. */
     fun refresh() {
+        _state.update { it.copy(refreshing = true) }
         viewModelScope.launch {
             profile.me().onSuccess { applyUser(it) }
+            _state.update { it.copy(refreshing = false) }
         }
     }
 
