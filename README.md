@@ -109,7 +109,7 @@ flowchart TD
     AsyncScan --> Ready([Servidor operativo])
     Decide -- true --> Ready
     Ready -. admin pulsa Reset .-> Reset[POST /api/config/reset]
-    Reset --> Wipe[ResetService:<br/>deleteAll en escuchas, follows,<br/>playlists, songs, álbumes,<br/>artistas, perfiles, usuarios]
+    Reset --> Wipe[ResetService:<br/>deleteAll en escuchas, follows,<br/>tokens y colaboradores, playlists,<br/>songs, álbumes, artistas,<br/>perfiles, usuarios]
     Wipe --> ResetCfg[ConfigService<br/>resetToDefaults]
     ResetCfg --> Reboot[Re-ejecutar bootstraps:<br/>admin desde .env<br/>+ librería del .env a scan.paths]
     Reboot --> Public

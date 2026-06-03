@@ -2,7 +2,9 @@ package anton.davila.selfpotify.config;
 
 import anton.davila.selfpotify.music.repository.AlbumRepository;
 import anton.davila.selfpotify.music.repository.ArtistRepository;
+import anton.davila.selfpotify.music.repository.PlaylistCollaboratorRepository;
 import anton.davila.selfpotify.music.repository.PlaylistRepository;
+import anton.davila.selfpotify.music.repository.PlaylistShareTokenRepository;
 import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.user.follow.repository.UserFollowRepository;
 import anton.davila.selfpotify.user.listen.repository.UserSongListenRepository;
@@ -24,6 +26,12 @@ public class ResetService {
 
     @Autowired
     private PlaylistRepository playlistRepository;
+
+    @Autowired
+    private PlaylistCollaboratorRepository playlistCollaboratorRepository;
+
+    @Autowired
+    private PlaylistShareTokenRepository playlistShareTokenRepository;
 
     @Autowired
     private SongRepository songRepository;
@@ -66,6 +74,11 @@ public class ResetService {
 
         userSongListenRepository.deleteAll();
         userFollowRepository.deleteAll();
+        // Las playlists están referenciadas por colaboradores y magic links
+        // (FK sin cascade), así que hay que vaciar esas tablas cruzadas antes
+        // de borrar las playlists para no chocar con la restricción.
+        playlistShareTokenRepository.deleteAll();
+        playlistCollaboratorRepository.deleteAll();
         playlistRepository.deleteAll();
         songRepository.deleteAll();
         albumRepository.deleteAll();
