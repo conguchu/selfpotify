@@ -15,6 +15,8 @@ import davila.anton.selfpotify.data.repository.ProfileRepository
 import davila.anton.selfpotify.playback.PlaybackConnection
 import davila.anton.selfpotify.util.ServerUrl
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -63,7 +65,26 @@ class PlaylistDetailViewModel(app: Application) : AndroidViewModel(app) {
     private val _deleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val deleted: SharedFlow<Unit> = _deleted.asSharedFlow()
 
+    /** Evento «se ha eliminado X, pulsa para deshacer» (canción o colaborador). */
+    sealed interface UndoEvent {
+        val title: String?
+        data class Song(val songId: Long, override val title: String?) : UndoEvent
+        data class Collaborator(val userId: Long, override val title: String?) : UndoEvent
+    }
+
+    private val _undo = MutableSharedFlow<UndoEvent>(extraBufferCapacity = 8)
+    val undo: SharedFlow<UndoEvent> = _undo.asSharedFlow()
+
     private var loadedId: Long? = null
+
+    /** Ventana de gracia del «deshacer» antes de confirmar el borrado en el backend. */
+    private val undoWindowMs = 3_000L
+
+    // Borrados optimistas pendientes (UI ya actualizada, backend en espera).
+    private data class PendingSong(val song: SongDTO, val index: Int, val job: Job)
+    private data class PendingCollaborator(val user: UserSummaryDTO, val index: Int, val job: Job)
+    private val pendingSongs = mutableMapOf<Long, PendingSong>()
+    private val pendingCollaborators = mutableMapOf<Long, PendingCollaborator>()
 
     fun load(id: Long) {
         if (loadedId == id) return
@@ -90,15 +111,43 @@ class PlaylistDetailViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { PlaybackConnection.playFrom(_state.value.songs, index) }
     }
 
-    /** Quita una canción de la playlist (dueño o colaborador). */
+    /**
+     * Quita una canción de la playlist (dueño o colaborador) de forma optimista: la borra de la UI
+     * al instante y, pasada la [undoWindowMs] sin deshacer, confirma el borrado en el backend. Así
+     * un borrado accidental se revierte conservando la posición original (sin re-añadir, que perdería
+     * el orden). Si el backend falla al confirmar, se restaura la fila.
+     */
     fun removeSong(songId: Long) {
         val id = loadedId ?: return
-        viewModelScope.launch {
-            playlistRepo.removeSongFromPlaylist(id, songId).onSuccess { updated ->
-                _state.update {
-                    it.copy(playlist = updated, songs = it.songs.filterNot { s -> s.id == songId })
-                }
-            }
+        if (pendingSongs.containsKey(songId)) return
+        val index = _state.value.songs.indexOfFirst { it.id == songId }
+        if (index < 0) return
+        val song = _state.value.songs[index]
+        _state.update { it.copy(songs = it.songs.filterNot { s -> s.id == songId }) }
+        val job = viewModelScope.launch {
+            delay(undoWindowMs)
+            pendingSongs.remove(songId)
+            playlistRepo.removeSongFromPlaylist(id, songId)
+                .onSuccess { updated -> _state.update { it.copy(playlist = updated) } }
+                .onFailure { restoreSong(song, index) }
+        }
+        pendingSongs[songId] = PendingSong(song, index, job)
+        _undo.tryEmit(UndoEvent.Song(songId, song.title))
+    }
+
+    /** Cancela el borrado pendiente de [songId] y restaura la fila en su sitio. */
+    fun undoRemoveSong(songId: Long) {
+        val pending = pendingSongs.remove(songId) ?: return
+        pending.job.cancel()
+        restoreSong(pending.song, pending.index)
+    }
+
+    private fun restoreSong(song: SongDTO, index: Int) {
+        _state.update { st ->
+            if (st.songs.any { it.id == song.id }) return@update st
+            val list = st.songs.toMutableList()
+            list.add(index.coerceIn(0, list.size), song)
+            st.copy(songs = list)
         }
     }
 
@@ -181,13 +230,42 @@ class PlaylistDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Quita un colaborador de forma optimista (mismo patrón que [removeSong]): desaparece de la lista
+     * al instante y el borrado se confirma en el backend tras la [undoWindowMs] si no se deshace. Al
+     * deshacer vuelve a su posición; si el backend falla al confirmar, se restaura.
+     */
     fun removeCollaborator(userId: Long) {
         val id = loadedId ?: return
-        viewModelScope.launch {
-            playlistRepo.removeCollaborator(id, userId).onSuccess {
-                loadCollaborators()
-                fetch(id)
-            }
+        if (pendingCollaborators.containsKey(userId)) return
+        val index = _state.value.collaborators.indexOfFirst { it.id == userId }
+        if (index < 0) return
+        val user = _state.value.collaborators[index]
+        _state.update { it.copy(collaborators = it.collaborators.filterNot { u -> u.id == userId }) }
+        val job = viewModelScope.launch {
+            delay(undoWindowMs)
+            pendingCollaborators.remove(userId)
+            playlistRepo.removeCollaborator(id, userId)
+                .onSuccess { fetch(id) }
+                .onFailure { restoreCollaborator(user, index) }
+        }
+        pendingCollaborators[userId] = PendingCollaborator(user, index, job)
+        _undo.tryEmit(UndoEvent.Collaborator(userId, user.displayName ?: user.username))
+    }
+
+    /** Cancela el borrado pendiente del colaborador [userId] y lo restaura en su sitio. */
+    fun undoRemoveCollaborator(userId: Long) {
+        val pending = pendingCollaborators.remove(userId) ?: return
+        pending.job.cancel()
+        restoreCollaborator(pending.user, pending.index)
+    }
+
+    private fun restoreCollaborator(user: UserSummaryDTO, index: Int) {
+        _state.update { st ->
+            if (st.collaborators.any { it.id == user.id }) return@update st
+            val list = st.collaborators.toMutableList()
+            list.add(index.coerceIn(0, list.size), user)
+            st.copy(collaborators = list)
         }
     }
 

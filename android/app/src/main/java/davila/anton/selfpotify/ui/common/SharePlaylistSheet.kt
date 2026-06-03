@@ -23,6 +23,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -51,6 +53,7 @@ fun SharePlaylistSheet(
     shareUrl: String?,
     collaborators: List<UserSummaryDTO>,
     serverUrl: String?,
+    snackbarHostState: SnackbarHostState,
     onRegenerate: () -> Unit,
     onRemoveCollaborator: (Long) -> Unit,
     onDismiss: () -> Unit,
@@ -58,6 +61,7 @@ fun SharePlaylistSheet(
     val context = LocalContext.current
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+      Box(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -143,6 +147,13 @@ fun SharePlaylistSheet(
                 }
             }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(Spacing.m),
+        )
+      }
     }
 }
 

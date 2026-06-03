@@ -12,13 +12,19 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Group
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,7 +53,36 @@ fun PlaylistDetailScreen(
     LaunchedEffect(Unit) { vm.deleted.collect { onBack() } }
     val state by vm.state.collectAsStateWithLifecycle()
 
+    // Snackbar «se ha eliminado X, pulsa para deshacer». Las canciones usan el host de la pantalla;
+    // los colaboradores, el host del propio bottom sheet de compartir (si no, quedaría oculto tras él).
+    val snackbarHostState = remember { SnackbarHostState() }
+    val shareSnackbarHostState = remember { SnackbarHostState() }
+    val removedTemplate = stringResource(R.string.playlist_track_removed)
+    val undoLabel = stringResource(R.string.action_undo)
+    val unknownTitle = stringResource(R.string.playlist_track_unknown)
+    LaunchedEffect(Unit) {
+        vm.undo.collect { ev ->
+            val title = ev.title?.takeIf { it.isNotBlank() } ?: unknownTitle
+            val host = when (ev) {
+                is PlaylistDetailViewModel.UndoEvent.Song -> snackbarHostState
+                is PlaylistDetailViewModel.UndoEvent.Collaborator -> shareSnackbarHostState
+            }
+            val result = host.showSnackbar(
+                message = String.format(removedTemplate, title),
+                actionLabel = undoLabel,
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                when (ev) {
+                    is PlaylistDetailViewModel.UndoEvent.Song -> vm.undoRemoveSong(ev.songId)
+                    is PlaylistDetailViewModel.UndoEvent.Collaborator -> vm.undoRemoveCollaborator(ev.userId)
+                }
+            }
+        }
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+      Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
             DetailTopBar(title = state.playlist?.name.orEmpty(), onBack = onBack)
             when {
@@ -98,6 +133,13 @@ fun PlaylistDetailScreen(
                 }
             }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = contentPadding.calculateBottomPadding()),
+        )
+      }
     }
 
     val playlist = state.playlist
@@ -124,6 +166,7 @@ fun PlaylistDetailScreen(
             shareUrl = state.shareUrl,
             collaborators = state.collaborators,
             serverUrl = state.serverUrl,
+            snackbarHostState = shareSnackbarHostState,
             onRegenerate = vm::generateShareLink,
             onRemoveCollaborator = vm::removeCollaborator,
             onDismiss = vm::closeShare,

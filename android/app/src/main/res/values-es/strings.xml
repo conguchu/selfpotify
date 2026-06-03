@@ -130,6 +130,9 @@
     <string name="add_to_playlist_add">Añadir a esta playlist</string>
     <string name="add_to_playlist_remove">Quitar de esta playlist</string>
     <string name="playlist_song_count">%1$d canciones</string>
+    <string name="playlist_track_removed">Se ha eliminado «%1$s»</string>
+    <string name="playlist_track_unknown">el track</string>
+    <string name="action_undo">Deshacer</string>
 
     <!-- Sin conexión -->
     <string name="offline_message">No hay conexión al servidor actualmente</string>
