@@ -81,6 +81,11 @@ export default function RedeemSharePage({
   // En móvil mostramos un paso intermedio mientras se intenta abrir la app.
   const [tryingApp, setTryingApp] = useState(false);
 
+  // Deep link para el botón manual "Ya tengo la app": un gesto del usuario es más
+  // robusto que el redirect automático (algunos navegadores bloquean lanzar un
+  // esquema propio sin interacción).
+  const [appHref, setAppHref] = useState<string | null>(null);
+
   // El canje web se dispara una sola vez (StrictMode monta dos veces en dev; el
   // guard evita un doble POST que gastaría el token dos veces).
   const redeemStartedRef = useRef(false);
@@ -119,10 +124,16 @@ export default function RedeemSharePage({
 
     setTryingApp(true);
 
+    // Mismo deep link para el intento automático y para el botón manual.
+    const href = isAndroid()
+      ? androidIntentUrl(token)
+      : `selfpotify://playlist/share/${token}`;
+    setAppHref(href);
+
     // Android: el `intent:` resuelve por sí mismo (app o `browser_fallback_url`),
     // sin temporizadores. No hay canje web aquí: o abre la app o cae a `/mobile`.
     if (isAndroid()) {
-      window.location.href = androidIntentUrl(token);
+      window.location.href = href;
       return;
     }
 
@@ -139,7 +150,7 @@ export default function RedeemSharePage({
 
     // Lanzar el intento de deep link. Si la app no maneja el esquema, esto es
     // un no-op silencioso en la mayoría de navegadores móviles.
-    window.location.href = `selfpotify://playlist/share/${token}`;
+    window.location.href = href;
 
     return () => {
       clearTimeout(fallback);
@@ -175,6 +186,14 @@ export default function RedeemSharePage({
           ? "Abriendo en la app de Selfpotify…"
           : "Abriendo la playlist compartida…"}
       </p>
+      {tryingApp && appHref && (
+        <a
+          href={appHref}
+          className="rounded-full bg-accent px-6 py-3 font-semibold text-on-accent transition hover:bg-accent-hover"
+        >
+          Ya tengo la app
+        </a>
+      )}
       {tryingApp && !isAndroid() && (
         <Button variant="ghost" onClick={redeemOnWeb}>
           Continuar en el navegador
