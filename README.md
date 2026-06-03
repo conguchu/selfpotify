@@ -521,6 +521,17 @@ dispositivo y decide cómo abrir la app, distinguiendo plataforma:
   instalada), **cae al canje web**.
 - **Escritorio** → no se intenta el deep link: se canjea en web como hasta ahora.
 
+**Respaldo manual: botón "Ya tengo la app".** El intento automático al cargar la
+página no siempre basta: algunos navegadores **bloquean lanzar un esquema propio
+sin un gesto del usuario**. Por eso, mientras se intenta el handoff, la página
+muestra en móvil un botón **"Ya tengo la app"** —un `<a href>` real con el mismo
+deep link (`intent:` en Android, `selfpotify://` en iOS/otros)—; al ser una
+interacción explícita es más fiable que el redirect automático y sirve de salida
+si este no salta. Limitación conocida: dentro de **navegadores embebidos**
+(WhatsApp, Telegram, Instagram… que usan un `WebView`) ni el automático ni el
+botón funcionan, porque esos `WebView` no resuelven esquemas propios ni `intent:`;
+ahí la única vía es abrir el enlace en un navegador real (Chrome/Firefox).
+
 > **Nota: la página vive fuera del grupo protegido `(app)`.** `/playlist/share/{token}`
 > es una ruta de **nivel superior** (`front/app/playlist/share/[token]/`), no bajo
 > `(app)`, precisamente para que el puente al deep link se ejecute **aunque el
