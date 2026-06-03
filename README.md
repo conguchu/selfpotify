@@ -75,6 +75,36 @@ como el web o mobile, dándome la posibilidad a futuro de crear más para otras 
 
 Estos microservicios están todos alojados en este **monorepo**, con solamente ejecutar `docker-compose up` se pone la aplicación a funcionar.
 
+```mermaid
+flowchart TD
+    Web[Cliente web<br/>Next.js]
+    Android[Cliente Android / TV<br/>Kotlin]
+
+    subgraph Core[Núcleo Selfpotify]
+        API[API Spring Boot<br/>REST + JWT]
+        DB[(BBDD<br/>H2 fichero / MariaDB)]
+        YAML[(config.yml<br/>branding + scan)]
+        FS[(Biblioteca musical<br/>+ assets en disco)]
+    end
+
+    subgraph Ext[APIs externas keyless]
+        LF[Last.fm<br/>género + identidad artista]
+        MB[MusicBrainz / Cover Art Archive]
+        IT[iTunes Search]
+        DZ[Deezer]
+    end
+
+    Web -->|HTTP vía Nginx| API
+    Android -->|HTTP directo :8080| API
+    API --- DB
+    API --- YAML
+    API --- FS
+    API -.enriquecer metadatos.-> LF
+    API -.carátulas.-> MB
+    API -.carátulas.-> IT
+    API -.carátulas/fotos.-> DZ
+```
+
 ### Despliegue e instalación
 
 Como se comentó antes, Selfpotify es un monorepo y ofrece la posibilidad de **desplegarlo con docker**, precisando especificar una ruta con la música para que se monte como volumen (con posibilidad de reescanearlo para no reiniciar el contenedor cada vez que se quiere añadir música). También es posible **hacer un despliegue bare metal**, ideal para trabajar por ejemplo con unidades externas permitiendo gestionar varias carpetas de source para la biblioteca musical.
@@ -176,6 +206,31 @@ En lugar de eso, el cliente solicita primero un **stream token** ligero vía `PO
 - **Reutilizable dentro de su TTL:** necesario porque el navegador/player hace múltiples peticiones HTTP Range a la misma URL al hacer seek; invalidarlo en la primera petición rompería la reproducción.
 - **Ligado al usuario:** el `StreamTokenService` almacena el username junto al token y lo recupera al validar, sin necesidad de contexto de seguridad de Spring.
 
+#### Handshake de streaming
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente (web/Android)
+    participant P as Reproductor (audio HTML / Media3)
+    participant API as API /api/listen
+    participant T as StreamTokenService
+
+    C->>API: POST /api/listen/token (Authorization: Bearer JWT)
+    API->>T: issue(username)
+    T-->>API: streamToken (UUID · TTL 4h · ligado al usuario)
+    API-->>C: { token }
+    C->>P: cargar /api/listen/{id}?st=streamToken
+    P->>API: GET /api/listen/{id}?st=... (sin Range o Range desde 0)
+    API->>T: validate(streamToken)
+    T-->>API: username (o null → 401)
+    Note over API: recordListen + registerGenreListen<br/>solo en esta 1ª petición
+    API-->>P: 200 / 206 + bytes (Accept-Ranges, Content-Range)
+    loop seeks (Range bytes=N- con N>0)
+        P->>API: GET /api/listen/{id}?st=...
+        API-->>P: 206 Partial Content (no registra escucha)
+    end
+```
+
 ### Gestión de la biblioteca musical
 
 La biblioteca musical será gestionada por los admins, que tendrán la posibilidad de añadir carpetas que el backend escaneará periódicamente en busca de cambios o nuevas canciones, para poder administrar la música de forma sencilla con el explorer.
@@ -195,6 +250,22 @@ La subida ocurre en **dos fases** (`SongUploadService`) para que el admin revise
 - **Commit** (`POST /api/songs/commit`): con los metadatos ya ajustados, el audio se mueve a la carpeta `selfpotify_added` **escribible** y se persiste la canción. El artista se resuelve **por MBID** (Last.fm), igual que en el escaneo; tras guardar se rellenan de forma **idempotente** el género/carátula que aún falten y la **foto del artista** (Deezer), que no se ve en la pantalla de edición.
 
 La carpeta `selfpotify_added` **no** se registra como ruta de escaneo: el commit ya persiste cada canción con su `songPath` definitivo y el barrido de disponibilidad del escaneo la mantiene mientras el fichero exista. Así una canción subida es indistinguible de una escaneada del disco. La resolución de identidad del artista (limpieza del nombre, consulta a Last.fm y emparejamiento por MBID) es lógica compartida en `ArtistResolver`, usada tanto por el escaneo como por el commit.
+
+```mermaid
+flowchart TD
+    Drop([Admin arrastra .mp3/.wav al panel]) --> Upload[POST /api/songs/upload]
+    Upload --> Stage[Guardar en selfpotify_staging<br/>carpeta token · NO escaneada]
+    Stage --> ID3[Extraer ID3 + carátula embebida]
+    ID3 --> Enrich[Enriquecer best-effort:<br/>artista canónico Last.fm,<br/>género si falta Last.fm,<br/>carátula si falta CAA→iTunes→Deezer]
+    Enrich --> Draft[Devolver SongDraftDTO]
+    Draft --> Edit[Admin revisa y ajusta<br/>los metadatos en el panel]
+    Edit --> Commit[POST /api/songs/commit<br/>targetPath + borradores]
+    Commit --> Move[Mover audio a<br/>targetPath/selfpotify_added]
+    Move --> Resolve[Resolver artista por MBID<br/>ArtistResolver / Last.fm<br/>o crear desde newArtistName]
+    Resolve --> Persist[Persistir Song con su songPath]
+    Persist --> Fill[Idempotente: género/carátula faltantes<br/>+ foto de artista Deezer]
+    Fill --> Done([Indistinguible de una canción escaneada])
+```
 
 #### Flujo del escaneo periódico
 
@@ -360,6 +431,21 @@ cuenta sobre `user_song_listen` con consultas JPA agrupadas:
 | Por género | `countByGenre` (`where e.song.genre = :genre`) |
 | Top artistas global | `findArtistsByGlobalListensDesc` (`group by a order by count(e) desc`) |
 | Top canciones de un género/artista | `findSongsByGenreOrderByGlobalListensDesc` / `findSongsByArtistOrderByGlobalListensDesc` |
+
+```mermaid
+flowchart LR
+    Listen[1 fila en user_song_listen<br/>usuario · canción · listenedAt] --> Q{Consultas JPA<br/>agrupadas}
+    Q --> S[Escuchas por canción<br/>countBySong_Id]
+    Q --> AL[Escuchas por álbum<br/>countByAlbumId]
+    Q --> AR[Escuchas por artista<br/>countByArtistId]
+    Q --> G[Escuchas por género<br/>countByGenre]
+    Q --> GL[Top global<br/>findArtistsByGlobalListensDesc]
+    S -.-> Note[Sin contadores almacenados:<br/>todo se deriva en lectura]
+    AL -.-> Note
+    AR -.-> Note
+    G -.-> Note
+    GL -.-> Note
+```
 
 Ventajas: no hay que mantener nada al hacer streaming (basta registrar el
 evento), no hay riesgo de contadores desincronizados, el límite FIFO de 1000
@@ -774,6 +860,31 @@ Durante el escaneo, el servidor completa de forma **idempotente** (solo si falta
 
 Para poder rellenar `Album.picture_url`, el escaneo ahora **resuelve o crea el álbum** a partir de la etiqueta `ALBUM` del fichero. Todas las fuentes funcionan sin registrar ninguna clave; MusicBrainz solo exige un `User-Agent` descriptivo (`COVER_ART_USER_AGENT`). La resolución online puede desactivarse con `COVER_ART_ENABLED=false` (la extracción de carátula embebida se mantiene).
 
+```mermaid
+flowchart TD
+    Start([Falta carátula de canción/álbum]) --> Emb{¿Carátula embebida<br/>ID3/APIC?}
+    Emb -- sí --> Save[Volcar a /assets/covers/sha256<br/>· NO se consulta internet]
+    Emb -- no --> Enabled{¿COVER_ART_ENABLED?}
+    Enabled -- no --> Null
+    Enabled -- sí --> CAA{Cover Art Archive<br/>vía MusicBrainz}
+    CAA -- hit --> Url[Guardar URL del CDN]
+    CAA -- miss --> IT{iTunes Search API}
+    IT -- hit --> Url
+    IT -- miss --> DZ{Deezer}
+    DZ -- hit --> Url
+    DZ -- miss --> Null([Campo a null<br/>el front pinta icono/inicial])
+    Save --> Done([Listo])
+    Url --> Done
+
+    subgraph Artista[Foto de artista]
+        AStart([Falta foto de artista]) --> AEn{¿COVER_ART_ENABLED?}
+        AEn -- no --> ANull([null])
+        AEn -- sí --> ADZ{Deezer picture_xl}
+        ADZ -- hit --> AUrl([Guardar URL])
+        ADZ -- miss --> ANull
+    end
+```
+
 ### Grafo de seguimiento entre usuarios
 
 Cada usuario puede seguir y ser seguido por otros, formando un **grafo dirigido**: la arista `follower → followed` significa que `follower` ve a `followed` en su lista de "siguiendo". `UserSummaryDTO` incorpora dos contadores derivados (`followersCount`, `followingCount`) y una flag `isFollowedByMe` que indica si el usuario en sesión ya sigue al usuario representado por el DTO.
@@ -909,6 +1020,34 @@ La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin s
 
 El stack es **Jetpack Compose + Navigation Compose** (una sola `ComponentActivity` que aloja un `NavHost` con los destinos de la app), corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
 
+```mermaid
+flowchart TD
+    subgraph UIl[ui · una carpeta por feature · Compose]
+        Screen[Screen composable] --> VM[ViewModel<br/>StateFlow + SharedFlow]
+    end
+    subgraph Repol[data/repository]
+        AR[AuthRepository · ProfileRepository<br/>PlaylistRepository · MusicRepository<br/>SearchRepository · DetailRepository<br/>FollowRepository · StreamTokenRepository]
+    end
+    subgraph Netl[data/network]
+        API[SelfpotifyApi - Retrofit]
+        Prov[ApiProvider<br/>reconstruye el cliente<br/>al cambiar de servidor]
+        Intc[AuthInterceptor<br/>añade Bearer JWT]
+    end
+    subgraph Locall[data/local]
+        SS[SessionStore<br/>DataStore: servidor, JWT, branding]
+    end
+    Model[data/model · DTOs Kotlin]
+    Play[playback/<br/>PlaybackService + PlaybackConnection<br/>ExoPlayer vía MediaController]
+
+    VM --> AR
+    AR --> API
+    AR --> SS
+    API --- Prov
+    API --- Intc
+    API --> Model
+    Play -.estado StateFlow.-> VM
+```
+
 El look & feel sigue la estética **Spotify (oscuro)**, pero **el branding es dinámico**: tanto la paleta de colores como el **logo** se obtienen del servidor vía `GET /api/config/public`. Lo que define el cliente son solo valores de **fallback de carga** —los colores neutros (fondo `#121212`, acento `#1DB954`, texto blanco) y el logo de Selfpotify empaquetado en `res/drawable`—, nunca el branding real de la instalación: en cuanto la app conoce un servidor adopta sus colores y muestra su logo en lugar del de Selfpotify.
 
 ### Branding dinámico del servidor: colores y logo
@@ -928,6 +1067,19 @@ Cada instalación define su propio branding, así que la app **adopta tanto la p
 5. **Aplicación.**
    - **Colores:** los tokens se proyectan sobre el `ColorScheme` de Material 3 dentro de `SelfpotifyTheme` (Jetpack Compose). Toda la jerarquía de composables hereda el branding vía `MaterialTheme.colorScheme`; los tokens extra (texto secundario, hover del acento…) están disponibles como `LocalBrandingColors.current`. La `MainActivity` también tiñe las barras del sistema con el color de fondo del servidor desde el primer frame, leyendo la paleta persistida.
    - **Logo:** la URL absoluta se publica vía `LocalServerLogoUrl` y la consume el composable común `ServerLogo`, que carga la imagen del servidor con **Coil** (`AsyncImage`). Todas las pantallas del flujo (configuración de servidor, login, home y sin-conexión) usan `ServerLogo` en lugar del recurso local; mientras la imagen llega, si la descarga falla o si el servidor no define logo, `ServerLogo` cae al logo de Selfpotify empaquetado.
+
+```mermaid
+flowchart LR
+    Server[(Servidor)] -->|GET /api/config/public| Cap[Captura<br/>al validar servidor<br/>y refresh al hacer login]
+    Cap --> Store[SessionStore - DataStore<br/>colores JSON + logoUrl<br/>pertenece al servidor]
+    Store --> TVM[ThemeViewModel<br/>scope de Activity]
+    TVM -->|StateFlow BrandingColors| Colors[ColorScheme Material 3<br/>+ LocalBrandingColors<br/>+ barras del sistema]
+    TVM -->|StateFlow logo absoluto| Logo[ServerLogo - Coil]
+    Colors --> UI([UI con branding del servidor])
+    Logo --> UI
+    Store -. logout — se conserva .-> Store
+    Store -. cambiar de servidor — se borra .-> Clear([Fallback de carga<br/>121212 / 1DB954 / logo local])
+```
 
 ### Estructura de navegación principal y reproductor
 
@@ -1182,6 +1334,130 @@ classDiagram
     Album "1" --> "N" Song : contiene
     Song "N" o--o "N" Artist : es interpretada por
     Playlist "N" o--o "N" Song : agrupa
+```
+
+---
+
+## Diagrama entidad-relación (BBDD)
+
+Vista centrada en la base de datos que complementa al diagrama de clases: hace
+explícitas las **tablas cruzadas** (relaciones `@ManyToMany` y entidades-arista) y
+las claves. Los nombres de tabla/columna son orientativos (siguen la convención por
+defecto de JPA/Hibernate sobre las entidades ya mostradas).
+
+```mermaid
+erDiagram
+    USER {
+        Long id PK
+        String username UK
+        String password
+        String type "USER / ADMIN (discriminador)"
+    }
+    PROFILE {
+        Long id PK
+        String name
+        String picture_url
+    }
+    USER_FEED {
+        Long id PK
+    }
+    USER_FEED_GENRES {
+        Long user_feed_id FK
+        String genre "last20GenresListened (ordenada)"
+    }
+    SONG {
+        Long id PK
+        String title
+        int duration_ms
+        String genre
+        int bpm
+        String songPath
+        boolean available
+        String picture_url
+        Long album_id FK
+    }
+    ALBUM {
+        Long id PK
+        String name
+        int duration_ms
+        String picture_url
+    }
+    ARTIST {
+        Long id PK
+        String name
+        String mbid UK
+        String picture_path
+    }
+    PLAYLIST {
+        Long id PK
+        String name
+        String description
+        int duration_ms
+        boolean isPublic
+        String picture_url
+        Long creator_id FK
+    }
+    USER_SONG_LISTEN {
+        Long id PK
+        Long user_id FK
+        Long song_id FK
+        Instant listenedAt
+    }
+    USER_FOLLOW {
+        Long id PK
+        Long follower_id FK
+        Long followed_id FK
+        Instant createdAt
+    }
+    PLAYLIST_COLLABORATOR {
+        Long id PK
+        Long playlist_id FK
+        Long user_id FK
+        Instant createdAt
+    }
+    PLAYLIST_SHARE_TOKEN {
+        Long id PK
+        String token UK
+        Long playlist_id FK
+        Instant createdAt
+    }
+    SONG_ARTIST {
+        Long song_id FK
+        Long artist_id FK
+    }
+    ALBUM_ARTIST {
+        Long album_id FK
+        Long artist_id FK
+    }
+    PLAYLIST_SONG {
+        Long playlist_id FK
+        Long song_id FK
+    }
+    USER_FEED_RECOMMENDED_ARTISTS {
+        Long user_feed_id FK
+        Long artist_id FK
+    }
+
+    USER ||--|| PROFILE : tiene
+    USER ||--|| USER_FEED : tiene
+    USER ||--o{ PLAYLIST : crea
+    USER_FEED ||--o{ USER_FEED_GENRES : apila
+    USER_FEED ||--o{ USER_FEED_RECOMMENDED_ARTISTS : recomienda
+    ARTIST ||--o{ USER_FEED_RECOMMENDED_ARTISTS : ""
+    ALBUM ||--o{ SONG : contiene
+    SONG ||--o{ SONG_ARTIST : ""
+    ARTIST ||--o{ SONG_ARTIST : ""
+    ALBUM ||--o{ ALBUM_ARTIST : ""
+    ARTIST ||--o{ ALBUM_ARTIST : ""
+    PLAYLIST ||--o{ PLAYLIST_SONG : ""
+    SONG ||--o{ PLAYLIST_SONG : ""
+    USER ||--o{ USER_SONG_LISTEN : escucha
+    SONG ||--o{ USER_SONG_LISTEN : ""
+    USER ||--o{ USER_FOLLOW : follower
+    USER ||--o{ USER_FOLLOW : followed
+    PLAYLIST ||--o{ PLAYLIST_COLLABORATOR : ""
+    USER ||--o{ PLAYLIST_COLLABORATOR : ""
+    PLAYLIST ||--o{ PLAYLIST_SHARE_TOKEN : ""
 ```
 
 ---
