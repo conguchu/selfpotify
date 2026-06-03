@@ -484,17 +484,7 @@ flowchart TD
     Consume --> Resp([200 OK PlaylistDTO<br/>con collaboratorIds])
 ```
 
-#### Apertura en la app móvil (deep link `selfpotify://`) — *planificado*
-
-> **Estado actual.** Lo que ya está implementado y mergeado es: (1) el
-> middleware web que redirige a `/mobile` en móvil **dejando exenta**
-> `/playlist/share/*`, y (2) que la app Android construye el enlace de compartir
-> apuntando a la **URL web** del canje (`<servidor>/playlist/share/{token}`). El
-> **handoff vía `selfpotify://`** descrito abajo (intent-filter en `MainActivity`
-> + detección de UA en la página de share que redirige al esquema) es el
-> **contrato de diseño acordado**, todavía **no implementado**. Hoy, abrir el
-> enlace en un móvil carga la página de share (exenta del middleware) y canjea
-> **en web**.
+#### Apertura en la app móvil (deep link `selfpotify://`)
 
 Un enlace de invitación compartido (`<servidor>/playlist/share/{token}`) sigue
 siendo una **URL web normal** —para que cualquiera pueda abrirlo en un navegador—,
@@ -802,9 +792,10 @@ flowchart TD
 
 **Visión de conjunto: cómo se atiende a un cliente de teléfono.** El siguiente
 diagrama resume todas las vías por las que un móvil llega a contenido de
-Selfpotify y dónde acaba. La parte sólida es lo **implementado hoy**; la
-discontinua es el **handoff `selfpotify://` planificado** (ver "Apertura en la
-app móvil").
+Selfpotify y dónde acaba. Las flechas discontinuas marcan el **handoff
+`selfpotify://`** (ver "Apertura en la app móvil"): solo se recorren si el deep
+link se intenta y, según haya app instalada o no, se canjea en la app nativa o
+se cae al canje web.
 
 ```mermaid
 flowchart TD
@@ -825,7 +816,7 @@ flowchart TD
     SharePage --> Redeem[Canje web: POST /api/playlists/share/token]
     Redeem --> PL([Redirige a /playlist/id])
 
-    SharePage -. planificado: si UA móvil .-> Deep[/"selfpotify://playlist/share/token"/]
+    SharePage -. si UA móvil .-> Deep[/"selfpotify://playlist/share/token"/]
     Deep -. app instalada .-> AppRedeem([MainActivity canjea y abre la playlist])
     Deep -. app NO instalada timeout .-> Redeem
 ```
