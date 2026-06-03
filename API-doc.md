@@ -40,7 +40,11 @@ API REST de Spring Boot 4.0.5 con autenticación JWT. El servidor escucha por de
     "roles": ["ROLE_USER"]
   }
   ```
-- **Errores:** `401 Unauthorized` si las credenciales no son válidas.
+- **Errores:**
+  - `401 Unauthorized` si las credenciales no son válidas:
+    ```json
+    { "status": 401, "error": "Unauthorized", "message": "Invalid username or password." }
+    ```
 
 ### `POST /api/auth/signup` — Registro de usuario normal
 
