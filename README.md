@@ -153,6 +153,7 @@ Toda la configuración por instalación se declara en `.env` (ver `.env.example`
 | Variable | Valor recomendado en Docker | Para qué sirve |
 |---|---|---|
 | `SERVER_PORT` | `8080` | Puerto interno de la API (no cambiar salvo conflicto). |
+| `WEB_PORT` | `80` | Puerto público de Nginx (cliente web). Cambiar si `:80` está ocupado o no hay permisos de root. |
 | `WEB_ORIGIN` | `http://localhost` (o el host público) | CORS del backend. Sin puerto porque el navegador entra por Nginx en `:80`. |
 | `JWT_SECRET` | cadena aleatoria ≥32 chars | Firma de JWT; obligatorio cambiarlo del valor del ejemplo. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | credenciales iniciales | Admin auto-bootstrap en el primer arranque si la BBDD está vacía. |
@@ -292,6 +293,46 @@ flowchart TD
         M4 -- no --> M5[Renombrar superviviente<br/>si llega name]
         M5 --> MOk([200 OK · superviviente])
     end
+```
+
+### Panel de administración web
+
+Todo lo administrativo del cliente web vive en un **grupo de rutas aparte, `front/app/(admin)/`**, separado del grupo `(app)` de usuario. Su layout monta un `AdminShell` envuelto en `ProtectedRoute requireAdmin`: un visitante sin sesión va a `/login` y un usuario autenticado **sin rol admin** se redirige a `/home`, de modo que el panel nunca se renderiza para quien no debe verlo. El backend vuelve a exigir rol `ADMIN` en cada uno de estos endpoints, así que el guard del front es **conveniencia de UX, no la frontera de seguridad real**.
+
+**Decisión de diseño: un único `AdminShell` con navegación superior fija, no sidebar.** Todas las páginas admin comparten la misma cabecera con cinco entradas —**Resumen** (`/admin`), **Usuarios** (`/admin/users`), **Canciones** (`/admin/songs`), **Artistas** (`/admin/artists`) y **Ajustes** (`/admin/settings`)— más un acceso «Ir a la app» que devuelve al `/home` de usuario. El logo y el nombre de la cabecera son el mismo branding dinámico que el resto de la app.
+
+Las secciones:
+
+- **Resumen** (`/admin`) — tarjetas de recuento (canciones, artistas, álbumes, usuarios, playlists) que enlazan a su gestión, y un botón **«Re-escanear biblioteca»** (`POST /api/config/scan/rescan`) que dispara un escaneo de cambios bajo demanda y reporta el resultado (`added`/`recovered`/`skipped`/`failed`), devolviendo `409` si ya hay un escaneo en curso. Aloja también la **Zona de peligro** (ver más abajo).
+- **Usuarios** (`/admin/users`) — alta (`POST /api/users`, con interruptor «Administrador»), cambio de rol en vivo (`PUT /api/users/{id}/role`), cambio de contraseña (`PUT /api/users/{id}`) y borrado (`DELETE /api/users/{id}`). El interruptor de rol respeta el guard del backend de **no degradar al último admin** (`400`), y la fila de la propia cuenta avisa de que quitarse el rol implica perder el acceso al panel.
+- **Canciones** (`/admin/songs`) — catálogo con búsqueda, subida drag & drop en dos fases y edición de metadatos por canción (ver [Subida de audios desde el panel](#subida-de-audios-desde-el-panel-drag--drop) y el caso de uso UC12). La edición reasigna el artista con `PUT /api/songs/{id}/artists` **sin tocar el `songPath`** (la ruta física no se expone en el formulario).
+- **Artistas** (`/admin/artists`) — lista con editar, **separar** y **juntar**, más la edición de álbumes por artista (ver [Gestión de artistas desde el panel](#gestión-de-artistas-desde-el-panel-edición-separar-y-juntar)).
+- **Ajustes** (`/admin/settings`) — dos pestañas, **Apariencia** y **Biblioteca**, descritas a continuación.
+
+#### Ajustes: Apariencia y Biblioteca
+
+**Apariencia** reúne el nombre de la app, el **logo** (`POST /api/config/logo`, con redimensionado automático en el cliente si supera `LOGO_MAX_FILE_SIZE`) y el **selector de colores** de dos semillas con presets accesibles y modo avanzado (la lógica de derivación de paleta y contraste se detalla en [Despliegue e instalación](#despliegue-e-instalación)). El preview es **no destructivo**: aplica los colores a `document.documentElement` en vivo, pero los restaura a los guardados si se abandona la pestaña sin confirmar. Guardar hace `PUT /api/config` con el branding y re-tematiza toda la app al invalidar la config pública.
+
+**Biblioteca** gestiona las **rutas de escaneo** (`POST`/`DELETE /api/config/scan-paths`, con escaneo inicial automático de la carpeta nueva), el **intervalo de escaneo** (30–86 400 s, aplicado en caliente; ver [Gestión de la biblioteca musical](#gestión-de-la-biblioteca-musical)) y dos interruptores de enriquecimiento: **autocompletar metadatos** (géneros vía Last.fm) y **autocompletar carátulas/fotos**. **Decisión de diseño: cada interruptor solo se habilita si la integración está activa en el `.env`** (`LASTFM_API_KEY` presente, `COVER_ART_ENABLED=true`). Si no lo está, la UI deshabilita el toggle y explica qué variable hay que tocar, dejando claro que es configuración de instalación —no de runtime— y evitando prometer un enriquecimiento que el servidor no puede hacer.
+
+#### Zona de peligro: reset del servidor
+
+La pestaña Resumen aloja una **Zona de peligro** con el **reset total** del servidor (`POST /api/config/reset`; el efecto se detalla en [Despliegue e instalación](#despliegue-e-instalación)). Para evitar un borrado accidental, el botón **exige teclear literalmente `RESET`** en un campo de confirmación antes de habilitarse; al completarse, el cliente cierra sesión y vuelve a `/login`, coherente con que el reset vacía la BBDD y reseedea el admin desde el `.env`.
+
+```mermaid
+flowchart TD
+    Guard{ProtectedRoute<br/>requireAdmin}
+    Guard -- sin sesión --> Login([/login])
+    Guard -- rol no admin --> HomeR([/home])
+    Guard -- admin --> Shell[AdminShell<br/>navegación superior fija]
+    Shell --> Resumen[Resumen /admin<br/>recuentos + re-escaneo<br/>POST /api/config/scan/rescan]
+    Shell --> Usuarios[Usuarios /admin/users<br/>alta · rol · pass · borrado]
+    Shell --> Canciones[Canciones /admin/songs<br/>catálogo · subida · edición]
+    Shell --> Artistas[Artistas /admin/artists<br/>editar · separar · juntar]
+    Shell --> Ajustes[Ajustes /admin/settings]
+    Ajustes --> Apariencia[Apariencia<br/>nombre · logo · colores<br/>PUT /api/config · POST /logo]
+    Ajustes --> Biblioteca[Biblioteca<br/>rutas · intervalo · toggles<br/>scan-paths · PUT /api/config]
+    Resumen --> Reset[Zona de peligro<br/>POST /api/config/reset<br/>confirmar escribiendo RESET]
 ```
 
 ### Conteo de escuchas derivado de la base de datos
