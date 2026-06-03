@@ -12,9 +12,13 @@ object DetailRoute {
     const val ALBUM = "album/{$ARG_ID}"
     const val PLAYLIST = "playlist/{$ARG_ID}"
     const val USER = "user/{$ARG_ID}"
+    const val FOLLOWERS = "user/{$ARG_ID}/followers"
+    const val FOLLOWING = "user/{$ARG_ID}/following"
 
     fun artist(id: Long) = "artist/$id"
     fun album(id: Long) = "album/$id"
     fun playlist(id: Long) = "playlist/$id"
     fun user(id: Long) = "user/$id"
+    fun followers(id: Long) = "user/$id/followers"
+    fun following(id: Long) = "user/$id/following"
 }

@@ -113,6 +113,22 @@
     <!-- Perfil -->
     <string name="profile_logout">Cerrar sesión</string>
     <string name="profile_change_server">Cambiar de servidor</string>
+    <string name="profile_followers">Seguidores</string>
+    <string name="profile_following">Siguiendo</string>
+    <string name="profile_edit_name">Editar nombre</string>
+    <string name="profile_edit_name_hint">Tu nombre</string>
+    <string name="profile_save">Guardar</string>
+    <string name="profile_cancel">Cancelar</string>
+    <string name="profile_change_photo">Cambiar foto</string>
+    <string name="profile_remove_photo">Eliminar foto</string>
+    <string name="profile_follow">Seguir</string>
+    <string name="profile_following_state">Siguiendo</string>
+    <string name="profile_unfollow">Dejar de seguir</string>
+    <string name="cd_change_photo">Cambiar foto de perfil</string>
+    <string name="cd_edit_name">Editar nombre</string>
+
+    <!-- Listas de seguidores / seguidos -->
+    <string name="follow_list_empty">Aún no hay nada aquí.</string>
 
     <!-- Reproductor -->
     <string name="player_play">Reproducir</string>

@@ -27,6 +27,8 @@ import davila.anton.selfpotify.ui.detail.ArtistDetailScreen
 import davila.anton.selfpotify.ui.detail.PlaylistDetailScreen
 import davila.anton.selfpotify.ui.detail.UserDetailScreen
 import davila.anton.selfpotify.ui.discover.DiscoverScreen
+import davila.anton.selfpotify.ui.follow.FollowListScreen
+import davila.anton.selfpotify.ui.follow.FollowListType
 import davila.anton.selfpotify.ui.library.LibraryScreen
 import davila.anton.selfpotify.ui.player.MiniPlayer
 import davila.anton.selfpotify.ui.player.PlayerViewModel
@@ -100,6 +102,8 @@ fun MainScreen(
         val openAlbum: (Long) -> Unit = { tabNavController.navigate(DetailRoute.album(it)) }
         val openPlaylist: (Long) -> Unit = { tabNavController.navigate(DetailRoute.playlist(it)) }
         val openUser: (Long) -> Unit = { tabNavController.navigate(DetailRoute.user(it)) }
+        val openFollowers: (Long) -> Unit = { tabNavController.navigate(DetailRoute.followers(it)) }
+        val openFollowing: (Long) -> Unit = { tabNavController.navigate(DetailRoute.following(it)) }
         val onBack: () -> Unit = { tabNavController.popBackStack() }
 
         // Abre el artista solicitado desde el reproductor una vez este ha colapsado a este
@@ -158,6 +162,8 @@ fun MainScreen(
                     contentPadding = innerPadding,
                     onNavigateToAuth = onNavigateToAuth,
                     onNavigateToServer = onNavigateToServer,
+                    onOpenFollowers = openFollowers,
+                    onOpenFollowing = openFollowing,
                 )
             }
 
@@ -200,6 +206,32 @@ fun MainScreen(
                     contentPadding = innerPadding,
                     onBack = onBack,
                     onOpenPlaylist = openPlaylist,
+                    onOpenFollowers = openFollowers,
+                    onOpenFollowing = openFollowing,
+                )
+            }
+            composable(
+                DetailRoute.FOLLOWERS,
+                arguments = listOf(navArgument(DetailRoute.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                FollowListScreen(
+                    userId = entry.arguments?.getLong(DetailRoute.ARG_ID) ?: 0L,
+                    type = FollowListType.FOLLOWERS,
+                    contentPadding = innerPadding,
+                    onBack = onBack,
+                    onOpenUser = openUser,
+                )
+            }
+            composable(
+                DetailRoute.FOLLOWING,
+                arguments = listOf(navArgument(DetailRoute.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                FollowListScreen(
+                    userId = entry.arguments?.getLong(DetailRoute.ARG_ID) ?: 0L,
+                    type = FollowListType.FOLLOWING,
+                    contentPadding = innerPadding,
+                    onBack = onBack,
+                    onOpenUser = openUser,
                 )
             }
         }

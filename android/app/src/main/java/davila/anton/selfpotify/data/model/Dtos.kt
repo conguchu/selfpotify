@@ -112,6 +112,11 @@ data class PlaylistInput(
     val songIds: List<Long>,
 )
 
+/** Body de `PUT /api/me/profile`: edita el nombre visible (`null`/vacío lo borra). */
+data class ProfileUpdateRequest(
+    val name: String?,
+)
+
 /** Respuesta de `POST /api/playlists/{id}/share`: magic link de un solo uso. */
 data class ShareLinkResponse(
     val token: String,

@@ -45,12 +45,22 @@ class DetailRepository(private val session: SessionStore) {
         }
     }
 
-    /** Usuario público + sus playlists públicas. */
+    /**
+     * Usuario público + las playlists que le mostramos: sus **públicas** unidas a las
+     * **colaborativas conmigo** (donde él es creador o colaborador y yo participo, así que llegan vía
+     * `myPlaylists`/`sharedPlaylists` con `collaboratorIds` poblado ⇒ `isShared` ⇒ icono de
+     * personitas). Las llamadas auxiliares se toleran a fallo para no tumbar la pantalla.
+     */
     suspend fun user(id: Long): Result<Pair<UserSummaryDTO, List<PlaylistDTO>>> = withContext(Dispatchers.IO) {
         runCatching {
             val user = api().getUserPublic(id)
-            val playlists = runCatching { api().userPlaylists(id) }.getOrDefault(emptyList())
-            user to playlists
+            val public = runCatching { api().userPlaylists(id) }.getOrDefault(emptyList())
+            val mine = runCatching { api().myPlaylists() }.getOrDefault(emptyList())
+            val shared = runCatching { api().sharedPlaylists() }.getOrDefault(emptyList())
+            val collab = (mine + shared).filter {
+                it.creatorId == id || it.collaboratorIds?.contains(id) == true
+            }
+            user to (public + collab).distinctBy { it.id }
         }
     }
 
