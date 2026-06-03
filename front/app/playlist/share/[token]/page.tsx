@@ -17,6 +17,29 @@ function isMobileUserAgent(): boolean {
   );
 }
 
+/** `true` si el navegador corre sobre Android (soporta el esquema `intent:`). */
+function isAndroid(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/**
+ * URL `intent:` de Chrome/Samsung/Firefox en Android. El SO decide: si la app
+ * está instalada la abre; si no, navega automáticamente al `browser_fallback_url`
+ * (la pantalla `/mobile` con el copy de invitación). Así no hace falta heurística
+ * de temporizador para detectar la instalación.
+ */
+function androidIntentUrl(token: string): string {
+  const fallback = `${window.location.origin}/mobile?origin=playlist-share`;
+  return (
+    `intent://playlist/share/${token}#Intent;` +
+    `scheme=selfpotify;` +
+    `package=davila.anton.selfpotify;` +
+    `S.browser_fallback_url=${encodeURIComponent(fallback)};` +
+    `end`
+  );
+}
+
 /**
  * Ventana de gracia para el handoff a la app nativa: si la app está instalada,
  * el SO cambia de contexto (la pestaña se oculta) antes de este plazo; si no, el
@@ -37,10 +60,12 @@ const DEEP_LINK_FALLBACK_MS = 1200;
  * En **escritorio** canjea directamente en web: `POST /api/playlists/share/{token}`
  * y redirige a la playlist (requiere sesión; si no la hay, va a `/login`).
  *
- * En **móvil** intenta primero un *handoff* a la app nativa redirigiendo a
- * `selfpotify://playlist/share/{token}` (esquema propio; ver README → "Apertura
- * en la app móvil"). Si la app no está instalada —el navegador no cambia de
- * contexto dentro de `DEEP_LINK_FALLBACK_MS`— se continúa con el canje web.
+ * En **Android** usa una URL `intent:` con `browser_fallback_url`: el SO abre la
+ * app si está instalada y, si no, navega solo a `/mobile?origin=playlist-share`
+ * (pantalla de descarga con copy de invitación). En **iOS/otros móviles** intenta
+ * el esquema propio `selfpotify://playlist/share/{token}` y, si no hay handoff
+ * dentro de `DEEP_LINK_FALLBACK_MS`, continúa con el canje web. Ver README →
+ * "Apertura en la app móvil".
  */
 export default function RedeemSharePage({
   params,
@@ -92,9 +117,16 @@ export default function RedeemSharePage({
       return;
     }
 
-    // Móvil: intentar el handoff a la app y, si no ocurre, caer al canje web.
     setTryingApp(true);
 
+    // Android: el `intent:` resuelve por sí mismo (app o `browser_fallback_url`),
+    // sin temporizadores. No hay canje web aquí: o abre la app o cae a `/mobile`.
+    if (isAndroid()) {
+      window.location.href = androidIntentUrl(token);
+      return;
+    }
+
+    // iOS/otros: intentar el esquema propio y, si no hay handoff, caer al canje web.
     // Si la app toma el control, la pestaña pasa a oculta: cancelamos el fallback.
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
@@ -143,7 +175,7 @@ export default function RedeemSharePage({
           ? "Abriendo en la app de Selfpotify…"
           : "Abriendo la playlist compartida…"}
       </p>
-      {tryingApp && (
+      {tryingApp && !isAndroid() && (
         <Button variant="ghost" onClick={redeemOnWeb}>
           Continuar en el navegador
         </Button>
