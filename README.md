@@ -484,7 +484,17 @@ flowchart TD
     Consume --> Resp([200 OK PlaylistDTO<br/>con collaboratorIds])
 ```
 
-#### Apertura en la app móvil (deep link `selfpotify://`)
+#### Apertura en la app móvil (deep link `selfpotify://`) — *planificado*
+
+> **Estado actual.** Lo que ya está implementado y mergeado es: (1) el
+> middleware web que redirige a `/mobile` en móvil **dejando exenta**
+> `/playlist/share/*`, y (2) que la app Android construye el enlace de compartir
+> apuntando a la **URL web** del canje (`<servidor>/playlist/share/{token}`). El
+> **handoff vía `selfpotify://`** descrito abajo (intent-filter en `MainActivity`
+> + detección de UA en la página de share que redirige al esquema) es el
+> **contrato de diseño acordado**, todavía **no implementado**. Hoy, abrir el
+> enlace en un móvil carga la página de share (exenta del middleware) y canjea
+> **en web**.
 
 Un enlace de invitación compartido (`<servidor>/playlist/share/{token}`) sigue
 siendo una **URL web normal** —para que cualquiera pueda abrirlo en un navegador—,
@@ -770,10 +780,11 @@ redirige cualquier acceso desde un móvil a `/mobile`, una pantalla simple que
 invita a **descargar la app nativa** desde las
 [releases oficiales de GitHub](https://github.com/conguchu/selfpotify/releases).
 
-La única ruta exenta es `/playlist/share/*`, que tiene su propio manejo para
-Android (deep links / magic link) en otra rama y por tanto no se redirige. Desde
-escritorio, `/mobile` redirige a `/home`. El middleware ignora los assets
-estáticos y las rutas internas de Next.js mediante su `matcher`.
+La única ruta exenta es `/playlist/share/*`: debe **cargarse** también en móvil
+para canjear el magic link (hoy en web) y, en el futuro, para hacer el handoff a
+la app vía `selfpotify://` (ver "Apertura en la app móvil"). Desde escritorio,
+`/mobile` redirige a `/home`. El middleware ignora los assets estáticos y las
+rutas internas de Next.js mediante su `matcher`.
 
 ```mermaid
 flowchart TD
@@ -787,6 +798,36 @@ flowchart TD
     Mob -- sí --> Pass3([Muestra pantalla móvil])
     Mob -- no --> Redir[Redirige a /mobile]
     Redir --> Pass3
+```
+
+**Visión de conjunto: cómo se atiende a un cliente de teléfono.** El siguiente
+diagrama resume todas las vías por las que un móvil llega a contenido de
+Selfpotify y dónde acaba. La parte sólida es lo **implementado hoy**; la
+discontinua es el **handoff `selfpotify://` planificado** (ver "Apertura en la
+app móvil").
+
+```mermaid
+flowchart TD
+    subgraph Entradas
+        A[Usuario abre la app nativa Android]
+        B["Usuario abre una URL web<br/>(cualquier ruta del front)"]
+        C["Usuario abre un enlace de share<br/>&lt;servidor&gt;/playlist/share/token"]
+    end
+
+    A --> AppNative([App Kotlin: consume la API :8080 directamente])
+
+    B --> MW{Middleware Next.js<br/>¿UA móvil?}
+    MW -- no, escritorio --> Web([App web normal])
+    MW -- sí, móvil --> MobPage([Pantalla /mobile<br/>«Descarga la app» + releases GitHub])
+
+    C --> MW2{Middleware:<br/>/playlist/share exento}
+    MW2 --> SharePage[Página /playlist/share/token se CARGA<br/>aunque sea móvil]
+    SharePage --> Redeem[Canje web: POST /api/playlists/share/token]
+    Redeem --> PL([Redirige a /playlist/id])
+
+    SharePage -. planificado: si UA móvil .-> Deep[/"selfpotify://playlist/share/token"/]
+    Deep -. app instalada .-> AppRedeem([MainActivity canjea y abre la playlist])
+    Deep -. app NO instalada timeout .-> Redeem
 ```
 
 ---
