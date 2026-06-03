@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -121,6 +122,8 @@ fun DetailHeader(
  * - [position] pinta el número de orden a la izquierda (1, 2, 3…).
  * - [listeners], si no es `null`, muestra el contador de escuchas (icono ▶ + nº) a la derecha.
  * - [onAddToPlaylist], si no es `null`, añade un botón "+" para meter la canción en una playlist.
+ * - [onRemoveFromPlaylist], si no es `null`, añade un botón "-" para quitar la canción de la playlist
+ *   actual (usado en el detalle de playlist).
  */
 @Composable
 fun SongRow(
@@ -131,6 +134,7 @@ fun SongRow(
     position: Int? = null,
     listeners: Long? = null,
     onAddToPlaylist: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -198,8 +202,21 @@ fun SongRow(
                 )
             }
         }
+        if (onRemoveFromPlaylist != null) {
+            IconButton(onClick = onRemoveFromPlaylist) {
+                Icon(
+                    imageVector = Icons.Rounded.Remove,
+                    contentDescription = stringResourceRemoveFromPlaylist(),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
+
+@Composable
+private fun stringResourceRemoveFromPlaylist(): String =
+    androidx.compose.ui.res.stringResource(R.string.cd_remove_from_playlist)
 
 @Composable
 private fun stringResourcePlays(): String =
