@@ -154,7 +154,11 @@ class PlaylistDetailViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             playlistRepo.shareLink(id)
                 .onSuccess { resp ->
-                    val path = resp.shareUrl ?: "/api/playlists/share/${resp.token}"
+                    // Enlace compartible: apunta a la PÁGINA WEB de canje
+                    // (`/playlist/share/{token}`), no al path de API (`resp.shareUrl`),
+                    // que es un POST autenticado y abierto en el navegador daría 403.
+                    // Mismo criterio que la web (origin + /playlist/share/token).
+                    val path = "/playlist/share/${resp.token}"
                     _state.update {
                         it.copy(
                             shareLoading = false,
