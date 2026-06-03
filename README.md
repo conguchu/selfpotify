@@ -384,18 +384,18 @@ El feed devuelve:
    *este* usuario no tiene escuchas propias, no hay historial con el que
    personalizar y se devuelven **todos** los artistas del catálogo.
 2. **Descubrimientos diarios**: explicado más abajo.
-2. **Por géneros recientes.** Con historial, los 7 huecos personalizados se
+3. **Por géneros recientes.** Con historial, los 7 huecos personalizados se
    llenan primero con los artistas **más escuchados globalmente dentro de los
    géneros que el usuario ha escuchado últimamente** (la pila reciente
    `last20GenresListened`, cabeza = más reciente, vía
    `findArtistsByGenreOrderByGlobalListensDesc`).
-3. **Relleno afín del catálogo.** Si aún quedan huecos, se amplían con más
+4. **Relleno afín del catálogo.** Si aún quedan huecos, se amplían con más
    artistas de esos mismos géneros según el catálogo (`findArtistsByGenre`),
    aunque todavía no tengan escuchas, para no reducir el feed al único artista ya
    escuchado.
-4. **Relleno por popularidad global.** Si todavía faltan, se completan con la
+5. **Relleno por popularidad global.** Si todavía faltan, se completan con la
    popularidad global (`findArtistsByGlobalListensDesc`).
-5. **3 aleatorios + relleno final.** Se añaden siempre 3 artistas aleatorios del
+6. **3 aleatorios + relleno final.** Se añaden siempre 3 artistas aleatorios del
    catálogo (sin repetir) y, si con todo no se llega a 10 (catálogo pequeño), se
    rellena de nuevo con popularidad global hasta donde se pueda.
 
@@ -428,16 +428,6 @@ flowchart TD
     Over --> DTO
     DTO --> Render([Cliente renderiza<br/>los artistas recomendados])
 ```
-
-#### Carátulas y fotos automáticas
-
-Durante el escaneo, el servidor completa de forma solo si falta la carátula de cada canción y álbum y la foto de cada artista, gemelo de cómo `GenreApiService` rellena el género. El orden de prioridad es:
-
-1. **Carátula embebida** en el propio archivo `.mp3`/`.wav` (etiqueta ID3/APIC). Si existe, se vuelca a `<assets>/covers/<sha256>.<ext>` y se guarda la ruta `/assets/covers/…` (servida por el mismo handler `/assets/**` que el logo); **no se consulta internet** para esa canción. Sirve también como portada del álbum, al ser la del propio lanzamiento.
-2. **Fuentes online sin API key** (links a CDN en la nube), "lo más oficial primero": **Cover Art Archive** vía MusicBrainz (portada canónica del *release*) → **iTunes Search API** (CDN de Apple) → **Deezer**. La foto del artista sale de **Deezer** (`picture_xl`), ya que iTunes no la expone y MusicBrainz no aloja fotografías.
-3. Si no se encuentra nada (o el link externo muere), el campo queda **`null`** y el frontend pinta su icono/inicial; no se generan placeholders en el backend.
-
-Para poder rellenar `Album.picture_url`, el escaneo ahora **resuelve o crea el álbum** a partir de la etiqueta `ALBUM` del fichero. Todas las fuentes funcionan sin registrar ninguna clave; MusicBrainz solo exige un `User-Agent` descriptivo (`COVER_ART_USER_AGENT`). La resolución online puede desactivarse con `COVER_ART_ENABLED=false` (la extracción de carátula embebida se mantiene).
 
 ### Carátulas de playlist
 
@@ -874,7 +864,7 @@ La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin s
 - **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
 - **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la marca del servidor —paleta de colores y ruta del logo— (ver "Branding dinámico del servidor: colores y logo").
 - **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
-- **`ui/<feature>`** — una carpeta por pantalla o flujo (`server/`, `auth/`, `main/`, `discover/`, `search/`, `library/`, `profile/`, `follow/`, `player/`, `offline/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI. La reproducción de audio vive aparte en `playback/` (`PlaybackService` + `PlaybackConnection`).
+- **`ui/<feature>`** — una carpeta por pantalla o flujo (`server/`, `auth/`, `main/`, `discover/`, `search/`, `library/`, `profile/`, `follow/`, `detail/`, `player/`, `offline/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI. Junto a las features hay dos carpetas de apoyo: `common/` (composables reutilizables como `ServerLogo`) y `theme/` (el `SelfpotifyTheme` y el `ThemeViewModel` del branding dinámico). La reproducción de audio vive aparte —fuera de `ui/`— en `playback/` (`PlaybackService` + `PlaybackConnection`).
 
 El stack es **Jetpack Compose + Navigation Compose** (una sola `ComponentActivity` que aloja un `NavHost` con los destinos de la app), corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
 
@@ -1063,7 +1053,7 @@ classDiagram
         - List~Song~ songs
         - int duration_ms
         - boolean isPublic
-        - String picture_url
+        - String pictureUrl
         - User creator
         + copy(Playlist)
     }
