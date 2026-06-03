@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Valores de FALLBACK de carga (CLAUDE.md §3.1). NO son el branding de la app:
+        la paleta real es dinámica y viene del servidor vía GET /api/config/public.
+        Solo se usan mientras el servidor no ha respondido antes del primer render.
+    -->
+    <color name="fallback_bg">#121212</color>
+    <color name="fallback_surface">#181818</color>
+    <color name="fallback_surface_variant">#282828</color>
+    <color name="fallback_accent">#1DB954</color>
+    <color name="fallback_on_accent">#000000</color>
+    <color name="fallback_text_primary">#FFFFFF</color>
+    <color name="fallback_text_secondary">#B3B3B3</color>
+    <color name="fallback_error">#F15E6C</color>
+
+    <!-- Fondo del icono adaptativo: blanco para que destaque el logo rojo. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

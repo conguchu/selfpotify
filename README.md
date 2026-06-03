@@ -484,6 +484,73 @@ flowchart TD
     Consume --> Resp([200 OK PlaylistDTO<br/>con collaboratorIds])
 ```
 
+#### Apertura en la app móvil (deep link `selfpotify://`)
+
+Un enlace de invitación compartido (`<servidor>/playlist/share/{token}`) sigue
+siendo una **URL web normal** —para que cualquiera pueda abrirlo en un navegador—,
+pero cuando se abre desde un **móvil con la app instalada** queremos que el canje
+ocurra dentro de la app nativa, no en el navegador.
+
+**Decisión de diseño: esquema propio `selfpotify://`, no App Links verificadas.**
+Las App Links (apertura automática sin diálogo) exigirían publicar un
+`assetlinks.json` (Digital Asset Links) en el dominio de cada servidor. Como
+Selfpotify es **self-hosted** —el host/puerto del servidor es arbitrario y
+desconocido en tiempo de compilación— eso es inviable. Se usa por tanto un
+**esquema de URI propio**: `selfpotify://playlist/share/{token}` (host `playlist`,
+path `/share/{token}`, paralelo a la ruta web). La app Android lo registra con un
+`intent-filter` en `MainActivity` (`launchMode="singleTask"`, para recibir el
+intent en `onNewIntent` cuando ya está abierta).
+
+**El que detecta el móvil y hace el puente es la página web, no el enlace.** El
+enlace compartido NO cambia de formato (sigue siendo http(s), con fallback web
+intacto). Es la página `/playlist/share/{token}` la que, al cargar, detecta el
+dispositivo y decide cómo abrir la app, distinguiendo plataforma:
+
+- **Android** → redirige a una URL `intent:` de Chrome/Samsung/Firefox con
+  `browser_fallback_url`:
+  `intent://playlist/share/{token}#Intent;scheme=selfpotify;package=davila.anton.selfpotify;S.browser_fallback_url=<…/mobile?origin=playlist-share>;end`.
+  Es el **propio sistema** quien decide: si la app está instalada la abre; si no,
+  navega automáticamente al `browser_fallback_url`. No hace falta heurística de
+  temporizador: no hay forma fiable de "preguntar" desde el navegador si la app
+  está instalada, así que se delega la decisión al SO vía `intent:`. El fallback
+  apunta a la pantalla de bienvenida `/mobile?origin=playlist-share`, que muestra
+  un copy de invitación específico (ver "Redirección a la app móvil").
+- **iOS / otros móviles** → intenta el esquema propio
+  `selfpotify://playlist/share/{token}` y, si no hay handoff dentro de una ventana
+  corta (`DEEP_LINK_FALLBACK_MS`, la pestaña no se oculta → la app no está
+  instalada), **cae al canje web**.
+- **Escritorio** → no se intenta el deep link: se canjea en web como hasta ahora.
+
+**Respaldo manual: botón "Ya tengo la app".** El intento automático al cargar la
+página no siempre basta: algunos navegadores **bloquean lanzar un esquema propio
+sin un gesto del usuario**. Por eso, mientras se intenta el handoff, la página
+muestra en móvil un botón **"Ya tengo la app"** —un `<a href>` real con el mismo
+deep link (`intent:` en Android, `selfpotify://` en iOS/otros)—; al ser una
+interacción explícita es más fiable que el redirect automático y sirve de salida
+si este no salta. Limitación conocida: dentro de **navegadores embebidos**
+(WhatsApp, Telegram, Instagram… que usan un `WebView`) ni el automático ni el
+botón funcionan, porque esos `WebView` no resuelven esquemas propios ni `intent:`;
+ahí la única vía es abrir el enlace en un navegador real (Chrome/Firefox).
+
+> **Nota: la página vive fuera del grupo protegido `(app)`.** `/playlist/share/{token}`
+> es una ruta de **nivel superior** (`front/app/playlist/share/[token]/`), no bajo
+> `(app)`, precisamente para que el puente al deep link se ejecute **aunque el
+> visitante no tenga sesión web** —el caso típico de quien recibe la invitación en
+> el móvil—. Si estuviera bajo `ProtectedRoute`, un usuario sin sesión sería
+> redirigido a `/login` (y el middleware lo mandaría a `/mobile`) **antes** de poder
+> intentar abrir la app. Solo el *fallback* de canje web requiere sesión; sin ella
+> redirige a `/login`. Además es la **única ruta exenta** del middleware que
+> redirige los móviles a `/mobile` (ver "Redirección a la app móvil"), para poder
+> **cargarse** en el móvil y ejecutar el handoff.
+
+**Qué hace la app al recibir el deep link.** `MainActivity` extrae el `token` del
+URI y canjea el enlace contra el servidor configurado
+(`POST /api/playlists/share/{token}`, mismo endpoint que la web), añade al usuario
+como colaborador y navega al detalle de la playlist. Si no hay sesión activa, el
+canje queda pendiente hasta completar el login y se ejecuta a continuación. El
+token es server-relativo: la app lo canjea contra **su** servidor configurado
+(coherente con el modelo single-server de cada instalación).
+
 ### Descubrimientos diarios
 
 Junto al feed de artistas, el home ofrece una sección de **descubrimientos
@@ -717,6 +784,226 @@ flowchart TD
     Enrich --> Resp([200 OK UserSummaryDTO actualizado])
     Resp --> Invalidate[React Query invalida:<br/>publicProfile target, me,<br/>followers/following de ambos]
     Invalidate --> ReRender([UI re-pinta contador + botón])
+```
+
+### Redirección a la app móvil
+
+El frontend web **no es responsive**: está pensado para escritorio. Para no
+mostrar una experiencia rota en móviles, un **middleware de Next.js**
+(`front/middleware.ts`) detecta el dispositivo a partir del `User-Agent` y
+redirige cualquier acceso desde un móvil a `/mobile`, una pantalla simple que
+invita a **descargar la app nativa** desde las
+[releases oficiales de GitHub](https://github.com/conguchu/selfpotify/releases).
+
+La única ruta exenta es `/playlist/share/*`: debe **cargarse** también en móvil
+para hacer el handoff a la app (vía `intent:` en Android o `selfpotify://` en
+iOS/otros) y, si la app no está instalada, decidir su fallback (ver "Apertura en
+la app móvil"). Desde escritorio, `/mobile` redirige a `/home`. El middleware
+ignora los assets estáticos y las rutas internas de Next.js mediante su `matcher`.
+
+La pantalla `/mobile` adapta su texto según el parámetro `origin`: con
+`?origin=playlist-share` —el `browser_fallback_url` que usa el `intent:` de Android
+cuando la app **no** está instalada— muestra un copy de invitación ("Te han
+invitado a colaborar en una playlist, ¿te lo vas a perder? Instálate la app y
+regístrate en el servidor `<url del servidor>`", con la URL reconstruida en el
+servidor desde las cabeceras de la petición) en vez del copy genérico de descarga,
+**manteniendo el botón de descarga** en ambos casos.
+
+```mermaid
+flowchart TD
+    Req([Petición a cualquier ruta]) --> UA{¿User-Agent móvil?}
+    UA -- no --> Mobile1{¿Ruta == /mobile?}
+    Mobile1 -- sí --> Home[Redirige a /home]
+    Mobile1 -- no --> Pass1([Continúa normal])
+    UA -- sí --> Share{¿Ruta == /playlist/share/*?}
+    Share -- sí --> Pass2([Continúa normal<br/>la página hace el puente a la app:<br/>intent:// Android · selfpotify:// iOS])
+    Share -- no --> Mob{¿Ruta == /mobile?}
+    Mob -- sí --> Pass3([Muestra pantalla móvil])
+    Mob -- no --> Redir[Redirige a /mobile]
+    Redir --> Pass3
+```
+
+**Visión de conjunto: cómo se atiende a un cliente de teléfono.** El siguiente
+diagrama resume todas las vías por las que un móvil llega a contenido de
+Selfpotify y dónde acaba. Las flechas discontinuas marcan el **handoff a la app**
+(ver "Apertura en la app móvil"), distinto según plataforma: en Android vía
+`intent:` (el SO abre la app o cae al `browser_fallback_url` `/mobile`), y en
+iOS/otros vía `selfpotify://` con fallback por temporizador al canje web.
+
+```mermaid
+flowchart TD
+    subgraph Entradas
+        A[Usuario abre la app nativa Android]
+        B["Usuario abre una URL web<br/>(cualquier ruta del front)"]
+        C["Usuario abre un enlace de share<br/>&lt;servidor&gt;/playlist/share/token"]
+    end
+
+    A --> AppNative([App Kotlin: consume la API :8080 directamente])
+
+    B --> MW{Middleware Next.js<br/>¿UA móvil?}
+    MW -- no, escritorio --> Web([App web normal])
+    MW -- sí, móvil --> MobPage([Pantalla /mobile<br/>«Descarga la app» + releases GitHub])
+
+    C --> MW2{Middleware:<br/>/playlist/share exento}
+    MW2 --> SharePage["Página /playlist/share/token se CARGA<br/>aunque sea móvil · fuera del grupo protegido"]
+    SharePage --> Plat{¿Qué dispositivo?}
+
+    Plat -- escritorio --> Redeem[Canje web: POST /api/playlists/share/token]
+    Redeem --> PL([Redirige a /playlist/id])
+
+    Plat -- Android --> Intent[/"intent://…;scheme=selfpotify;<br/>browser_fallback_url=/mobile?origin=playlist-share"/]
+    Intent -. app instalada .-> AppRedeem([MainActivity canjea y abre la playlist])
+    Intent -. app NO instalada .-> MobInvite([/mobile?origin=playlist-share<br/>copy de invitación + descarga])
+
+    Plat -- iOS/otros --> Deep[/"selfpotify://playlist/share/token"/]
+    Deep -. app instalada .-> AppRedeem
+    Deep -. app NO instalada timeout .-> Redeem
+```
+
+---
+
+## Android
+
+El cliente Android es una aplicación **nativa en Kotlin** que vive en el directorio `android/` del monorepo y consume la API de Spring **directamente** (`:8080`, sin pasar por Nginx; ver "Empaquetado y arranque con Docker"). Es el primero de los clientes "no web" previstos por la arquitectura de microservicios.
+
+### Arquitectura
+
+La app sigue **MVVM estricto**, con responsabilidades separadas en capas y sin saltos entre ellas:
+
+- **`data/model`** — DTOs Kotlin puros que reflejan la forma real de la API (`PublicConfig`, `JwtResponse`, …), tomada de `API-doc.md` y de los controllers.
+- **`data/network`** — interfaz Retrofit (`SelfpotifyApi`) y un `ApiProvider` que **reconstruye el cliente Retrofit cuando cambia el servidor**, ya que la URL base se decide en tiempo de ejecución y no está fijada en compilación.
+- **`data/local`** — `SessionStore` sobre **DataStore Preferences**: persiste la dirección del servidor, el JWT, el servidor emisor del JWT, el nombre de usuario y la marca del servidor —paleta de colores y ruta del logo— (ver "Branding dinámico del servidor: colores y logo").
+- **`data/repository`** — `AuthRepository` es la **única fuente de verdad**: combina red y persistencia y expone `Result<T>` para propagar errores sin lanzar excepciones a la UI.
+- **`ui/<feature>`** — una carpeta por pantalla o flujo (`server/`, `auth/`, `main/`, `discover/`, `search/`, `library/`, `profile/`, `follow/`, `player/`, `offline/`), cada una con su `Screen` composable + `ViewModel`. Los ViewModels exponen el estado como `StateFlow` y los eventos de navegación como `SharedFlow`; **nunca** referencian la UI. La reproducción de audio vive aparte en `playback/` (`PlaybackService` + `PlaybackConnection`).
+
+El stack es **Jetpack Compose + Navigation Compose** (una sola `ComponentActivity` que aloja un `NavHost` con los destinos de la app), corrutinas y `StateFlow`. Para red se usa Retrofit + Gson sobre OkHttp.
+
+El look & feel sigue la estética **Spotify (oscuro)**, pero **el branding es dinámico**: tanto la paleta de colores como el **logo** se obtienen del servidor vía `GET /api/config/public`. Lo que define el cliente son solo valores de **fallback de carga** —los colores neutros (fondo `#121212`, acento `#1DB954`, texto blanco) y el logo de Selfpotify empaquetado en `res/drawable`—, nunca el branding real de la instalación: en cuanto la app conoce un servidor adopta sus colores y muestra su logo en lugar del de Selfpotify.
+
+### Branding dinámico del servidor: colores y logo
+
+Cada instalación define su propio branding, así que la app **adopta tanto la paleta como el logo del servidor al que se conecta** en lugar de traer recursos fijos. El logo local de Selfpotify (`res/drawable/logo_selfpotify.png`) queda relegado a **fallback de carga**, igual que los colores neutros. El ciclo es:
+
+1. **Origen.** El servidor expone su branding en `GET /api/config/public`:
+   - **Colores:** `branding.colors`, un mapa de tokens CSS (`--color-bg`, `--color-bg-card`, `--color-bg-hover`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-hover`, `--color-danger`, …). El color de texto sobre el acento no lo envía el servidor: se calcula en el cliente (negro o blanco según la luminancia del acento, contraste WCAG).
+   - **Logo:** `branding.logoUrl`, una ruta relativa al asset subido por el administrador (p. ej. `/assets/logo.png`, servido por `/assets/**`). Puede ser `null` si la instalación no ha subido logo.
+
+2. **Captura.** El branding se obtiene de la misma llamada que ya valida el servidor en la pantalla 1, de modo que la app adopta colores y logo **antes incluso de iniciar sesión**. Además, al hacer login se **refresca** (best-effort) volviendo a leer la config pública, por si el branding cambió desde entonces.
+
+3. **Almacenamiento.** Los tokens de color (serializados a JSON) y la ruta del logo se persisten en **DataStore** (`SessionStore`). El branding pertenece al servidor, no a la sesión: **sobrevive al cierre de sesión** y solo se borra al **cambiar de servidor** (junto con su URL y su JWT).
+
+4. **Exposición.** El `ThemeViewModel` (compartido a nivel de `Activity`) lee el branding persistido y expone dos `StateFlow`: la paleta resuelta a un modelo `BrandingColors` (enteros ARGB, con cada token ausente cayendo a su fallback) y la **URL absoluta del logo** (combinando la dirección del servidor activo con `branding.logoUrl`; `null` mientras no haya logo). Mientras no haya branding guardado emite el fallback de carga.
+
+5. **Aplicación.**
+   - **Colores:** los tokens se proyectan sobre el `ColorScheme` de Material 3 dentro de `SelfpotifyTheme` (Jetpack Compose). Toda la jerarquía de composables hereda el branding vía `MaterialTheme.colorScheme`; los tokens extra (texto secundario, hover del acento…) están disponibles como `LocalBrandingColors.current`. La `MainActivity` también tiñe las barras del sistema con el color de fondo del servidor desde el primer frame, leyendo la paleta persistida.
+   - **Logo:** la URL absoluta se publica vía `LocalServerLogoUrl` y la consume el composable común `ServerLogo`, que carga la imagen del servidor con **Coil** (`AsyncImage`). Todas las pantallas del flujo (configuración de servidor, login, home y sin-conexión) usan `ServerLogo` en lugar del recurso local; mientras la imagen llega, si la descarga falla o si el servidor no define logo, `ServerLogo` cae al logo de Selfpotify empaquetado.
+
+### Estructura de navegación principal y reproductor
+
+La app logueada es un `Scaffold` con un `NavHost` anidado para las cuatro pestañas y una `NavigationBar` inferior; sobre la barra vive un **mini-player** persistente (carátula, título/artista, play-pausa y acceso a "añadir a playlist") que solo aparece cuando hay algo cargado. Pulsarlo abre el **reproductor a pantalla completa** (carátula grande, barra de progreso con *seek*, anterior/siguiente, play-pausa y **loop**), que se desliza desde abajo como destino del NavHost externo.
+
+**Reproducción con Media3 en un servicio en primer plano.** El audio lo gestiona un `MediaSessionService` (`PlaybackService`) que aloja un único `ExoPlayer`: la música **sobrevive en segundo plano**, con notificación multimedia y controles en la pantalla de bloqueo. La UI no habla con el servicio directamente, sino a través de un `MediaController` envuelto en `PlaybackConnection`, que expone el estado del player como `StateFlow` a los ViewModels (MVVM).
+
+**Streaming con stream token.** Para reproducir, el cliente pide un stream token (`POST /api/listen/token`, con el JWT en cabecera) y construye las URLs de la cola como `/api/listen/{id}?st=<token>` (ver "Funcionamiento del streaming"). ExoPlayer hace las peticiones HTTP Range con esa URL, sin exponer el JWT.
+
+**Añadir a playlist.** Desde el mini-player o el reproductor, un *bottom sheet* lista las playlists propias (`GET /api/playlists/my`) y añade la canción en curso a la elegida (`POST /api/playlists/{id}/songs/{songId}`).
+
+### Deep link de invitación a playlist (`selfpotify://`)
+
+La app es el destino nativo de los enlaces de invitación a playlist. El **lado web** (detección de dispositivo y puente a la app vía `intent:` en Android o `selfpotify://` en iOS) se explica en "Apertura en la app móvil"; aquí se documenta el **lado cliente Android**.
+
+**Registro del esquema.** `MainActivity` declara un `intent-filter` (acción `VIEW` + categoría `BROWSABLE`) para el URI `selfpotify://playlist/share/{token}` (`scheme=selfpotify`, `host=playlist`, `pathPrefix=/share`). Se usa un **esquema propio** y no App Links verificadas porque el servidor es self-hosted y su dominio es arbitrario, lo que haría inviable publicar el `assetlinks.json` que exigen las App Links.
+
+**Recepción del intent (`singleTask`).** La Activity es `launchMode="singleTask"`, así que el deep link puede llegar al **arrancar** (`onCreate`, vía `getIntent()`) o con la app **ya abierta** (`onNewIntent`). En ambos casos `extractShareToken` valida que el intent sea un `VIEW` con path `/share/{token}` y guarda el token en un `mutableStateOf` (`pendingShareToken`) que observa el árbol de Compose.
+
+**Canje diferido hasta tener sesión.** El token pendiente se canjea contra el servidor configurado (`POST /api/playlists/share/{token}` → `PlaylistRepository.redeem`), se añade al usuario como colaborador y se **navega al detalle de la playlist**. Si todavía no hay sesión activa, el canje **queda pendiente** hasta completar el login y se ejecuta a continuación; una vez consumido, el token se limpia (`onShareTokenConsumed`). El token es server-relativo: la app lo canjea contra **su** servidor configurado, coherente con el modelo single-server de cada instalación.
+
+### Pantalla Descubrir
+
+*Descubrir* adopta la misma estructura que el home de la web: una **columna vertical de secciones**, donde cada sección es un **carrusel horizontal de carátulas** deslizable. A diferencia de la web —que aplica un efecto *coverflow* 3D (`rotateY`/`translateZ`)— el cliente Android lo mantiene **plano** (sin transformaciones 3D), priorizando rendimiento y simplicidad.
+
+Las secciones, de arriba a abajo, son:
+
+1. **Descubrimientos diarios** (`GET /api/feed/daily-discoveries`) — carrusel con **scroll infinito**: al acercarse a las dos últimas tarjetas se piden 10 canciones aleatorias (`GET /api/songs/random?count=10`) y se añaden al final, con un spinner mientras llega el lote.
+2. **Artistas recomendados** (`GET /api/feed`) — carrusel de artistas con foto circular. Pulsar un artista abre su **pantalla de detalle** (ver «Pantallas de detalle»).
+3. **Carruseles por género** — uno por cada género reciente del usuario (`GET /api/feed/genres`), cada uno con sus canciones top (`GET /api/songs/top?genre=`). Se omiten los géneros sin canciones.
+
+Pulsar cualquier canción la reproduce usando la lista de su propio carrusel como cola. En el carrusel **diario** esa cola **se autoextiende**: cuando la reproducción llega a su última canción (el player ya no tiene "siguiente"), se piden más canciones aleatorias (`GET /api/songs/random`) y se añaden al final de la cola del player —sin cortar la reproducción— para que la música no se detenga al acabar el lote inicial. Esta extensión opera sobre la cola del reproductor, independiente del scroll infinito del carrusel visible, y deduplica por `id` para no repetir canciones ya encoladas. Los carruseles de género y artistas no se autoextienden (sus colas son finitas).
+
+**Pull-to-refresh.** La pantalla soporta el gesto de **tirar hacia abajo para refrescar** (`PullToRefreshBox` de Material 3): vuelve a pedir todas las secciones —descubrimientos diarios, artistas y carruseles por género— desde el servidor. A diferencia de la carga inicial (que muestra el *loader* a pantalla completa cuando aún no hay nada), el refresco **mantiene el contenido actual visible** mientras llega el nuevo, mostrando solo el indicador de refresco; si el refresco falla se conserva el contenido previo y solo se marca error cuando no había nada que mostrar. El refresco reinicia el carrusel diario (descarta lo acumulado por el scroll infinito y vuelve a empezar desde el primer lote). Además, al refrescar **todas las listas vuelven a su primer elemento** —la columna vertical y cada carrusel horizontal— para que el contenido recargado no quede a media posición de scroll; esto se consigue recreando el subárbol de la lista con un `key` que cambia en cada refresco.
+
+**Decisión de diseño: evitar el crash por scroll y acotar la caché del teléfono.** El scroll infinito pedía canciones aleatorias que podían repetir `id`s ya mostrados; como el carrusel usa el `id` como clave de `LazyRow`, esos duplicados provocaban un crash (`IllegalArgumentException` por clave repetida) al desplazarse lo suficiente. Ahora el `DiscoverViewModel` **deduplica por `id`** antes de añadir y **acota** el carrusel diario a un máximo de canciones acumuladas. Además, la app configura un `ImageLoader` de Coil global (`SelfpotifyApp`) con **cachés acotadas** —memoria ≤20 % del heap (LRU) y disco ≤50 MB— para que arrastrar carruseles largos de carátulas no agote la memoria ni el almacenamiento.
+
+### Pantalla Búsqueda
+
+*Búsqueda* monta una **barra de texto** sobre el endpoint transversal `GET /api/search` (ver «Búsqueda global»). Debajo de la barra se pinta una **vista previa multi-categoría**: una columna vertical de carruseles horizontales —canciones, artistas, álbumes, playlists, usuarios y géneros—, reutilizando los mismos carruseles planos de «Pantalla Descubrir».
+
+**Decisión de diseño: búsqueda en vivo con *debounce*.** No hay botón de buscar: cada pulsación actualiza el campo al instante, pero la llamada a la API se dispara solo cuando el usuario deja de teclear (~300 ms). El `SearchViewModel` alimenta un `MutableStateFlow` con el texto y lo consume con `debounce` + `distinctUntilChanged` + `collectLatest`, de modo que una consulta nueva **cancela** la anterior en vuelo y solo se pinta el resultado de la última. Se usa el modo `all` del endpoint, que devuelve hasta **5 elementos por categoría** —tamaño pensado justamente para esta vista previa— sin paginación.
+
+**Navegación desde los resultados.** Pulsar una canción la reproduce usando la lista de su carrusel como cola (igual que en Descubrir). **Artistas, álbumes, playlists y usuarios** abren su **pantalla de detalle** (ver «Pantallas de detalle»). Los **géneros** son la única categoría sin navegación: se muestran como chips informativos porque no hay pantalla de género. Cada categoría se omite si no trae resultados, y la pantalla cubre los cuatro estados habituales: indicación inicial (campo vacío), *loader*, error y "sin resultados" para la consulta tecleada.
+
+### Pantalla Biblioteca
+
+*Biblioteca* reúne las playlists del usuario al estilo de Spotify: una columna con una tarjeta de **«Nueva playlist»** arriba y, debajo, dos secciones —**tus playlists** (`GET /api/playlists/my`, públicas y privadas) y las **compartidas contigo** (`GET /api/playlists/shared`, donde eres colaborador)—, cada una en tarjetas con carátula, nombre y descripción que abren su detalle. Las privadas muestran un candado y las que tienen colaboradores, un icono de «compartida».
+
+**Alta y edición de playlists con un formulario compartido.** La tarjeta de «Nueva playlist» y el botón de editar (en el detalle) abren la **misma hoja inferior**: nombre, descripción, interruptor **pública/privada** y selector de **carátula** mediante el *Photo Picker* del sistema (sin permisos de almacenamiento). Crear hace `POST /api/playlists` y, si se eligió imagen, `POST /api/playlists/{id}/cover` (multipart); editar hace `PUT /api/playlists/{id}` (+ carátula). En modo edición la hoja incluye además **borrar** la playlist (`DELETE /api/playlists/{id}`, con confirmación).
+
+**Compartir por magic link, igual que la web.** El botón de compartir del detalle abre una hoja que genera un **enlace de un solo uso** (`POST /api/playlists/{id}/share`; ver «Playlists compartidas»), lo copia al portapapeles y permite regenerarlo, además de listar los **colaboradores** actuales (`GET /api/playlists/{id}/collaborators`) y quitarlos (`DELETE /api/playlists/{id}/collaborators/{userId}`). Editar metadatos, borrar y compartir son acciones **solo del propietario**; los colaboradores ven la playlist y pueden añadir/quitar canciones, pero no su «continente».
+
+### Pantallas de detalle
+
+Tanto desde Búsqueda como desde Descubrir se puede **abrir el detalle** de un artista, álbum, playlist o usuario. Hay cuatro pantallas:
+
+- **Artista** — foto, nombre y sus **10 canciones más escuchadas** (`GET /api/artists/{id}` + `GET /api/artists/{id}/top-10-tracks`), al estilo de la vista web: **numeradas**, con su **número de escuchas** por canción y un botón **«+»** que abre una hoja para añadirla/quitarla de las playlists propias (`POST`/`DELETE /api/playlists/{id}/songs/{songId}`). Pulsar la fila reproduce.
+- **Álbum** — carátula, nombre y sus canciones (`GET /api/albums/{id}`), reproducibles.
+- **Playlist** — carátula, nombre/descripción y sus canciones (`GET /api/playlists/{id}`), reproducibles; cada canción muestra sus **escuchas** y un botón **«−»** para quitarla de la playlist (propietario o colaborador). Si la playlist es tuya, la cabecera ofrece **editar**, **compartir** y **borrar** (ver «Pantalla Biblioteca»); un icono de «compartida» aparece —para dueño y colaborador— cuando tiene colaboradores.
+- **Usuario** — avatar, nombre y sus **playlists públicas** (`GET /api/users/{id}/public` + `GET /api/playlists/user/{userId}`); pulsar una playlist abre su detalle.
+
+**Decisión de diseño: viven en el grafo de las pestañas, no en el externo.** Las pantallas de detalle son destinos del `NavHost` **anidado** de la app principal (el mismo que las pestañas), no del NavHost externo donde vive el reproductor. Así, al abrir un artista/álbum/playlist/usuario, la **barra de navegación inferior y el mini-player siguen visibles** y la flecha de retroceso vuelve a la pestaña de origen, igual que en Spotify.
+
+**Decisión de diseño: álbum y playlist resuelven sus `songIds` en paralelo.** `AlbumDTO` y `PlaylistDTO` solo traen la **lista de ids** de canciones, no los `SongDTO` completos. La pantalla los resuelve con llamadas concurrentes a `GET /api/songs/{id}`, conservando el orden de la lista y **descartando** las que fallen (una canción borrada no debe tumbar toda la pantalla). Es una elección consciente para no añadir un endpoint nuevo en el backend; los catálogos personales hacen que el coste sea asumible.
+
+**Decisión de diseño: borrado optimista con «deshacer» (canciones y colaboradores).** Quitar una canción de la playlist —o un colaborador desde la hoja de compartir— **no llama al backend de inmediato**. La fila desaparece de la UI al instante y aparece un *snackbar* «Se ha eliminado «X», pulsa para deshacer» con una **ventana de gracia de 3 s**. Si el usuario **no** pulsa deshacer, transcurrido ese tiempo se confirma el borrado en el backend (`DELETE /api/playlists/{id}/songs/{songId}` o `DELETE /api/playlists/{id}/collaborators/{userId}`); si **sí** lo pulsa, se cancela la petición y la fila se **restaura en su posición original**. Se eligió este esquema —borrar de la UI y diferir la confirmación— en lugar de borrar y volver a añadir, porque re-añadir **perdería el orden** de la lista ante un borrado accidental. El *ViewModel* es la fuente de verdad del temporizador y mantiene los borrados pendientes por id (admite varios a la vez); si la confirmación en el backend falla, la fila también se restaura. El *snackbar* de las canciones se ancla a la pantalla de detalle, mientras que el de colaboradores se ancla al propio *bottom sheet* de compartir (si no, quedaría oculto tras él).
+
+### Flujo de acceso: servidor, login y sesión
+
+Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo primero que hace es **preguntar a qué servidor conectarse**. El acceso son tres pantallas encadenadas:
+
+1. **Configuración de servidor.** El usuario escribe la dirección (con un *helper* que muestra el formato esperado, p. ej. `http://192.168.1.10:8080`). Cuando deja de escribir (con un pequeño *debounce*), la app valida en segundo plano —mostrando un *loader*— que esa dirección es **realmente un servidor Selfpotify**, llamando a su `GET /api/config/public` (endpoint público, sin auth) y comprobando que devuelve un `branding` válido. El botón **Siguiente** permanece deshabilitado hasta que la validación tiene éxito. La dirección se normaliza a una forma canónica (con esquema, sin barra final) y se **guarda en el almacenamiento local del teléfono** para tenerla siempre disponible.
+
+2. **Login / registro.** Misma lógica que la web: el usuario inicia sesión (`POST /api/auth/login`) o crea una cuenta (`POST /api/auth/signup`, que tras registrar inicia sesión automáticamente). El JWT recibido se **guarda asociado al servidor que lo emitió**: la sesión solo se considera válida si el servidor activo coincide con el servidor del token, de modo que **un JWT nunca se reutiliza en un servidor al que no pertenece**. Esta pantalla también ofrece un botón **Cambiar de servidor** que descarta el servidor y su token y vuelve al paso 1.
+
+3. **App principal.** Tras el login se entra al contenedor principal: una **barra de navegación inferior** (estilo Spotify) con cuatro pestañas —**Descubrir, Búsqueda, Biblioteca y Perfil**— y, encima de ella, un **mini-player** persistente. *Descubrir* replica la estructura del home de la web (ver «Pantalla Descubrir»): una columna de carruseles horizontales con los descubrimientos diarios (`GET /api/feed/daily-discoveries`) y scroll infinito (`GET /api/songs/random`), artistas recomendados (`GET /api/feed`) y un carrusel por cada género reciente (`GET /api/feed/genres` + `GET /api/songs/top?genre=`), y permite reproducir. *Búsqueda* ofrece una barra que busca en vivo sobre `GET /api/search` y muestra una vista previa multi-categoría (ver «Pantalla Búsqueda»); *Biblioteca* reúne tus playlists y las compartidas contigo, y permite crearlas, editarlas, borrarlas y compartirlas (ver «Pantalla Biblioteca»). *Perfil* muestra el avatar y el nombre visible del usuario (`GET /api/me`), ambos **editables en línea**: tocar la foto abre una hoja con *Cambiar foto* (selector del sistema → `POST /api/me/profile/picture`) y *Eliminar foto* (`DELETE /api/me/profile/picture`), y un lápiz junto al nombre abre un diálogo que lo guarda (`PUT /api/me/profile`). Bajo el nombre, los contadores de **seguidores** y **seguidos** abren cada uno una **cuadrícula** de usuarios (`GET /api/users/{id}/followers` y `/following`); en mi propia lista de seguidos cada fila incluye un botón *dejar de seguir* (`DELETE /api/users/{id}/follow`), coherente con la decisión de «los botones por fila solo viven en mis propias listas». Tocar un usuario de una cuadrícula —o buscarlo— abre su **perfil** (`GET /api/users/{id}/public`), que reutiliza la misma cabecera **sin** iconos de edición, añade el botón **seguir / dejar de seguir** y lista sus playlists públicas o colaborativas conmigo (icono de personitas en las colaborativas). El perfil también aloja **Cerrar sesión** (borra el JWT, conserva el servidor, devolviendo al paso 2) y **Cambiar de servidor** (borra servidor + JWT + branding, devolviendo al paso 1). A diferencia del cliente web —donde la edición vive en una página aparte y la pantalla pública nunca contiene inputs—, en Android la edición es **inline sobre el propio perfil**; la vista de otros usuarios sí se mantiene sin inputs. La app solo expone features de usuario (sin admin). Al entrar al contenedor principal la app **verifica el JWT** contra el servidor (`GET /api/me`): si el servidor lo **rechaza** (token expirado o inválido) cierra sesión automáticamente y vuelve al login —conservando el servidor—; si el servidor **no responde**, se muestra la pantalla de sin-conexión (a diferencia del JWT inválido, aquí la sesión se conserva para reintentar).
+
+Si, estando ya logueado, el servidor deja de responder, la app no se queda en un contenedor inerte: muestra una **pantalla de sin-conexión** ("No hay conexión al servidor actualmente"). La comprobación se dispara al entrar al contenedor principal, como parte de la misma verificación de sesión que valida el JWT (`GET /api/me`): si la petición falla por falta de red se asume el servidor caído. Esa pantalla ofrece dos acciones: **Reintentar conexión** (vuelve a comprobar el servidor con el endpoint público `GET /api/config/public`; si responde, regresa al contenedor principal) y **Desconectarse del servidor** (borra servidor + JWT + branding —paleta y logo— y vuelve al paso 1, para poder apuntar a otro servidor). No es un paso del flujo lineal de acceso, sino un estado al que se llega cuando la conexión cae.
+
+Al arrancar, la app decide la pantalla inicial según el estado persistido: sin servidor → configuración de servidor; con servidor pero sin JWT válido → login; con servidor y JWT válido → home.
+
+```mermaid
+flowchart TD
+    Launch([Arranque de la app]) --> Check{¿Estado<br/>persistido?}
+    Check -- sin servidor --> S1
+    Check -- servidor sin JWT válido --> S2
+    Check -- servidor + JWT válido --> S3
+
+    S1[Pantalla 1: dirección del servidor] --> Validate[GET /api/config/public<br/>loader mientras valida]
+    Validate -- no es Selfpotify / no responde --> S1
+    Validate -- branding válido --> Enable[Activar Siguiente<br/>+ guardar URL en local storage]
+    Enable --> S2
+
+    S2[Pantalla 2: login / registro] -->|Cambiar de servidor| Forget[Borrar servidor + JWT]
+    Forget --> S1
+    S2 --> Auth[POST /api/auth/login<br/>o /signup + login]
+    Auth -- credenciales inválidas --> S2
+    Auth -- 200 OK --> SaveJwt[Guardar JWT atado<br/>al servidor emisor]
+    SaveJwt --> S3
+
+    S3[Pantalla 3: contenedor principal<br/>Descubrir / Búsqueda / Biblioteca / Perfil] -->|Cerrar sesión / JWT rechazado| ClrJwt[Borrar JWT<br/>conservar servidor]
+    ClrJwt --> S2
+    S3 -->|Cambiar de servidor| Forget
+    S3 -->|servidor no responde| S4[Pantalla sin conexión]
+    S4 -->|Reintentar conexión| S3
+    S4 -->|Desconectarse del servidor| Forget
 ```
 
 ---

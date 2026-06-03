@@ -1,0 +1,158 @@
+<resources>
+    <!-- Common -->
+    <string name="cd_logo">Logo de Selfpotify</string>
+
+    <!-- Pantalla 1: configuración del servidor -->
+    <string name="server_setup_title">Conecta con tu servidor</string>
+    <string name="server_setup_subtitle">Introduce la dirección de tu servidor Selfpotify</string>
+    <string name="server_setup_address_hint">Dirección del servidor</string>
+    <string name="server_setup_address_helper">http://192.168.1.10:8080</string>
+    <string name="server_setup_checking">Comprobando servidor…</string>
+    <string name="server_setup_valid">Conectado a %1$s</string>
+    <string name="server_setup_error_unreachable">No se pudo conectar. Revisa la dirección.</string>
+    <string name="server_setup_error_not_selfpotify">Esa dirección no es un servidor Selfpotify.</string>
+    <string name="server_setup_next">Siguiente</string>
+
+    <!-- Pantalla 2: inicio de sesión / registro -->
+    <string name="auth_login_title">Iniciar sesión</string>
+    <string name="auth_register_title">Crear cuenta</string>
+    <string name="auth_username_hint">Usuario</string>
+    <string name="auth_password_hint">Contraseña</string>
+    <string name="auth_login_button">Iniciar sesión</string>
+    <string name="auth_register_button">Crear cuenta</string>
+    <string name="auth_switch_to_register">¿No tienes cuenta? Regístrate</string>
+    <string name="auth_switch_to_login">¿Ya tienes cuenta? Inicia sesión</string>
+    <string name="auth_error_invalid_credentials">Usuario o contraseña incorrectos.</string>
+    <string name="auth_error_username_taken">Ese nombre de usuario ya está cogido.</string>
+    <string name="auth_error_network">Error de red. Revisa tu conexión.</string>
+    <string name="auth_error_unknown">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="auth_error_empty_fields">Introduce usuario y contraseña.</string>
+    <string name="auth_change_server">Cambiar de servidor</string>
+
+    <!-- Pestañas de navegación inferior -->
+    <string name="tab_discover">Descubrir</string>
+    <string name="tab_search">Búsqueda</string>
+    <string name="tab_library">Biblioteca</string>
+    <string name="tab_profile">Perfil</string>
+
+    <!-- Descubrir -->
+    <string name="discover_title">Descubrir</string>
+    <string name="discover_error">No se pudieron cargar los descubrimientos. Inténtalo de nuevo.</string>
+    <string name="discover_daily">Tus descubrimientos diarios</string>
+    <string name="discover_artists">Artistas recomendados para ti</string>
+
+    <!-- Búsqueda -->
+    <string name="search_title">Búsqueda</string>
+    <string name="search_hint">Canciones, artistas, álbumes…</string>
+    <string name="search_prompt">Busca canciones, artistas, álbumes, playlists, usuarios y géneros</string>
+    <string name="search_no_results">Sin resultados para \"%1$s\"</string>
+    <string name="search_error">No se pudo buscar. Inténtalo de nuevo.</string>
+    <string name="search_clear">Borrar</string>
+    <string name="search_section_songs">Canciones</string>
+    <string name="search_section_artists">Artistas</string>
+    <string name="search_section_albums">Álbumes</string>
+    <string name="search_section_playlists">Playlists</string>
+    <string name="search_section_users">Usuarios</string>
+    <string name="search_section_genres">Géneros</string>
+
+    <!-- Pantallas de detalle (artista / álbum / playlist / usuario) -->
+    <string name="cd_back">Atrás</string>
+    <string name="detail_error">No se pudo cargar. Inténtalo de nuevo.</string>
+    <string name="detail_role_artist">Artista</string>
+    <string name="detail_no_tracks">Aún no hay canciones.</string>
+    <string name="detail_no_playlists">Aún no hay playlists públicas.</string>
+    <string name="cd_play_count">Reproducciones</string>
+    <string name="cd_playlist_edit">Editar playlist</string>
+    <string name="cd_playlist_share">Compartir playlist</string>
+    <string name="cd_playlist_shared">Playlist compartida</string>
+    <string name="cd_remove_from_playlist">Quitar de la playlist</string>
+
+    <!-- Biblioteca -->
+    <string name="library_title">Biblioteca</string>
+    <string name="coming_soon">Próximamente</string>
+    <string name="library_add_playlist">Nueva playlist</string>
+    <string name="library_my_playlists">Tus playlists</string>
+    <string name="library_shared">Compartidas contigo</string>
+    <string name="library_empty">Todavía no tienes playlists. Crea la primera.</string>
+    <string name="library_error">No se pudo cargar tu biblioteca.</string>
+
+    <!-- Formulario de crear / editar playlist -->
+    <string name="playlist_form_create_title">Nueva playlist</string>
+    <string name="playlist_form_edit_title">Editar playlist</string>
+    <string name="playlist_form_name">Nombre</string>
+    <string name="playlist_form_name_hint">Mi mix</string>
+    <string name="playlist_form_description">Descripción</string>
+    <string name="playlist_form_description_hint">Para conducir, gym…</string>
+    <string name="playlist_form_public">Pública</string>
+    <string name="playlist_form_public_hint">Otros usuarios podrán verla.</string>
+    <string name="playlist_form_cover">Carátula</string>
+    <string name="playlist_form_cover_clear">Eliminar carátula</string>
+    <string name="playlist_form_create">Crear</string>
+    <string name="playlist_form_save">Guardar</string>
+    <string name="playlist_form_cancel">Cancelar</string>
+    <string name="playlist_form_delete">Eliminar</string>
+    <string name="playlist_form_error">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="playlist_delete_confirm_title">¿Eliminar la playlist?</string>
+    <string name="playlist_delete_confirm_message">Esta acción no se puede deshacer.</string>
+    <string name="playlist_delete_confirm">Eliminar</string>
+
+    <!-- Hoja de compartir playlist (magic link) -->
+    <string name="playlist_share_title">Compartir playlist</string>
+    <string name="share_description">Cualquiera con este enlace de un solo uso podrá unirse como colaborador.</string>
+    <string name="share_link_label">Enlace de invitación</string>
+    <string name="share_copy">Copiar</string>
+    <string name="share_send">Compartir</string>
+    <string name="share_copied">Enlace copiado</string>
+    <string name="share_regenerate">Generar otro enlace</string>
+    <string name="share_error">No se pudo generar el enlace.</string>
+    <string name="share_collaborators">Colaboradores</string>
+    <string name="share_no_collaborators">Aún no hay colaboradores.</string>
+    <string name="share_remove_collaborator">Quitar colaborador</string>
+    <string name="share_redeem_error">Este enlace de invitación no es válido o ya se ha usado.</string>
+
+    <!-- Perfil -->
+    <string name="profile_logout">Cerrar sesión</string>
+    <string name="profile_change_server">Cambiar de servidor</string>
+    <string name="profile_followers">Seguidores</string>
+    <string name="profile_following">Siguiendo</string>
+    <string name="profile_edit_name">Editar nombre</string>
+    <string name="profile_edit_name_hint">Tu nombre</string>
+    <string name="profile_save">Guardar</string>
+    <string name="profile_cancel">Cancelar</string>
+    <string name="profile_change_photo">Cambiar foto</string>
+    <string name="profile_remove_photo">Eliminar foto</string>
+    <string name="profile_follow">Seguir</string>
+    <string name="profile_following_state">Siguiendo</string>
+    <string name="profile_unfollow">Dejar de seguir</string>
+    <string name="cd_change_photo">Cambiar foto de perfil</string>
+    <string name="cd_edit_name">Editar nombre</string>
+
+    <!-- Listas de seguidores / seguidos -->
+    <string name="follow_list_empty">Aún no hay nada aquí.</string>
+
+    <!-- Reproductor -->
+    <string name="player_play">Reproducir</string>
+    <string name="player_pause">Pausar</string>
+    <string name="player_next">Siguiente</string>
+    <string name="player_previous">Anterior</string>
+    <string name="player_loop">Repetir</string>
+    <string name="player_add_to_playlist">Añadir a playlist</string>
+    <string name="player_in_playlist">En una playlist</string>
+    <string name="player_collapse">Cerrar reproductor</string>
+
+    <!-- Hoja de añadir a playlist -->
+    <string name="add_to_playlist_title">Añadir a playlist</string>
+    <string name="add_to_playlist_empty">Todavía no tienes playlists.</string>
+    <string name="add_to_playlist_error">No se pudieron cargar tus playlists.</string>
+    <string name="add_to_playlist_add">Añadir a esta playlist</string>
+    <string name="add_to_playlist_remove">Quitar de esta playlist</string>
+    <string name="playlist_song_count">%1$d canciones</string>
+    <string name="playlist_track_removed">Se ha eliminado «%1$s»</string>
+    <string name="playlist_track_unknown">el track</string>
+    <string name="action_undo">Deshacer</string>
+
+    <!-- Sin conexión -->
+    <string name="offline_message">No hay conexión al servidor actualmente</string>
+    <string name="offline_retry">Reintentar conexión</string>
+    <string name="offline_disconnect">Desconectarse del servidor</string>
+</resources>
