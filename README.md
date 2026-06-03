@@ -94,7 +94,7 @@ Además del wizard, se pueden tocar otras configuraciones que no están ahí (no
 
 ```mermaid
 flowchart TD
-    Start([Arranque del servidor]) --> Load{¿Existe<br/>config.yaml?}
+    Start([Arranque del servidor]) --> Load{¿Existe<br/>config.yml?}
     Load -- no --> Defaults[ConfigService crea<br/>config por defecto<br/>setupComplete=false]
     Load -- sí --> Read[ConfigService carga<br/>YAML en memoria]
     Defaults --> Public
@@ -109,7 +109,7 @@ flowchart TD
     AsyncScan --> Ready([Servidor operativo])
     Decide -- true --> Ready
     Ready -. admin pulsa Reset .-> Reset[POST /api/config/reset]
-    Reset --> Wipe[ResetService:<br/>deleteAll en playlists,<br/>songs, albums, artists,<br/>profiles, users]
+    Reset --> Wipe[ResetService:<br/>deleteAll en escuchas, follows,<br/>playlists, songs, álbumes,<br/>artistas, perfiles, usuarios]
     Wipe --> ResetCfg[ConfigService<br/>resetToDefaults]
     ResetCfg --> Reboot[Re-ejecutar bootstraps:<br/>admin desde .env<br/>+ librería del .env a scan.paths]
     Reboot --> Public

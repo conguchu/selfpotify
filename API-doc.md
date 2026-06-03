@@ -567,7 +567,7 @@ La configuración (branding, rutas a escanear, flags) vive en `~/.selfpotify/con
 
 ### `POST /api/config/reset` — Reset total del servidor
 - **Acceso:** `ROLE_ADMIN`.
-- **Comportamiento:** devuelve el servidor al estado de primer arranque (`ResetService.resetAll`): vacía la BBDD (playlists, canciones, álbumes, artistas, perfiles, usuarios, escuchas, follows, colaboradores y tokens de compartición) y la configuración (`resetToDefaults`), y reproduce los bootstraps de arranque — reseedea el admin desde `ADMIN_USERNAME`/`ADMIN_PASSWORD` del `.env` (si están definidos) y reañade la librería del `.env` a `scan.paths`. Tras el reset, el wizard de setup se vuelve a forzar.
+- **Comportamiento:** devuelve el servidor al estado de primer arranque (`ResetService.resetAll`): vacía la BBDD (escuchas, follows, playlists, canciones, álbumes, artistas, perfiles y usuarios) y la configuración (`resetToDefaults`), y reproduce los bootstraps de arranque — reseedea el admin desde `ADMIN_USERNAME`/`ADMIN_PASSWORD` del `.env` (si están definidos) y reañade la librería del `.env` a `scan.paths`. Tras el reset, el wizard de setup se vuelve a forzar.
 - **Respuesta `200 OK`:**
   ```json
   { "status": "ok", "message": "Servidor reseteado. Vuelve a iniciar sesión con el admin definido en el .env" }
