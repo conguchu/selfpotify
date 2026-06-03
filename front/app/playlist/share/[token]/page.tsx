@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { useRedeemPlaylistShareLink } from "@/lib/query/hooks";
+import { useAuthStore } from "@/lib/auth/store";
 
 /** Heurística de user-agent móvil, espejo del `front/middleware.ts`. */
 function isMobileUserAgent(): boolean {
@@ -26,15 +27,20 @@ const DEEP_LINK_FALLBACK_MS = 1200;
 /**
  * Página que canjea un magic link de playlist.
  *
+ * **Vive fuera del grupo protegido `(app)`** a propósito: el puente al deep link
+ * debe ejecutarse aunque el visitante no tenga sesión web (el caso típico de
+ * quien recibe el enlace en el móvil). Si estuviera bajo `ProtectedRoute`, un
+ * usuario sin sesión sería redirigido a `/login` —y el middleware lo mandaría a
+ * `/mobile`— antes de poder intentar abrir la app. También está **exenta** del
+ * middleware que redirige los móviles a `/mobile`.
+ *
  * En **escritorio** canjea directamente en web: `POST /api/playlists/share/{token}`
- * y redirige a la playlist.
+ * y redirige a la playlist (requiere sesión; si no la hay, va a `/login`).
  *
  * En **móvil** intenta primero un *handoff* a la app nativa redirigiendo a
  * `selfpotify://playlist/share/{token}` (esquema propio; ver README → "Apertura
  * en la app móvil"). Si la app no está instalada —el navegador no cambia de
- * contexto dentro de `DEEP_LINK_FALLBACK_MS`— se continúa con el canje web. Esta
- * ruta está **exenta** del middleware que redirige los móviles a `/mobile`,
- * precisamente para poder ejecutar aquí este puente.
+ * contexto dentro de `DEEP_LINK_FALLBACK_MS`— se continúa con el canje web.
  */
 export default function RedeemSharePage({
   params,
@@ -44,6 +50,8 @@ export default function RedeemSharePage({
   const { token } = use(params);
   const router = useRouter();
   const redeem = useRedeemPlaylistShareLink();
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const token_ = useAuthStore((s) => s.token);
 
   // En móvil mostramos un paso intermedio mientras se intenta abrir la app.
   const [tryingApp, setTryingApp] = useState(false);
@@ -56,6 +64,12 @@ export default function RedeemSharePage({
     if (redeemStartedRef.current) return;
     redeemStartedRef.current = true;
     setTryingApp(false);
+    // Sin sesión web no se puede canjear aquí: al login (en móvil el middleware
+    // lo llevará a `/mobile` para descargar la app).
+    if (!token_) {
+      router.replace("/login");
+      return;
+    }
     redeem.mutate(token, {
       onSuccess: (playlist) => {
         toast.success(`Te has unido a «${playlist.name}»`);
@@ -69,6 +83,9 @@ export default function RedeemSharePage({
   }
 
   useEffect(() => {
+    // Esperamos a rehidratar la sesión para que el fallback web conozca el token.
+    if (!hydrated) return;
+
     // Escritorio: canje web directo, como hasta ahora.
     if (!isMobileUserAgent()) {
       redeemOnWeb();
@@ -96,9 +113,9 @@ export default function RedeemSharePage({
       clearTimeout(fallback);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-    // Solo al montar; el guard interno protege de re-ejecuciones.
+    // Re-ejecuta al rehidratar; los guards internos protegen de duplicados.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrated]);
 
   if (redeem.isError) {
     return (
@@ -119,7 +136,7 @@ export default function RedeemSharePage({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-20">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 py-20">
       <Spinner size="lg" />
       <p className="text-sm text-text-muted">
         {tryingApp
