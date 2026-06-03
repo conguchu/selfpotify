@@ -484,6 +484,48 @@ flowchart TD
     Consume --> Resp([200 OK PlaylistDTO<br/>con collaboratorIds])
 ```
 
+#### Apertura en la app móvil (deep link `selfpotify://`)
+
+Un enlace de invitación compartido (`<servidor>/playlist/share/{token}`) sigue
+siendo una **URL web normal** —para que cualquiera pueda abrirlo en un navegador—,
+pero cuando se abre desde un **móvil con la app instalada** queremos que el canje
+ocurra dentro de la app nativa, no en el navegador.
+
+**Decisión de diseño: esquema propio `selfpotify://`, no App Links verificadas.**
+Las App Links (apertura automática sin diálogo) exigirían publicar un
+`assetlinks.json` (Digital Asset Links) en el dominio de cada servidor. Como
+Selfpotify es **self-hosted** —el host/puerto del servidor es arbitrario y
+desconocido en tiempo de compilación— eso es inviable. Se usa por tanto un
+**esquema de URI propio**: `selfpotify://playlist/share/{token}` (host `playlist`,
+path `/share/{token}`, paralelo a la ruta web). La app Android lo registra con un
+`intent-filter` en `MainActivity` (`launchMode="singleTask"`, para recibir el
+intent en `onNewIntent` cuando ya está abierta).
+
+**El que detecta el móvil y hace el puente es la página web, no el enlace.** El
+enlace compartido NO cambia de formato (sigue siendo http(s), con fallback web
+intacto). Es la página `/playlist/share/{token}` la que, al cargar, detecta si se
+accede desde un **user-agent móvil** y, en ese caso, intenta el handoff a la app
+redirigiendo a `selfpotify://playlist/share/{token}`. Si el handoff no ocurre en
+una ventana corta de tiempo (la app no está instalada → el navegador no cambia de
+contexto), se continúa con el flujo previsto en web/móvil (canje web o página de
+bienvenida móvil `/mobile`). En escritorio no se intenta el deep link: se canjea
+en web como hasta ahora.
+
+> **Nota sobre la redirección a `/mobile`.** Esta ruta es la **única exenta** del
+> middleware que redirige el resto de páginas a `/mobile` en móvil (ver
+> "Redirección a la app móvil"). La excepción es deliberada: la página
+> `/playlist/share/{token}` debe **cargarse** en el móvil para poder ejecutar el
+> handoff a `selfpotify://` y, si la app no está instalada, decidir su propio
+> fallback (canje web o `/mobile`).
+
+**Qué hace la app al recibir el deep link.** `MainActivity` extrae el `token` del
+URI y canjea el enlace contra el servidor configurado
+(`POST /api/playlists/share/{token}`, mismo endpoint que la web), añade al usuario
+como colaborador y navega al detalle de la playlist. Si no hay sesión activa, el
+canje queda pendiente hasta completar el login y se ejecuta a continuación. El
+token es server-relativo: la app lo canjea contra **su** servidor configurado
+(coherente con el modelo single-server de cada instalación).
+
 ### Descubrimientos diarios
 
 Junto al feed de artistas, el home ofrece una sección de **descubrimientos
@@ -717,6 +759,34 @@ flowchart TD
     Enrich --> Resp([200 OK UserSummaryDTO actualizado])
     Resp --> Invalidate[React Query invalida:<br/>publicProfile target, me,<br/>followers/following de ambos]
     Invalidate --> ReRender([UI re-pinta contador + botón])
+```
+
+### Redirección a la app móvil
+
+El frontend web **no es responsive**: está pensado para escritorio. Para no
+mostrar una experiencia rota en móviles, un **middleware de Next.js**
+(`front/middleware.ts`) detecta el dispositivo a partir del `User-Agent` y
+redirige cualquier acceso desde un móvil a `/mobile`, una pantalla simple que
+invita a **descargar la app nativa** desde las
+[releases oficiales de GitHub](https://github.com/conguchu/selfpotify/releases).
+
+La única ruta exenta es `/playlist/share/*`, que tiene su propio manejo para
+Android (deep links / magic link) en otra rama y por tanto no se redirige. Desde
+escritorio, `/mobile` redirige a `/home`. El middleware ignora los assets
+estáticos y las rutas internas de Next.js mediante su `matcher`.
+
+```mermaid
+flowchart TD
+    Req([Petición a cualquier ruta]) --> UA{¿User-Agent móvil?}
+    UA -- no --> Mobile1{¿Ruta == /mobile?}
+    Mobile1 -- sí --> Home[Redirige a /home]
+    Mobile1 -- no --> Pass1([Continúa normal])
+    UA -- sí --> Share{¿Ruta == /playlist/share/*?}
+    Share -- sí --> Pass2([Continúa normal<br/>manejo Android propio])
+    Share -- no --> Mob{¿Ruta == /mobile?}
+    Mob -- sí --> Pass3([Muestra pantalla móvil])
+    Mob -- no --> Redir[Redirige a /mobile]
+    Redir --> Pass3
 ```
 
 ---
