@@ -1115,7 +1115,6 @@ classDiagram
         - Long id
         - String name
         - String pictureUrl
-        - Song favouriteSong
         + copy(Profile)
     }
 
@@ -1177,9 +1176,6 @@ classDiagram
     PlaylistCollaborator "N" --> "1" Playlist : colabora en
     PlaylistCollaborator "N" --> "1" User : colaborador
     PlaylistShareToken "N" --> "1" Playlist : invita a
-
-    %% Relaciones Profile
-    Profile "N" --> "1" Song : tiene como favorita
 
     %% Relaciones música
     Album "N" o--o "N" Artist : es grabado por
