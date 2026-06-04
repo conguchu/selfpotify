@@ -167,7 +167,7 @@ public class PlaylistController {
 
                     long maxFileSize = 5 * 1024 * 1024;
                     if (file.getSize() > maxFileSize) {
-                        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body("Archivo demasiado grande (máx 5 MB)");
+                        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body("Archivo demasiado grande (máx 5 MB)");
                     }
 
                     try {

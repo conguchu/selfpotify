@@ -47,10 +47,10 @@ public class GlobalExceptionHandler {
         long mb = appProperties.getLogo().getMaxFileSize().toMegabytes();
         String message = "El archivo excede el tamaño máximo permitido (" + mb + " MB).";
         log.warn("Subida rechazada por exceder el tamaño máximo ({} MB)", mb);
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
                 .body(Map.of(
-                        "status", HttpStatus.PAYLOAD_TOO_LARGE.value(),
-                        "error", HttpStatus.PAYLOAD_TOO_LARGE.getReasonPhrase(),
+                        "status", HttpStatus.CONTENT_TOO_LARGE.value(),
+                        "error", HttpStatus.CONTENT_TOO_LARGE.getReasonPhrase(),
                         "message", message));
     }
 }

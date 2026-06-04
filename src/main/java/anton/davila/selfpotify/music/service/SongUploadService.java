@@ -114,7 +114,7 @@ public class SongUploadService {
                         "Formato no soportado: " + original + ". Admitidos: .mp3, .wav");
             }
             if (file.getSize() > maxBytes) {
-                throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+                throw new ResponseStatusException(HttpStatus.CONTENT_TOO_LARGE,
                         "El archivo " + original + " excede el máximo de "
                                 + appProperties.getUpload().getMaxFileSize().toMegabytes() + " MB");
             }

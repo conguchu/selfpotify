@@ -171,7 +171,7 @@ public class ConfigController {
         }
         long maxBytes = appProperties.getLogo().getMaxFileSize().toBytes();
         if (file.getSize() > maxBytes) {
-            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+            throw new ResponseStatusException(HttpStatus.CONTENT_TOO_LARGE,
                     "El archivo excede el tamaño máximo permitido ("
                             + appProperties.getLogo().getMaxFileSize().toMegabytes() + " MB)");
         }

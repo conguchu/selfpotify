@@ -131,7 +131,7 @@ public class ProfileController {
                     .body("Solo se aceptan JPEG, PNG o WebP");
         }
         if (file.getSize() > MAX_AVATAR_BYTES) {
-            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+            return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
                     .body("Archivo demasiado grande (máx 5 MB)");
         }
 
