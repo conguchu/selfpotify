@@ -47,9 +47,15 @@ public class StreamingController {
     private StreamTokenService streamTokenService;
 
     /**
-     * Emite un stream token (TTL 4 h, reutilizable). El cliente lo pasa como
-     * ?st= en la URL de streaming para que el <audio> no necesite enviar
-     * el JWT de sesión en un query param visible en logs.
+     * Emite un stream token con TTL de 4 horas, reutilizable durante toda la sesión.
+     * El cliente lo pasa como {@code ?st=} en la URL de streaming para que el elemento
+     * {@code <audio>} (web) o Media3 (Android) no necesiten incluir el JWT en un
+     * query param visible en logs.
+     *
+     * <p>El TTL de 4 h cubre una sesión de escucha completa sin requerir renovación
+     * continua: el reproductor reutiliza el mismo token en todas las peticiones HTTP
+     * Range (seeks) y en el cambio de pista, lo que evita un POST {@code /token} por
+     * cada nueva canción. El token no autentica ante ningún otro endpoint.
      */
     @PostMapping("/token")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
