@@ -47,7 +47,7 @@ public class StreamingController {
     private StreamTokenService streamTokenService;
 
     /**
-     * Emite un stream token de un solo uso (TTL 60 s). El cliente lo usa como
+     * Emite un stream token (TTL 4 h, reutilizable). El cliente lo pasa como
      * ?st= en la URL de streaming para que el <audio> no necesite enviar
      * el JWT de sesión en un query param visible en logs.
      */
