@@ -11,7 +11,7 @@ import lombok.Data;
 @Data
 @Table(name = "users")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-@DiscriminatorColumn(name = "type")
+@DiscriminatorColumn(name = "type", columnDefinition = "varchar(31) not null")
 @DiscriminatorValue("USER")
 public class User {
     @Id
