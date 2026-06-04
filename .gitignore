@@ -45,3 +45,6 @@ build/
 
 ### Claude (memoria local no versionada) ###
 CLAUDE.local.md
+
+### Documentación TFG (local, no versionar) ###
+/doc/
