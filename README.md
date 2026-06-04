@@ -95,7 +95,7 @@ flowchart TD
     end
 
     Web -->|HTTP vía Nginx| API
-    Android -->|HTTP directo :8080| API
+    Android -->|HTTP vía Nginx| API
     API --- DB
     API --- YAML
     API --- FS
@@ -149,11 +149,11 @@ flowchart TD
 
 Para facilitar al máximo el set-up al usuario técnico, el servidor se empaqueta como una pila de **tres contenedores** orquestada con `docker compose`, manteniendo la filosofía de microservicios y permitiendo escalar o reiniciar cada pieza por separado:
 
-- **`api`** — Spring Boot (`Dockerfile.api`, build multi-stage con Maven → JRE Alpine). Escucha en `:8080`, expuesto al host para los clientes Android/TV. Persiste `config.yml`, logo y assets en el volumen Docker `selfpotify-data` montado en `/data/selfpotify`.
+- **`api`** — Spring Boot (`Dockerfile.api`, build multi-stage con Maven → JRE Alpine). Escucha en `:8080` **solo en la red interna del compose**; nunca se publica al host (igual que `next`). Persiste `config.yml`, logo y assets en el volumen Docker `selfpotify-data` montado en `/data/selfpotify`.
 - **`next`** — Frontend Next.js (`front/Dockerfile`, build con `output: "standalone"`). Escucha en `:3000` **solo en la red interna del compose**; nunca se publica al host.
-- **`web`** — Nginx (`docker/web/`) escuchando en `:80` (único puerto público del front). Sirve los estáticos `_next/static/`, hace `proxy_pass` a `next:3000` para SSR y a `api:8080` para `/api/*` y `/assets/*`. Con esto, el navegador habla siempre con un único host (`:80`) y se evita CORS y la exposición pública directa del backend a través del front.
+- **`web`** — Nginx (`docker/web/`) escuchando en `:80` (único puerto público de la pila). Sirve los estáticos `_next/static/`, hace `proxy_pass` a `next:3000` para SSR y a `api:8080` para `/api/*` y `/assets/*`. Con esto, **todos los clientes (web y Android/TV) hablan siempre con un único host (`:80`)** y se evita CORS y la exposición pública directa del backend.
 
-Los clientes web pasan por Nginx (`:80`); los clientes Android/TV consumen la API directamente (`:8080`).
+Tanto los clientes web como los Android/TV entran por Nginx (`:80`); el backend (`api:8080`) nunca se expone directamente al host.
 
 ```mermaid
 flowchart LR
@@ -169,7 +169,7 @@ flowchart LR
     end
 
     Browser -->|http :80| Web
-    Mobile -->|http :8080| Api
+    Mobile -->|http :80| Web
 
     Web -->|/| Next
     Web -->|/api/, /assets/| Api
@@ -184,7 +184,7 @@ Toda la configuración por instalación se declara en `.env` (ver `.env.example`
 |---|---|---|
 | `SERVER_PORT` | `8080` | Puerto interno de la API (no cambiar salvo conflicto). |
 | `WEB_PORT` | `80` | Puerto público de Nginx (cliente web). Cambiar si `:80` está ocupado o no hay permisos de root. |
-| `WEB_ORIGIN` | `http://localhost` (o el host público) | CORS del backend. Sin puerto porque el navegador entra por Nginx en `:80`. |
+| `WEB_ORIGIN` | `http://localhost` (o el host público) | CORS del backend. Sin puerto porque todos los clientes (web y Android/TV) entran por Nginx en `:80`. |
 | `JWT_SECRET` | cadena aleatoria ≥32 chars | Firma de JWT; obligatorio cambiarlo del valor del ejemplo. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | credenciales iniciales | Admin auto-bootstrap en el primer arranque si la BBDD está vacía. |
 | `DB_URL` | `jdbc:h2:file:/data/selfpotify/db/selfpotify;AUTO_SERVER=TRUE` | Para persistir la BBDD entre reinicios del contenedor (con `DB_DDL_AUTO=update`). El valor por defecto (H2 in-memory) pierde los datos al reiniciar. |
@@ -980,7 +980,7 @@ flowchart TD
         C["Usuario abre un enlace de share<br/>&lt;servidor&gt;/playlist/share/token"]
     end
 
-    A --> AppNative([App Kotlin: consume la API :8080 directamente])
+    A --> AppNative([App Kotlin: consume la API vía Nginx :80])
 
     B --> MW{Middleware Next.js<br/>¿UA móvil?}
     MW -- no, escritorio --> Web([App web normal])
@@ -1006,7 +1006,7 @@ flowchart TD
 
 ## Android
 
-El cliente Android es una aplicación **nativa en Kotlin** que vive en el directorio `android/` del monorepo y consume la API de Spring **directamente** (`:8080`, sin pasar por Nginx; ver "Empaquetado y arranque con Docker"). Es el primero de los clientes "no web" previstos por la arquitectura de microservicios.
+El cliente Android es una aplicación **nativa en Kotlin** que vive en el directorio `android/` del monorepo y consume la API de Spring **a través de Nginx**, igual que el cliente web (mismo host público en `:80`, sin exponer el backend directamente; ver "Empaquetado y arranque con Docker"). Es el primero de los clientes "no web" previstos por la arquitectura de microservicios.
 
 ### Arquitectura
 
@@ -1152,7 +1152,7 @@ Tanto desde Búsqueda como desde Descubrir se puede **abrir el detalle** de un a
 
 Como cada usuario aloja su propio servidor, la app no tiene una URL fija: lo primero que hace es **preguntar a qué servidor conectarse**. El acceso son tres pantallas encadenadas:
 
-1. **Configuración de servidor.** El usuario escribe la dirección (con un *helper* que muestra el formato esperado, p. ej. `http://192.168.1.10:8080`). Cuando deja de escribir (con un pequeño *debounce*), la app valida en segundo plano —mostrando un *loader*— que esa dirección es **realmente un servidor Selfpotify**, llamando a su `GET /api/config/public` (endpoint público, sin auth) y comprobando que devuelve un `branding` válido. El botón **Siguiente** permanece deshabilitado hasta que la validación tiene éxito. La dirección se normaliza a una forma canónica (con esquema, sin barra final) y se **guarda en el almacenamiento local del teléfono** para tenerla siempre disponible.
+1. **Configuración de servidor.** El usuario escribe la dirección de Nginx (el mismo host que la web, p. ej. `http://192.168.1.10`). Cuando deja de escribir (con un pequeño *debounce*), la app valida en segundo plano —mostrando un *loader*— que esa dirección es **realmente un servidor Selfpotify**, llamando a su `GET /api/config/public` (endpoint público, sin auth) y comprobando que devuelve un `branding` válido. El botón **Siguiente** permanece deshabilitado hasta que la validación tiene éxito. La dirección se normaliza a una forma canónica (con esquema, sin barra final) y se **guarda en el almacenamiento local del teléfono** para tenerla siempre disponible.
 
 2. **Login / registro.** Misma lógica que la web: el usuario inicia sesión (`POST /api/auth/login`) o crea una cuenta (`POST /api/auth/signup`, que tras registrar inicia sesión automáticamente). El JWT recibido se **guarda asociado al servidor que lo emitió**: la sesión solo se considera válida si el servidor activo coincide con el servidor del token, de modo que **un JWT nunca se reutiliza en un servidor al que no pertenece**. Esta pantalla también ofrece un botón **Cambiar de servidor** que descarta el servidor y su token y vuelve al paso 1.
 

@@ -3,7 +3,8 @@ package davila.anton.selfpotify.util
 /**
  * Normalización de la dirección del servidor introducida por el usuario.
  *
- * El usuario escribe algo como `192.168.1.10:8080` o `http://mi-servidor:8080/`.
+ * El usuario escribe la dirección de nginx (el mismo host que la web, `:80` por
+ * defecto), p. ej. `192.168.1.10` o `http://mi-servidor/`.
  * - [canonical] devuelve la forma estable que se persiste y con la que se asocia el JWT
  *   (con esquema, sin barra final).
  * - [baseUrl] devuelve la forma que exige Retrofit (con barra final).

@@ -6,7 +6,7 @@
     <string name="server_setup_title">Conecta con tu servidor</string>
     <string name="server_setup_subtitle">Introduce la dirección de tu servidor Selfpotify</string>
     <string name="server_setup_address_hint">Dirección del servidor</string>
-    <string name="server_setup_address_helper">http://192.168.1.10:8080</string>
+    <string name="server_setup_address_helper">http://192.168.1.10</string>
     <string name="server_setup_checking">Comprobando servidor…</string>
     <string name="server_setup_valid">Conectado a %1$s</string>
     <string name="server_setup_error_unreachable">No se pudo conectar. Revisa la dirección.</string>
