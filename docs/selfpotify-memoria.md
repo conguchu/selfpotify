@@ -31,3 +31,16 @@ La diferencia entre web y Android refleja:
 - **Patrones nativos de cada plataforma**: Modales son estándar en web; toasts reversibles son estándar en Android.
 - **Contexto de uso**: Usuarios web interactúan desde escritorio (pantalla grande, interacción deliberada); usuarios Android interactúan desde móvil (pantalla pequeña, interacciones más rápidas).
 - **Mejor UX para cada medio**: No es usar lo mismo en todas partes, sino usar lo mejor para cada contexto.
+
+### Scroll Infinito para Descubrimiento Continuo de Tracks
+
+La feed de tracks implementa **scroll infinito** en lugar de paginación tradicional o necesidad de regenerar toda la feed manualmente. Esta decisión:
+
+- **Reduce fricción en el descubrimiento**: El usuario puede desplazarse continuamente y recibir nuevos tracks aleatorios sin interrupciones ni acciones explícitas.
+- **Evita regeneración innecesaria**: Sin scroll infinito, el usuario tendría que presionar un botón "Generar nueva feed" cada vez que agota el contenido visible, fragmentando la experiencia.
+- **Mejora la retención**: El feed infinito favorece el consumo prolongado y continuo de contenido, manteniendo al usuario enganchado.
+- **Patrón estándar en redes sociales**: Es el comportamiento esperado en plataformas modernas (Instagram, Twitter, TikTok, etc.).
+
+**Implementación**: Al detectar que el usuario se acerca al final de la lista, se cargan automáticamente nuevos tracks aleatorios sin recargar la página ni la app. La transición es transparente, sin indicadores disruptivos.
+
+**Beneficio clave**: El usuario explora continuamente música nueva sin cambios de contexto ni acciones deliberadas, haciendo la experiencia más fluida y descubridora.
