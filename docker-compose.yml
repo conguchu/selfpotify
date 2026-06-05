@@ -9,8 +9,6 @@ services:
       # (SERVER_PORT, WEB_ORIGIN, APP_CONFIG_PATH) son para ejecución local.
       # Ruta de config DENTRO del contenedor (volumen persistente).
       APP_CONFIG_PATH: /data/selfpotify/config.yml
-      # H2 usa ruta absoluta al volumen para evitar AccessDeniedException en /app/data.
-      DB_URL: jdbc:h2:file:/data/selfpotify/db;AUTO_SERVER=TRUE
       # Puerto interno que espera nginx (web). No se publica al host: el backend
       # solo es accesible por la red interna del compose, vía nginx.
       SERVER_PORT: 8080
