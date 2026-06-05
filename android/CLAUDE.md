@@ -97,7 +97,7 @@ android/app/src/main/java/davila/anton/selfpotify/
 - La URL base se configura en tiempo de ejecución (el usuario introduce IP:puerto en la primera pantalla de configuración).
   Guárdala en `DataStore` y reconstruye el cliente Retrofit cuando cambie.
 - Autenticación JWT: el token se obtiene en `POST /api/auth/login` y se adjunta como `Authorization: Bearer <token>` en todas las peticiones mediante un `OkHttp Interceptor`.
-- Para el streaming de audio usa `Media3 ExoPlayer`; el endpoint acepta el token como query param `?token=<jwt>` (necesario porque ExoPlayer no manda headers en la petición inicial de datos).
+- Para el streaming de audio usa `Media3 ExoPlayer`. El endpoint de streaming **no** usa el JWT, sino un **stream token** de corta vida (ver §6 de `API-doc.md`): primero pide el token con `POST /api/listen/token` (con el JWT en `Authorization: Bearer`), que devuelve `{ "token": "<uuid>" }`, y luego pasa ese token como query param `?st=<streamToken>` en la URL de audio (`GET /api/listen/{songId}?st=<streamToken>`). Se hace así porque ExoPlayer no manda headers en la petición inicial de datos y no debe exponerse el JWT de sesión en la URL. El stream token es un UUID (no un JWT), no sirve para ningún otro endpoint, es reutilizable dentro de su TTL y expira a las 4 horas.
 - **Referencia de la API:** consulta siempre `API-doc.md` (raíz del monorepo) antes de hacer ninguna llamada o pregunta sobre endpoints. Si algo no cuadra o falta detalle, inspecciona directamente los controllers y DTOs en `src/main/java/` — nunca preguntes al usuario ni hagas suposiciones cuando la respuesta está en el código.
 
 ---
