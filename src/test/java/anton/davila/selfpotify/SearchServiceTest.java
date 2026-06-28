@@ -108,12 +108,15 @@ class SearchServiceTest {
         publicMix = playlist(200L, "Rock Mix", "best rock songs", true, otherUser, List.of(bohemian, stairway));
         privateMix = playlist(201L, "Mi secreta", null, false, otherUser, List.of(malamente));
 
-        when(songRepository.findAll()).thenReturn(List.of(malamente, bohemian, stairway));
-        when(artistRepository.findAll()).thenReturn(List.of(rosalia, queen));
-        when(albumRepository.findAll()).thenReturn(List.of(elMalQuerer, opera));
-        when(playlistRepository.findAll()).thenReturn(List.of(publicMix, privateMix));
-        when(userRepository.findAll()).thenReturn(List.of(user, otherUser));
-        when(songRepository.findDistinctGenres()).thenReturn(List.of("Flamenco Pop", "Rock"));
+        when(songRepository.findAllForSearch()).thenReturn(List.of(malamente, bohemian, stairway));
+        when(artistRepository.findAllForSearch()).thenReturn(List.of(rosalia, queen));
+        when(albumRepository.findAllForSearch()).thenReturn(List.of(elMalQuerer, opera));
+        when(playlistRepository.findAllForSearch()).thenReturn(List.of(publicMix, privateMix));
+        when(userRepository.findAllForSearch()).thenReturn(List.of(user, otherUser));
+        // El conteo de canciones por género se agrega ahora en SQL: cada fila es [genre, total].
+        when(songRepository.countSongsByGenre()).thenReturn(List.of(
+                new Object[]{"Flamenco Pop", 1L},
+                new Object[]{"Rock", 2L}));
 
         // Sin escuchas reales — el mapa vacío se traduce en listeners=0 sin N+1.
         when(songService.getListenCountsBySong()).thenReturn(new HashMap<>());
@@ -214,7 +217,7 @@ class SearchServiceTest {
         // Añadimos una canción cuyo título es exactamente "rock" para forzar
         // el caso de score=0 vs score=3 de las dos de Queen.
         Song exactRock = song(103L, "Rock", "Rock", List.of(queen), null);
-        when(songRepository.findAll()).thenReturn(List.of(malamente, bohemian, stairway, exactRock));
+        when(songRepository.findAllForSearch()).thenReturn(List.of(malamente, bohemian, stairway, exactRock));
 
         SearchResponseDTO res = searchService.search("rock", "songs", 0, 10, user);
         List<SongDTO> content = res.getSongs().getContent();
@@ -281,7 +284,7 @@ class SearchServiceTest {
         for (int i = 0; i < 5; i++) {
             many.add(song(500L + i, "alpha " + i, "Pop", List.of(rosalia), null));
         }
-        when(songRepository.findAll()).thenReturn(many);
+        when(songRepository.findAllForSearch()).thenReturn(many);
 
         SearchResponseDTO p0 = searchService.search("alpha", "songs", 0, 2, user);
         assertEquals(5, p0.getSongs().getTotalElements());

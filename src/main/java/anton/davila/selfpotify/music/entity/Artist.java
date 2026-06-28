@@ -3,6 +3,7 @@ package anton.davila.selfpotify.music.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.List;
 
@@ -29,8 +30,13 @@ public class Artist {
     private List<Album> albums;
     // un artista puede tener varias canciones. una cancion puede tener varios artistas
     // @JsonIgnore: evita la recursión infinita al serializar Song -> artists -> songs -> ...
+    // @BatchSize: la búsqueda carga los artistas con sus álbumes vía @EntityGraph,
+    // pero 'songs' no cabe en ese grafo (dos List/bag → MultipleBagFetchException);
+    // el lote agrupa el acceso lazy a las canciones de varios artistas en pocas
+    // consultas IN(...) en vez de una por artista.
     @JsonIgnore
     @ManyToMany(mappedBy = "artists")
+    @BatchSize(size = 100)
     private List<Song> songs;
 
     public void copy(Artist a) {
