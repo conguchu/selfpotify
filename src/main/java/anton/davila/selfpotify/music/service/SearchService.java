@@ -60,8 +60,12 @@ import java.util.stream.Collectors;
  * Es aceptable porque selfpotify es un servidor personal con catálogos
  * acotados; evita acoplarse a particularidades SQL (H2 / MariaDB no comparten
  * sintaxis para desdiacritizar) y mantiene una única fuente de verdad para la
- * normalización. Si en un futuro el catálogo crece, se puede sustituir por un
- * índice invertido sin cambiar el contrato del controlador.
+ * normalización. Para que "cargar a memoria" no degenere en un N+1 (una
+ * consulta por canción/álbum/etc. al navegar sus relaciones), cada categoría
+ * usa un {@code findAllForSearch} con {@link
+ * org.springframework.data.jpa.repository.EntityGraph} que resuelve esas
+ * asociaciones en bloque. Si en un futuro el catálogo crece, se puede sustituir
+ * por un índice invertido sin cambiar el contrato del controlador.
  */
 @Slf4j
 @Service
@@ -151,7 +155,7 @@ public class SearchService {
     private CategoryPage<SongDTO> searchSongs(String[] tokens, int page, int size) {
         Map<Long, Long> listenCounts = songService.getListenCountsBySong();
         List<Scored<Song>> matches = new ArrayList<>();
-        for (Song s : songRepository.findAll()) {
+        for (Song s : songRepository.findAllForSearch()) {
             String haystack = haystackOfSong(s);
             if (!matchesAll(haystack, tokens)) continue;
             int score = scoreField(s.getTitle(), tokens);
@@ -170,7 +174,7 @@ public class SearchService {
      */
     private CategoryPage<ArtistDTO> searchArtists(String[] tokens, int page, int size) {
         List<Scored<Artist>> matches = new ArrayList<>();
-        for (Artist a : artistRepository.findAll()) {
+        for (Artist a : artistRepository.findAllForSearch()) {
             String haystack = normalize(a.getName());
             if (!matchesAll(haystack, tokens)) continue;
             int score = scoreField(a.getName(), tokens);
@@ -190,7 +194,7 @@ public class SearchService {
      */
     private CategoryPage<AlbumDTO> searchAlbums(String[] tokens, int page, int size) {
         List<Scored<Album>> matches = new ArrayList<>();
-        for (Album a : albumRepository.findAll()) {
+        for (Album a : albumRepository.findAllForSearch()) {
             String haystack = haystackOfAlbum(a);
             if (!matchesAll(haystack, tokens)) continue;
             int score = scoreField(a.getName(), tokens);
@@ -211,7 +215,7 @@ public class SearchService {
     private CategoryPage<PlaylistDTO> searchPlaylists(String[] tokens, int page, int size, User currentUser) {
         Long currentUserId = currentUser == null ? null : currentUser.getId();
         List<Scored<Playlist>> matches = new ArrayList<>();
-        for (Playlist p : playlistRepository.findAll()) {
+        for (Playlist p : playlistRepository.findAllForSearch()) {
             boolean visible = p.isPublic()
                     || (currentUserId != null
                         && p.getCreator() != null
@@ -238,7 +242,7 @@ public class SearchService {
      */
     private CategoryPage<UserSummaryDTO> searchUsers(String[] tokens, int page, int size) {
         List<Scored<User>> matches = new ArrayList<>();
-        for (User u : userRepository.findAll()) {
+        for (User u : userRepository.findAllForSearch()) {
             String haystack = haystackOfUser(u);
             if (!matchesAll(haystack, tokens)) continue;
             int byUsername = scoreField(u.getUsername(), tokens);
@@ -255,20 +259,21 @@ public class SearchService {
     }
 
     /**
-     * Géneros: trabaja sobre los géneros distintos del catálogo. Cuenta cuántas
-     * canciones tiene cada uno con una única pasada. Empate por conteo desc.
+     * Géneros: trabaja sobre los géneros distintos del catálogo. El conteo de
+     * canciones por género se obtiene agregado en SQL ({@code group by genre}),
+     * sin cargar las entidades a memoria. Empate por conteo desc.
      */
     private CategoryPage<GenreResultDTO> searchGenres(String[] tokens, int page, int size) {
-        List<String> genres = songRepository.findDistinctGenres();
-        Map<String, Long> countByGenre = songRepository.findAll().stream()
-                .filter(s -> s.getGenre() != null && !s.getGenre().isBlank())
-                .collect(Collectors.groupingBy(Song::getGenre, Collectors.counting()));
+        Map<String, Long> countByGenre = new HashMap<>();
+        for (Object[] row : songRepository.countSongsByGenre()) {
+            countByGenre.put((String) row[0], (Long) row[1]);
+        }
 
         List<Scored<String>> matches = new ArrayList<>();
-        for (String g : genres) {
+        for (String g : countByGenre.keySet()) {
             if (!matchesAll(normalize(g), tokens)) continue;
             int score = scoreField(g, tokens);
-            long count = countByGenre.getOrDefault(g, 0L);
+            long count = countByGenre.get(g);
             matches.add(new Scored<>(g, score, count));
         }
         matches.sort(Comparator
