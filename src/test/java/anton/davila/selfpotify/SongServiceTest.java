@@ -8,6 +8,7 @@ import anton.davila.selfpotify.music.repository.SongRepository;
 import anton.davila.selfpotify.music.service.SongService;
 import anton.davila.selfpotify.music.service.external.CoverApiService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,13 +58,15 @@ public class SongServiceTest {
 
     @Test
     void testGetAll() {
-        when(songRepository.findAll()).thenReturn(Arrays.asList(songOriginal));
+        // getAll() usa findAllForSearch() (con @EntityGraph para traer artistas y
+        // álbum y evitar el N+1 al mapear a DTO); antes usaba findAll().
+        when(songRepository.findAllForSearch()).thenReturn(Arrays.asList(songOriginal));
 
         List<Song> songs = songService.getAll();
 
         assertFalse(songs.isEmpty());
         assertEquals(1, songs.size());
-        verify(songRepository, times(1)).findAll();
+        verify(songRepository, times(1)).findAllForSearch();
     }
 
     @Test
@@ -137,6 +140,9 @@ public class SongServiceTest {
 
 
     @Test
+    @Disabled("Prueba manual no portable: depende de una ruta personal hardcodeada "
+            + "(/Users/antondavila/Music) que no existe en CI ni en otros equipos, por lo "
+            + "que rompía el build en cualquier entorno distinto al del autor.")
     void testLoadFolderWithRealFiles() {
         // 1. CONFIGURACIÓN DE RUTA: Escribe aquí la ruta real de tu sistema
         // IMPORTANTE: Recuerda usar barras dobles (\\) en Windows o barra simple (/)

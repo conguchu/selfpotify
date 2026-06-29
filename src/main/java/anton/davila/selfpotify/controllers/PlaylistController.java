@@ -21,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
@@ -34,11 +35,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/playlists")
 @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+@Slf4j
 public class PlaylistController {
 
     @Autowired
@@ -58,8 +61,11 @@ public class PlaylistController {
     @GetMapping("/my")
     public List<PlaylistDTO> getMyPlaylists() {
         User currentUser = getCurrentUser();
-        return playlistService.getByUser(currentUser).stream()
-                .map(p -> convertToDTO(p, true))
+        List<Playlist> playlists = playlistService.getByUser(currentUser);
+        Map<Long, List<Long>> collaborators = playlistSharingService.collaboratorIdsByPlaylist(
+                playlists.stream().map(Playlist::getId).toList());
+        return playlists.stream()
+                .map(p -> convertToDTO(p, collaborators.getOrDefault(p.getId(), List.of())))
                 .collect(Collectors.toList());
     }
 
@@ -90,8 +96,11 @@ public class PlaylistController {
     @GetMapping("/shared")
     public List<PlaylistDTO> getSharedWithMe() {
         User currentUser = getCurrentUser();
-        return playlistSharingService.sharedWith(currentUser).stream()
-                .map(p -> convertToDTO(p, true))
+        List<Playlist> playlists = playlistSharingService.sharedWith(currentUser);
+        Map<Long, List<Long>> collaborators = playlistSharingService.collaboratorIdsByPlaylist(
+                playlists.stream().map(Playlist::getId).toList());
+        return playlists.stream()
+                .map(p -> convertToDTO(p, collaborators.getOrDefault(p.getId(), List.of())))
                 .collect(Collectors.toList());
     }
 
@@ -138,8 +147,7 @@ public class PlaylistController {
                             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
                     if (isAdmin || playlist.getCreator().getId().equals(currentUser.getId())) {
-                        playlistSharingService.deleteSharingData(playlist);
-                        playlistService.delete(id);
+                        playlistService.deleteWithSharing(id);
                         return ResponseEntity.noContent().<Void>build();
                     }
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).<Void>build();
@@ -208,7 +216,8 @@ public class PlaylistController {
 
                         return ResponseEntity.ok(convertToDTO(playlist));
                     } catch (IOException | NoSuchAlgorithmException e) {
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la imagen: " + e.getMessage());
+                        log.error("Error procesando la portada de la playlist {}", id, e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la imagen");
                     }
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -355,10 +364,29 @@ public class PlaylistController {
 
     /**
      * @param includeCollaborators si {@code true}, puebla {@code collaboratorIds}
-     *                             con una consulta extra. Se deja en {@code false}
-     *                             en endpoints de listado para evitar N+1.
+     *                             con una consulta extra. Úsese sólo para una única
+     *                             playlist (detalle); en listados pasar los
+     *                             colaboradores ya resueltos en batch (ver la
+     *                             sobrecarga con {@code List<Long>}) para evitar N+1.
      */
     private PlaylistDTO convertToDTO(Playlist playlist, boolean includeCollaborators) {
+        PlaylistDTO dto = baseDTO(playlist);
+        if (includeCollaborators) {
+            dto.setCollaboratorIds(playlistSharingService.collaboratorsOf(playlist).stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList()));
+        }
+        return dto;
+    }
+
+    /** Variante para listados: los colaboradores se pasan ya resueltos en batch. */
+    private PlaylistDTO convertToDTO(Playlist playlist, List<Long> collaboratorIds) {
+        PlaylistDTO dto = baseDTO(playlist);
+        dto.setCollaboratorIds(collaboratorIds);
+        return dto;
+    }
+
+    private PlaylistDTO baseDTO(Playlist playlist) {
         PlaylistDTO dto = new PlaylistDTO();
         dto.setId(playlist.getId());
         dto.setName(playlist.getName());
@@ -371,11 +399,6 @@ public class PlaylistController {
         dto.setSongIds(playlist.getSongs() == null
                 ? Collections.emptyList()
                 : playlist.getSongs().stream().map(Song::getId).collect(Collectors.toList()));
-        if (includeCollaborators) {
-            dto.setCollaboratorIds(playlistSharingService.collaboratorsOf(playlist).stream()
-                    .map(User::getId)
-                    .collect(Collectors.toList()));
-        }
         return dto;
     }
 }

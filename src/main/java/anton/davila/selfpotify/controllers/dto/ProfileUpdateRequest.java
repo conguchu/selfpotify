@@ -1,5 +1,6 @@
 package anton.davila.selfpotify.controllers.dto;
 
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -12,5 +13,6 @@ import lombok.Data;
  */
 @Data
 public class ProfileUpdateRequest {
+    @Size(max = 64)
     private String name;
 }

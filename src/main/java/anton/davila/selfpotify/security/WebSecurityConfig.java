@@ -19,7 +19,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import jakarta.servlet.DispatcherType;
+import anton.davila.selfpotify.config.AppProperties;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -27,6 +29,9 @@ import java.util.List;
 public class WebSecurityConfig {
     @Autowired
     UserDetailsServiceImpl userDetailsService;
+
+    @Autowired
+    AppProperties appProperties;
 
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
@@ -55,9 +60,16 @@ public class WebSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*"));
+        // Orígenes concretos desde app.web.origin (WEB_ORIGIN); admite varios
+        // separados por coma. No usamos "*": combinado con allowCredentials=true
+        // reflejaría cualquier origen, anulando la protección CORS.
+        List<String> origins = Arrays.stream(appProperties.getWeb().getOrigin().split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        cfg.setAllowedOrigins(origins);
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
-        cfg.setAllowedHeaders(List.of("*"));
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range"));
         cfg.setExposedHeaders(List.of("Content-Range", "Accept-Ranges", "Content-Length"));
         cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L);

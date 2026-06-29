@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.validation.Valid;
 import org.springframework.web.server.ResponseStatusException;
 
 import javax.imageio.ImageIO;
@@ -97,7 +98,7 @@ public class ProfileController {
      */
     @PutMapping("/api/me/profile")
     @Transactional
-    public UserSummaryDTO updateMyProfile(@RequestBody(required = false) ProfileUpdateRequest req) {
+    public UserSummaryDTO updateMyProfile(@Valid @RequestBody(required = false) ProfileUpdateRequest req) {
         User user = getCurrentUser();
         Profile profile = ensureProfile(user);
         if (req != null) {
@@ -172,7 +173,7 @@ public class ProfileController {
         } catch (IOException | NoSuchAlgorithmException e) {
             log.error("No se pudo procesar el avatar de {}", user.getUsername(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error al procesar la imagen: " + e.getMessage());
+                    .body("Error al procesar la imagen");
         }
     }
 
