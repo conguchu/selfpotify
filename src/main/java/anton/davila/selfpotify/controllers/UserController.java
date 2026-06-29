@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -56,7 +57,7 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
-    public ResponseEntity<?> createUser(@RequestBody SignupRequest signUpRequest) {
+    public ResponseEntity<?> createUser(@Valid @RequestBody SignupRequest signUpRequest) {
         if (userRepository.findByUsername(signUpRequest.getUsername()).isPresent()) {
             return ResponseEntity
                     .badRequest()

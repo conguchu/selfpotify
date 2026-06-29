@@ -2,6 +2,7 @@ package anton.davila.selfpotify.user.follow.repository;
 
 import anton.davila.selfpotify.user.entity.User;
 import anton.davila.selfpotify.user.follow.entity.UserFollow;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -28,9 +29,11 @@ public interface UserFollowRepository extends JpaRepository<UserFollow, Long> {
     long countByFollower_Id(Long followerId);
 
     /** Usuarios que siguen a {@code followedId}, más recientes primero. */
+    @EntityGraph(attributePaths = {"follower"})
     List<UserFollow> findByFollowed_IdOrderByCreatedAtDesc(Long followedId);
 
     /** Usuarios a los que sigue {@code followerId}, más recientes primero. */
+    @EntityGraph(attributePaths = {"followed"})
     List<UserFollow> findByFollower_IdOrderByCreatedAtDesc(Long followerId);
 
     // -----------------------------------------------------------------

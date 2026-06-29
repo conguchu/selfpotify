@@ -9,12 +9,21 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface UserSongListenRepository extends JpaRepository<UserSongListen, Long> {
 
     /** Número de escuchas almacenadas para un usuario. */
     long countByUser_Id(Long userId);
+
+    /**
+     * ¿El usuario ya registró una escucha de esta canción después de {@code threshold}?
+     * Base de la deduplicación: los reproductores emiten varias peticiones Range por
+     * una misma reproducción (probe de metadatos, re-buffering, replay) y no deben
+     * contar como escuchas distintas.
+     */
+    boolean existsByUser_IdAndSong_IdAndListenedAtAfter(Long userId, Long songId, Instant threshold);
 
     /** Escuchas de un usuario ordenadas de la más antigua a la más reciente. */
     List<UserSongListen> findByUser_IdOrderByListenedAtAsc(Long userId, Pageable pageable);

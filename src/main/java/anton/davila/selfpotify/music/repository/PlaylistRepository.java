@@ -9,6 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
+    // @EntityGraph: trae las canciones en la misma consulta. El listado /my mapea
+    // cada playlist a DTO leyendo getSongs(), que con LAZY producía un N+1.
+    @EntityGraph(attributePaths = {"songs"})
     List<Playlist> findByCreator(User creator);
     List<Playlist> findByCreatorAndIsPublicTrue(User creator);
     List<Playlist> findByIsPublicTrue();

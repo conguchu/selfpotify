@@ -14,8 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Gestiona la colaboración en playlists: generación y canje de magic links
@@ -101,6 +105,23 @@ public class PlaylistSharingService {
         return collaboratorRepository.findByPlaylist(playlist).stream()
                 .map(PlaylistCollaborator::getUser)
                 .toList();
+    }
+
+    /**
+     * Mapa {@code playlistId -> ids de colaboradores} para una colección de
+     * playlists, resuelto en una sola consulta. Evita el N+1 de los listados, que
+     * antes llamaban a {@link #collaboratorsOf(Playlist)} por cada playlist.
+     */
+    public Map<Long, List<Long>> collaboratorIdsByPlaylist(Collection<Long> playlistIds) {
+        if (playlistIds == null || playlistIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<Long>> result = new HashMap<>();
+        for (PlaylistCollaborator c : collaboratorRepository.findByPlaylist_IdIn(playlistIds)) {
+            result.computeIfAbsent(c.getPlaylist().getId(), k -> new ArrayList<>())
+                    .add(c.getUser().getId());
+        }
+        return result;
     }
 
     /** Playlists en las que {@code user} figura como colaborador (no creador). */

@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.validation.Valid;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
@@ -34,7 +35,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 @Slf4j
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/config")
 public class ConfigController {
@@ -131,7 +131,7 @@ public class ConfigController {
 
     @PostMapping("/scan-paths")
     @PreAuthorize("hasRole('ADMIN')")
-    public ServerConfigDTO addScanPath(@RequestBody ScanPathRequest req) {
+    public ServerConfigDTO addScanPath(@Valid @RequestBody ScanPathRequest req) {
         String raw = req == null ? null : req.getPath();
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo 'path' es obligatorio");
@@ -231,7 +231,7 @@ public class ConfigController {
 
     @PostMapping("/setup")
     @PreAuthorize("hasRole('ADMIN') or @setupGuard.inSetupMode()")
-    public ServerConfigDTO setup(@RequestBody SetupRequest req) {
+    public ServerConfigDTO setup(@Valid @RequestBody SetupRequest req) {
         if (configService.getConfig().getFeatures().isSetupComplete()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El servidor ya está configurado");
         }

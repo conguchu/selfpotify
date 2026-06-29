@@ -44,6 +44,10 @@ public class AppProperties {
     public static class Lastfm {
         private String apiKey = "";
         private String baseUrl = "https://ws.audioscrobbler.com/2.0/";
+        /** Timeout de conexión en ms para las llamadas a Last.fm (LASTFM_CONNECT_TIMEOUT_MS). */
+        private int connectTimeoutMs = 4000;
+        /** Timeout de lectura en ms para las llamadas a Last.fm (LASTFM_READ_TIMEOUT_MS). */
+        private int readTimeoutMs = 6000;
     }
 
     @Getter

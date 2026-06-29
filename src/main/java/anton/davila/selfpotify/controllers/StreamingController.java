@@ -18,6 +18,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -28,10 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@CrossOrigin(origins = "*", maxAge = 3600,
-        exposedHeaders = {"Content-Range", "Accept-Ranges", "Content-Length"})
 @RestController
 @RequestMapping("/api/listen")
+@Slf4j
 public class StreamingController {
 
     @Autowired
@@ -66,7 +66,7 @@ public class StreamingController {
 
     @GetMapping("{songId}")
     public ResponseEntity<StreamingResponseBody> stream(
-            @PathVariable String songId,
+            @PathVariable Long songId,
             @RequestParam(name = "st", required = false) String streamToken,
             @RequestHeader(value = "Range", required = false) String rangeHeader
     ) {
@@ -75,7 +75,7 @@ public class StreamingController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        Optional<Song> s = songService.getById(Long.parseLong(songId));
+        Optional<Song> s = songService.getById(songId);
 
         if (s.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -157,14 +157,19 @@ public class StreamingController {
                     .body(fullBody);
 
         } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Error al transmitir audio: " + e.getMessage(), e);
+            log.error("Error al transmitir la canción {}: {}", songId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error al procesar la solicitud");
         }
     }
 
     private void recordPlaybackListen(User currentUser, Song song) {
-        userService.registerGenreListen(currentUser.getId(), song.getGenre());
-        userSongListenService.recordListen(currentUser.getId(), song.getId());
+        // recordListen deduplica las múltiples peticiones Range de una misma
+        // reproducción; sólo si cuenta como escucha nueva registramos el género,
+        // para no sesgar las recomendaciones con reproducciones repetidas.
+        boolean nuevaEscucha = userSongListenService.recordListen(currentUser.getId(), song.getId());
+        if (nuevaEscucha) {
+            userService.registerGenreListen(currentUser.getId(), song.getGenre());
+        }
     }
 
     private String detectMimeType(Path file) {

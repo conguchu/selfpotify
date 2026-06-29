@@ -2,6 +2,7 @@ package anton.davila.selfpotify.music.service.external;
 
 import anton.davila.selfpotify.config.AppProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -24,7 +25,13 @@ public class LastFmService {
 
     public LastFmService(AppProperties appProperties) {
         this.appProperties = appProperties;
-        this.restTemplate = new RestTemplate();
+        AppProperties.Lastfm cfg = appProperties.getLastfm();
+        // RestTemplate con timeouts (mismo patrón que CoverArtService): sin ellos, un
+        // Last.fm lento o caído bloquea indefinidamente el hilo del escaneo.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(cfg.getConnectTimeoutMs());
+        factory.setReadTimeout(cfg.getReadTimeoutMs());
+        this.restTemplate = new RestTemplate(factory);
     }
 
     /**

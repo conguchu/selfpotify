@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 @Slf4j
@@ -24,6 +26,13 @@ public class UserSongListenService {
      * instalación—, igual que {@code MAX_GENEROS} en {@code UserFeed}.
      */
     private static final int MAX_ESCUCHAS = 1000;
+
+    /**
+     * Ventana de deduplicación: varias escuchas de la misma canción por el mismo
+     * usuario dentro de este margen cuentan como una sola reproducción. Cubre las
+     * múltiples peticiones Range que un reproductor emite por una misma escucha.
+     */
+    private static final Duration DEDUP_WINDOW = Duration.ofSeconds(30);
 
     @Autowired
     private UserSongListenRepository repository;
@@ -41,9 +50,20 @@ public class UserSongListenService {
      *
      * @param userId id del usuario que escucha
      * @param songId id de la canción escuchada
+     * @return {@code true} si se registró una escucha nueva; {@code false} si se
+     *         omitió por ser un duplicado dentro de {@link #DEDUP_WINDOW}
      */
     @Transactional
-    public void recordListen(long userId, long songId) {
+    public boolean recordListen(long userId, long songId) {
+        // Deduplicación por ventana temporal: una reproducción genera varias
+        // peticiones Range (bytes=0-) que antes registraban escuchas repetidas,
+        // inflando la popularidad y acelerando la rotación FIFO. Si ya hubo una
+        // escucha reciente de esta canción por este usuario, no la repetimos.
+        Instant threshold = Instant.now().minus(DEDUP_WINDOW);
+        if (repository.existsByUser_IdAndSong_IdAndListenedAtAfter(userId, songId, threshold)) {
+            return false;
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("No se encontró el usuario con ID " + userId));
         Song song = songRepository.findById(songId)
@@ -60,5 +80,6 @@ public class UserSongListenService {
             log.info("Usuario {}: descartadas {} escuchas antiguas (límite {})",
                     userId, sobran, MAX_ESCUCHAS);
         }
+        return true;
     }
 }

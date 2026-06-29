@@ -74,7 +74,10 @@ public class SongService {
     }
     public List<Song> getAll() {
         log.info("Recuperando todas las canciones de la base de datos");
-        List<Song> songs =  songRepository.findAll();
+        // findAllForSearch resuelve artistas y álbum en la misma consulta (@EntityGraph):
+        // el listado mapea cada canción a SongDTO, que toca getArtists()/getAlbum(), así
+        // que con findAll() (LAZY) se producía un N+1 (una consulta por canción).
+        List<Song> songs = songRepository.findAllForSearch();
         log.debug("Se han encontrado {} canciones", songs.size());
         return songs;
     }

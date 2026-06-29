@@ -19,6 +19,9 @@ public class PlaylistService {
     @Autowired
     private PlaylistRepository playlistRepository;
 
+    @Autowired
+    private PlaylistSharingService playlistSharingService;
+
     public Playlist add(Playlist p) {
         log.info("Añadiendo nueva playlist");
         return playlistRepository.save(p);
@@ -62,6 +65,22 @@ public class PlaylistService {
         log.warn("Eliminando playlist con ID: {}", id);
         Playlist playlist = playlistRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("No se encontró la playlist con ID " + id));
+        playlistRepository.delete(playlist);
+        return playlist;
+    }
+
+    /**
+     * Borra la playlist junto con sus datos de colaboración (colaboradores y share
+     * tokens) en una sola transacción. Antes el controlador hacía la limpieza y el
+     * borrado en dos transacciones separadas, así que un fallo en el segundo paso
+     * dejaba la compartición ya borrada y la playlist intacta (estado inconsistente).
+     */
+    @Transactional
+    public Playlist deleteWithSharing(long id) {
+        log.warn("Eliminando playlist con ID {} y sus datos de colaboración", id);
+        Playlist playlist = playlistRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se encontró la playlist con ID " + id));
+        playlistSharingService.deleteSharingData(playlist);
         playlistRepository.delete(playlist);
         return playlist;
     }
